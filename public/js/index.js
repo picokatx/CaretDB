@@ -40,6 +40,7 @@ var prev_sel_row = null
 
 var table_display = new Tabulator("#table-display", {
   paginationSize:25,  // set height of table (in CSS or here), this enables the Virtual DOM and improves render speed dramatically (can be any valid css height value)
+  paginationCounter:"rows",
   data: data[starter_table], //assign data to table
   layout: "fitColumns", //fit columns to width of table (optional)
   columns: data_cols[starter_table],
@@ -58,7 +59,8 @@ var table_info_display = new Tabulator("#table-info-display", {
 });
 
 var entry_info_display = new Tabulator("#entry-info-display", {
-  data: [{key: "columns", value: data_cols[starter_table].length}, {key: "entries", value: data[starter_table].length}],
+  placeholder:"Click on a row to view it!",
+  data: [],
   layout: "fitColumns",
   headerVisible:false,
   columns: [
@@ -66,6 +68,7 @@ var entry_info_display = new Tabulator("#entry-info-display", {
     { field: "value", title: "Value", resizable:false },
   ],
 });
+
 function getElementIndex(element) {
   var parent = element.parentNode;
   var children = Array.prototype.slice.call(parent.children);

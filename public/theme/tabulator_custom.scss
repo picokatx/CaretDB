@@ -118,6 +118,9 @@ $focus-ring-box-shadow: 0 0 $focus-ring-blur $focus-ring-width $focus-ring-color
       background-color: $rowBackgroundColor;
       font-size: 11px;
     }
+    .tabulator .tabulator-tableholder .tabulator-placeholder .tabulator-placeholder-contents {
+      color: $headerBackgroundColor;
+    }
     .tabulator .tabulator-cell[tabulator-field="value"] {
       color: $rowTextColor;
     }
@@ -147,6 +150,20 @@ $focus-ring-box-shadow: 0 0 $focus-ring-blur $focus-ring-width $focus-ring-color
     border-radius: 0px;
     font-size: 11px;
   }
+  .tabulator .tabulator-page-size{
+    background-color: $backgroundColor; /* Background color to match your theme */
+    color: $headerTextColor;
+    border: 1px solid $headerBackgroundColor; /* Input border */
+    border-radius: 8px;
+    transition-property: border-color;
+    transition-duration: 0.15s, 0.15s;
+    transition-timing-function: ease-in-out, ease-in-out;
+    transition-delay: 0s, 0s;
+    transition-behavior: normal, normal;
+  }
+  .tabulator .tabulator-page-size:focus {
+    border: 1px solid $headerTextColor; /* Input border */
+  }
   .tabulator .tabulator-header {
     background-color: $headerBackgroundColor;
     border-top: 1px solid $headerBackgroundColor;
@@ -161,9 +178,13 @@ $focus-ring-box-shadow: 0 0 $focus-ring-blur $focus-ring-width $focus-ring-color
     text-align: center;
   }
   .tabulator .tabulator-footer .tabulator-page {
+    border-radius: 6px;
     border: 0px solid #dee2e6;
+    background-color: $backgroundColor;
+    color: $headerTextColor;
   }
   .tabulator .tabulator-footer .tabulator-page[data-page="last"] {
+    border-radius: 6px;
     border: 0px solid #dee2e6;
   }
   .tabulator .tabulator-footer .tabulator-page.active {
@@ -190,12 +211,10 @@ $focus-ring-box-shadow: 0 0 $focus-ring-blur $focus-ring-width $focus-ring-color
   }
   .tabulator .tabulator-row.tabulator-row-odd.tabulator-expanded {
     background: linear-gradient(180deg, $rowSelectedBackground 0%, $rowAltBackgroundColor 70%); 
-    // background: linear-gradient(90deg, #2c3e50, #34495e);
     border-bottom: 1px solid #2a3a55;
   }
   .tabulator .tabulator-row.tabulator-row-even.tabulator-expanded {
     background: linear-gradient(180deg, $rowSelectedBackground 0%, $rowBackgroundColor 70%); 
-    // background: linear-gradient(90deg, #2c3e50, #34495e);
     border-bottom: 1px solid #2a3a55;
   }
   .tabulator .tabulator-cell {
