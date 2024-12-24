@@ -1,0 +1,158 @@
+//first define any variables you want to overrides
+$backgroundColor: #1a202c;
+$rowBackgroundColor: #1e283a; //change background color of table
+$rowAltBackgroundColor: #2a3a55; //change background color of table
+$rowTextColor: #ce9178; //change text color of table
+$headerTextColor: #84aedf;
+$headerBackgroundColor: #42586d;
+$rowHoverBackground: #3b5179;
+$sideBarTextColor: #A3593B;
+
+$focus-ring-width: 0rem;
+$focus-ring-opacity: 0;
+$focus-ring-color: rgba(0, 123, 255, 0);
+$focus-ring-blur: 0;
+$focus-ring-box-shadow: 0 0 $focus-ring-blur $focus-ring-width $focus-ring-color;
+
+//then import the core SCSS
+@import "https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_bootstrap5.min.css";
+
+.sidebar-container {
+  background-color: $backgroundColor;
+  border: 1px solid $headerBackgroundColor;
+}
+.sidebar-container-header {
+  font-size: 16px;
+  color: $sideBarTextColor;
+  text-align: bottom;
+  position: relative;
+}
+.border {
+  border-color: $headerBackgroundColor !important;
+}
+
+.focus-ring:focus {
+  box-shadow: $focus-ring-box-shadow;
+}
+.generic-label {
+  font-size: 14px;
+  color: $headerTextColor;
+  text-align: bottom;
+  position: relative;
+  top: -4px;
+  right: -10px;
+}
+// todo: add animation to move field label up on focus
+.custom-label {
+  position: absolute;
+  top: -8.5px;
+  left: 15px;
+  background-color: $backgroundColor; /* Dark background to match the input field */
+  padding: 0 5px;
+  font-size: 11px;
+  color: $headerBackgroundColor;
+  z-index: 4;
+  transition-property: top, color;
+  transition-duration: 0.15s, 0.15s;
+  transition-timing-function: ease-in-out, ease-in-out;
+  transition-delay: 0s, 0s;
+  transition-behavior: normal, normal;
+}
+.custom-input {
+  background-color: $backgroundColor; /* Background color to match your theme */
+  color: $headerTextColor;
+  border: 1.5px solid $headerBackgroundColor; /* Input border */
+  border-radius: 8px;
+  z-index: 3;
+  max-height: 30px;
+}
+.custom-form-select {
+  background-color: $backgroundColor; /* Background color to match your theme */
+  color: $headerTextColor;
+  border: 1.5px solid $headerBackgroundColor; /* Input border */
+  border-radius: 8px;
+}
+.form-select:focus + .custom-label {
+  top: calc(-8.5px - 2px);
+  color: $headerTextColor;
+}
+
+.custom-input:focus {
+  color: $headerTextColor;
+}
+.form-control:focus + .custom-label {
+  top: calc(-8.5px - 2px);
+  color: $headerTextColor;
+}
+#table-info-display-container {
+    .tabulator {
+      color: $headerTextColor;
+      background-color: $rowBackgroundColor;
+    }
+    .tabulator .tabulator-row {
+      border-bottom-width: 0px;
+    }
+    .tabulator .tabulator-row.tabulator-row-odd {
+      background-color: $backgroundColor;
+    }
+    .tabulator .tabulator-row.tabulator-row-even {
+      background-color: $backgroundColor;
+    }
+    .tabulator .tabulator-row.tabulator-selectable:hover {
+      background-color: $rowHoverBackground;
+    }
+}
+#table-display-container {
+  .tabulator {
+    color: $headerTextColor;
+    background-color: $rowBackgroundColor;
+    border-radius: 0px;
+  }
+  .tabulator .tabulator-header {
+    background-color: $headerBackgroundColor;
+    border-top: 1px solid $headerBackgroundColor;
+    border-bottom: 2px solid $headerBackgroundColor;
+  }
+  .tabulator .tabulator-footer {
+    background-color: $rowBackgroundColor;
+    border-top: 1px solid $headerBackgroundColor;
+  }
+  // I have no clue about the header design give me a bit
+  .tabulator .tabulator-footer .tabulator-paginator {
+    text-align: center;
+  }
+  .tabulator .tabulator-footer .tabulator-page {
+    border: 0px solid #dee2e6;
+  }
+  .tabulator .tabulator-footer .tabulator-page[data-page="last"] {
+    border: 0px solid #dee2e6;
+  }
+  .tabulator .tabulator-footer .tabulator-page.active {
+    background-color: $headerBackgroundColor;
+    color: $headerTextColor;
+  }
+  .tabulator .tabulator-footer .tabulator-page:not(.disabled):hover {
+    background: $rowHoverBackground;
+    color: $rowTextColor;
+  }
+
+  .tabulator .tabulator-col-sorter {
+    color: $rowTextColor;
+  }
+  .tabulator .tabulator-col-content {
+    background-color: $headerBackgroundColor;
+  }
+  .tabulator .tabulator-row.tabulator-selectable:hover {
+    background-color: $rowHoverBackground;
+  }
+  .tabulator .tabulator-row {
+    color: $rowTextColor;
+    border-bottom: 1px solid #2a3a55;
+  }
+  .tabulator .tabulator-row.tabulator-row-odd {
+    background-color: $rowAltBackgroundColor;
+  }
+  .tabulator .tabulator-row.tabulator-row-even {
+    background-color: $rowBackgroundColor;
+  }
+}
