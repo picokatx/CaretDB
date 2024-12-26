@@ -1,0 +1,244 @@
+//first define any variables you want to overrides
+$backgroundColor: #1a202c;
+$rowBackgroundColor: #1e283a; //change background color of table
+$rowAltBackgroundColor: #2a3a55; //change background color of table
+$rowTextColor: #ce9178; //change text color of table
+$headerTextColor: #84aedf;
+$headerBackgroundColor: #42586d;
+$rowHoverBackground: #3b5179;
+$sideBarTextColor: #A3593B;
+$rowSelectedBackground: #003355;
+$linkColor: #E1D885;
+
+$focus-ring-width: 0rem;
+$focus-ring-opacity: 0;
+$focus-ring-color: rgba(0, 123, 255, 0);
+$focus-ring-blur: 0;
+$focus-ring-box-shadow: 0 0 $focus-ring-blur $focus-ring-width $focus-ring-color;
+
+//then import the core SCSS
+@import "https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_bootstrap5.min.css";
+.navbar-button{
+  border-radius: 6px;
+  border: 0px solid #dee2e6;
+  background-color: $backgroundColor;
+  color: $linkColor;
+  font-size: 32px;
+  padding: 0px 16px;
+}
+
+.navbar-brand {
+  color: $linkColor;
+  font-family: sans-serif;
+}
+.sidebar-container {
+  background-color: $backgroundColor;
+  border: 1px solid $headerBackgroundColor;
+}
+.sidebar-container-header {
+  font-size: 13px;
+  color: $headerTextColor;
+  text-align: bottom;
+  position: relative;
+  font-weight: bold;
+  
+}
+.border {
+  border-color: $headerBackgroundColor !important;
+}
+
+.focus-ring:focus {
+  box-shadow: $focus-ring-box-shadow;
+}
+.generic-label {
+  font-size: 14px;
+  color: $headerTextColor;
+  text-align: bottom;
+  position: relative;
+  top: -4px;
+  right: -10px;
+}
+.custom-label {
+  position: absolute;
+  top: -8.5px;
+  left: 15px;
+  background-color: $backgroundColor; /* Dark background to match the input field */
+  padding: 0 5px;
+  font-size: 11px;
+  color: $headerBackgroundColor;
+  z-index: 4;
+  transition-property: top, color;
+  transition-duration: 0.15s, 0.15s;
+  transition-timing-function: ease-in-out, ease-in-out;
+  transition-delay: 0s, 0s;
+  transition-behavior: normal, normal;
+}
+.custom-input {
+  background-color: $backgroundColor; /* Background color to match your theme */
+  color: $headerTextColor;
+  border: 1px solid $headerBackgroundColor; /* Input border */
+  border-radius: 8px;
+  z-index: 3;
+  max-height: 30px;
+}
+.custom-form-select {
+  background-color: $backgroundColor; /* Background color to match your theme */
+  color: $headerTextColor;
+  border: 1px solid $headerBackgroundColor; /* Input border */
+  border-radius: 8px;
+  transition-property: border-color;
+  transition-duration: 0.15s, 0.15s;
+  transition-timing-function: ease-in-out, ease-in-out;
+  transition-delay: 0s, 0s;
+  transition-behavior: normal, normal;
+}
+.custom-form-select:focus {
+  border: 1px solid $headerTextColor; /* Input border */
+}
+.custom-form-select-label {
+  position: absolute;
+  top: -8.5px;
+  left: 70px;
+  background-color: $backgroundColor; /* Dark background to match the input field */
+  padding: 0 5px;
+  font-size: 11px;
+  color: $headerBackgroundColor;
+  z-index: 4;
+  transition-property: top, color;
+  transition-duration: 0.15s, 0.15s;
+  transition-timing-function: ease-in-out, ease-in-out;
+  transition-delay: 0s, 0s;
+  transition-behavior: normal, normal;
+}
+.custom-form-select:focus {
+  color: $headerTextColor;
+}
+.custom-form-select:focus + .custom-form-select-label {
+  top: calc(-8.5px - 2px);
+  color: $headerTextColor;
+}
+
+.custom-input:focus {
+  color: $headerTextColor;
+}
+.form-control:focus + .custom-label {
+  top: calc(-8.5px - 2px);
+  color: $headerTextColor;
+}
+.sidebar-table-display-container {
+    .tabulator {
+      color: $headerTextColor;
+      background-color: $rowBackgroundColor;
+      font-size: 11px;
+    }
+    .tabulator .tabulator-tableholder .tabulator-placeholder .tabulator-placeholder-contents {
+      color: $headerBackgroundColor;
+    }
+    .tabulator .tabulator-cell[tabulator-field="value"] {
+      color: $rowTextColor;
+    }
+    .tabulator .tabulator-row {
+      border-bottom-width: 0px;
+      margin: 0px;
+    }
+    .tabulator .tabulator-row.tabulator-row-odd {
+      background-color: $backgroundColor;
+    }
+    .tabulator .tabulator-row.tabulator-row-even {
+      background-color: $backgroundColor;
+    }
+    .tabulator .tabulator-row.tabulator-selectable:hover {
+      background-color: $rowHoverBackground;
+    }
+    .tabulator .tabulator-cell {
+      white-space: normal; // normal
+      word-wrap: break-word; // break-word
+      height: auto;
+    }
+}
+#table-display-container {
+  .tabulator {
+    color: $headerTextColor;
+    background-color: $rowBackgroundColor;
+    border-radius: 0px;
+    font-size: 11px;
+  }
+  .tabulator .tabulator-page-size{
+    background-color: $backgroundColor; /* Background color to match your theme */
+    color: $headerTextColor;
+    border: 1px solid $headerBackgroundColor; /* Input border */
+    border-radius: 8px;
+    transition-property: border-color;
+    transition-duration: 0.15s, 0.15s;
+    transition-timing-function: ease-in-out, ease-in-out;
+    transition-delay: 0s, 0s;
+    transition-behavior: normal, normal;
+  }
+  .tabulator .tabulator-page-size:focus {
+    border: 1px solid $headerTextColor; /* Input border */
+  }
+  .tabulator .tabulator-header {
+    background-color: $headerBackgroundColor;
+    border-top: 1px solid $headerBackgroundColor;
+    border-bottom: 2px solid $headerBackgroundColor;
+  }
+  .tabulator .tabulator-footer {
+    background-color: $rowBackgroundColor;
+    border-top: 1px solid $headerBackgroundColor;
+  }
+  // I have no clue about the header design give me a bit
+  .tabulator .tabulator-footer .tabulator-paginator {
+    text-align: center;
+  }
+  .tabulator .tabulator-footer .tabulator-page {
+    border-radius: 6px;
+    border: 0px solid #dee2e6;
+    background-color: $backgroundColor;
+    color: $headerTextColor;
+  }
+  .tabulator .tabulator-footer .tabulator-page[data-page="last"] {
+    border-radius: 6px;
+    border: 0px solid #dee2e6;
+  }
+  .tabulator .tabulator-footer .tabulator-page.active {
+    background-color: $headerBackgroundColor;
+    color: $headerTextColor;
+  }
+  .tabulator .tabulator-footer .tabulator-page:not(.disabled):hover {
+    background: $rowHoverBackground;
+    color: $rowTextColor;
+  }
+
+  .tabulator .tabulator-col-sorter {
+    color: $rowTextColor;
+  }
+  .tabulator .tabulator-col-content {
+    background-color: $headerBackgroundColor;
+  }
+  .tabulator .tabulator-row.tabulator-selectable:hover {
+    background-color: $rowHoverBackground;
+  }
+  .tabulator .tabulator-row {
+    color: $rowTextColor;
+    border-bottom: 1px solid #2a3a55;
+  }
+  .tabulator .tabulator-row.tabulator-row-odd.tabulator-expanded {
+    background: linear-gradient(180deg, $rowSelectedBackground 0%, $rowAltBackgroundColor 70%); 
+    border-bottom: 1px solid #2a3a55;
+  }
+  .tabulator .tabulator-row.tabulator-row-even.tabulator-expanded {
+    background: linear-gradient(180deg, $rowSelectedBackground 0%, $rowBackgroundColor 70%); 
+    border-bottom: 1px solid #2a3a55;
+  }
+  .tabulator .tabulator-cell {
+    white-space: nowrap; // normal
+    word-wrap: normal; // break-word
+    height: 100%;
+  }
+  .tabulator .tabulator-row.tabulator-row-odd {
+    background-color: $rowAltBackgroundColor;
+  }
+  .tabulator .tabulator-row.tabulator-row-even {
+    background-color: $rowBackgroundColor;
+  }
+}
