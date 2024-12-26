@@ -8,6 +8,7 @@ $headerBackgroundColor: #42586d;
 $rowHoverBackground: #3b5179;
 $sideBarTextColor: #A3593B;
 $rowSelectedBackground: #003355;
+$linkColor: #E1D885;
 
 $focus-ring-width: 0rem;
 $focus-ring-opacity: 0;
@@ -17,7 +18,19 @@ $focus-ring-box-shadow: 0 0 $focus-ring-blur $focus-ring-width $focus-ring-color
 
 //then import the core SCSS
 @import "https://unpkg.com/tabulator-tables@6.3.0/dist/css/tabulator_bootstrap5.min.css";
+.navbar-button{
+  border-radius: 6px;
+  border: 0px solid #dee2e6;
+  background-color: $backgroundColor;
+  color: $linkColor;
+  font-size: 32px;
+  padding: 0px 16px;
+}
 
+.navbar-brand {
+  color: $linkColor;
+  font-family: sans-serif;
+}
 .sidebar-container {
   background-color: $backgroundColor;
   border: 1px solid $headerBackgroundColor;
