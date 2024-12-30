@@ -6,5 +6,8 @@ export default defineNuxtConfig({
     transpile: [
       'ag-grid-vue',
     ]
-  }
+  },
+  modules: [
+    '@nuxtjs/eslint-module'
+  ]
 })
