@@ -1,9 +1,12 @@
 <template>
     <div style="height: 100%">
         <div style="height: 100%; box-sizing: border-box;">
-            <ag-grid-vue :rowData="rowData" :columnDefs="colDefs" :defaultColDef="defaultColDef" style="height: 500px"
-                :theme="theme" @grid-ready="onGridReady" :cellSelection=true>
-            </ag-grid-vue>
+            <ClientOnly>
+                <ag-grid-vue :rowData="rowData" :columnDefs="colDefs" :defaultColDef="defaultColDef" style="height: 500px"
+                    :theme="theme" @grid-ready="onGridReady" :cellSelection=true :pagination="true"
+                    :paginationPageSizeSelector="[10, 25, 50, 100]" :paginationPageSize="10">
+                </ag-grid-vue>
+            </ClientOnly>
         </div>
     </div>
 </template>

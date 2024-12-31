@@ -12,6 +12,7 @@
   "dependencies": {
     "ag-grid-enterprise": "^32.3.3",
     "ag-grid-vue3": "^32.3.3",
+    "nuxi": "^3.17.2",
     "nuxt": "^3.15.0",
     "typescript": "^5.7.2",
     "vue": "latest",
@@ -20,6 +21,7 @@
   "devDependencies": {
     "@nuxtjs/eslint-config-typescript": "^12.1.0",
     "@nuxtjs/eslint-module": "^4.1.0",
-    "eslint-plugin-vue": "^9.32.0"
+    "eslint-plugin-vue": "^9.32.0",
+    "sass": "^1.83.0"
   }
 }
