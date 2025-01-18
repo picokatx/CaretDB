@@ -220,15 +220,15 @@ $focus-ring-box-shadow: 0 0 $focus-ring-blur $focus-ring-width $focus-ring-color
   }
   .tabulator .tabulator-row {
     color: $rowTextColor;
-    border-bottom: 1px solid #2a3a55;
+    border-bottom: 1px solid $rowAltBackgroundColor;
   }
   .tabulator .tabulator-row.tabulator-row-odd.tabulator-expanded {
     background: linear-gradient(180deg, $rowSelectedBackground 0%, $rowAltBackgroundColor 70%); 
-    border-bottom: 1px solid #2a3a55;
+    border-bottom: 1px solid $rowAltBackgroundColor;
   }
   .tabulator .tabulator-row.tabulator-row-even.tabulator-expanded {
     background: linear-gradient(180deg, $rowSelectedBackground 0%, $rowBackgroundColor 70%); 
-    border-bottom: 1px solid #2a3a55;
+    border-bottom: 1px solid $rowAltBackgroundColor;
   }
   .tabulator .tabulator-cell {
     white-space: nowrap; // normal
