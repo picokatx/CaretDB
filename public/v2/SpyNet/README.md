@@ -1,75 +1,11 @@
-# Nuxt Minimal Starter
+# SpyNet
+- Database Management System for the WebLinx Project https://huggingface.co/datasets/McGill-NLP/WebLINX
+#### Assignment Requirements
+- WebLINX has opened new doorways when it comes to training on browsing data, allowing AI models to mimic human browsing. However, the data collected is still on a small scale and is fairly complex to handle. A database management system designed solely for gathering user browsing data can streamline the process of data collection and inference. Hence, the database is useful in real life context.
+- The data is suitable for storage in a relational database (see data table in website).
+#### Running the Website Locally
+- Make sure you have npm installed
+- Do npm install -g npx in this folder
+- Then npx serve app/public. 
+- opening index.html will not work because of CORS restrictions. 
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
-
-## Setup
-
-Make sure to install dependencies:
-
-```bash
-# npm
-npm install
-
-# pnpm
-pnpm install
-
-# yarn
-yarn install
-
-# bun
-bun install
-```
-
-## Development Server
-
-Start the development server on `http://localhost:3000`:
-
-```bash
-# npm
-npm run dev
-
-# pnpm
-pnpm dev
-
-# yarn
-yarn dev
-
-# bun
-bun run dev
-```
-
-## Production
-
-Build the application for production:
-
-```bash
-# npm
-npm run build
-
-# pnpm
-pnpm build
-
-# yarn
-yarn build
-
-# bun
-bun run build
-```
-
-Locally preview production build:
-
-```bash
-# npm
-npm run preview
-
-# pnpm
-pnpm preview
-
-# yarn
-yarn preview
-
-# bun
-bun run preview
-```
-
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.

@@ -1,0 +1,31 @@
+{
+    "multiCommand.commands": [
+        {
+            "command": "multiCommand.commentSection",
+            "sequence": [
+                "cursorEnd",
+                {
+                    "command": "type", // add 75 -'s'
+                    "args": {
+                        "text": "                                                                                                     "
+                    }
+                },
+                "cursorHomeSelect",
+                "cursorHomeSelect",
+                {
+                    "command": "editor.action.insertSnippet",
+                    "args": {
+                        "snippet": "${TM_SELECTED_TEXT/(.{106}).*/$1/g}",
+                    }
+                },
+                "cursorEnd",
+                {
+                    "command": "type",
+                    "args": {
+                        "text": "\\"
+                    }
+                }
+            ]
+        }
+    ]
+}
