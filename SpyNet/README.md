@@ -5,7 +5,7 @@
 - The data is suitable for storage in a relational database (see data table in website).
 #### Running the Website Locally
 - Make sure you have npm installed
-- Do npm install -g npx in this folder
-- Then npx serve app/public. 
-- opening index.html will not work because of CORS restrictions. 
-
+- Do `npm install -g npx` in this folder
+- Then `npx serve app/public`. 
+- NOTE: opening index.html will not work because of CORS restrictions. 
+- 
