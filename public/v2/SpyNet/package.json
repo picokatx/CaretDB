@@ -13,6 +13,7 @@
     "@nuxt/content": "^3.0.0",
     "@nuxtjs/mdc": "^0.13.1",
     "@primevue/themes": "^4.2.5",
+    "@sentry/nuxt": "^8.54.0",
     "@tsparticles/slim": "^3.7.1",
     "@tsparticles/vue3": "^3.0.1",
     "ag-grid-enterprise": "^32.3.3",
@@ -36,5 +37,8 @@
     "@types/aos": "^3.0.7",
     "eslint-plugin-vue": "^9.32.0",
     "sass": "^1.83.0"
+  },
+  "overrides": {
+    "@vercel/nft": "^0.27.4"
   }
 }

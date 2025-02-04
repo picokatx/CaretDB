@@ -48,21 +48,27 @@ export default defineNuxtConfig({
     '~/assets/scss/app.css',
     'aos/dist/aos.css'
   ],
+
   plugins: [
     { src: '~/plugins/aos.client.ts', mode: 'client' }
   ],
+
   compatibilityDate: '2024-11-01',
   devtools: { enabled: true },
+
   build: {
     transpile: [
       'ag-grid-vue',
     ]
   },
+
   modules: [
     '@nuxtjs/eslint-module',
     '@primevue/nuxt-module',
-    '@nuxtjs/mdc'
+    '@nuxtjs/mdc',
+    '@sentry/nuxt/module'
   ],
+
   primevue: {
     options: {
       ripple: true,
@@ -77,5 +83,16 @@ export default defineNuxtConfig({
         }
       }
     }
+  },
+
+  sentry: {
+    sourceMapsUploadOptions: {
+      org: 'pkcat',
+      project: 'javascript-nuxt'
+    }
+  },
+
+  sourcemap: {
+    client: 'hidden'
   }
 })
