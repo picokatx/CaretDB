@@ -18,8 +18,10 @@ jobs:
       - run: npm install
         working-directory: ./public/v2/SpyNet
       - name: Build Nuxt
-        run: NUXT_APP_BASE_URL=/SpyNet/ npx nuxt build --preset github_pages
+        run: NUXT_APP_BASE_URL=/SQLProject/ npx nuxt build --preset github_pages
         working-directory: ./public/v2/SpyNet
+      - name: List output directory (for debugging)
+        run: find ./public/v2/SpyNet/.output -type f | sort
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
