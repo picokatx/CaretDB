@@ -99,7 +99,7 @@ export default defineNuxtConfig({
       }
     }
   },
-
+  experimental: { appManifest: false },
   sourcemap: {
     client: 'hidden'
   },
