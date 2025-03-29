@@ -57,11 +57,11 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:
-          # Automatically inject router.base in your Nuxt configuration file and set
-          # target to static (https://nuxtjs.org/docs/configuration-glossary/configuration-target/).
-          #
-          # You may remove this line if you want to manage the configuration yourself.
+          # Automatically inject router.base in your Nuxt configuration file
           static_site_generator: nuxt
+          # Add this to explicitly set the base path for assets
+          generator_config_file: ${{ steps.detect-package-manager.outputs.working-directory }}/nuxt.config.js
+
       - name: Restore cache
         uses: actions/cache@v4
         with:
@@ -76,6 +76,9 @@ jobs:
         working-directory: ${{ steps.detect-package-manager.outputs.working-directory }}
       - name: Static HTML export with Nuxt
         run: ${{ steps.detect-package-manager.outputs.manager }} run generate
+        working-directory: ${{ steps.detect-package-manager.outputs.working-directory }}
+      - name: Add .nojekyll file
+        run: touch ./dist/.nojekyll
         working-directory: ${{ steps.detect-package-manager.outputs.working-directory }}
       - name: Fix CSS order in generated HTML
         run: |
