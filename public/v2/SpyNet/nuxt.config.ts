@@ -87,7 +87,8 @@ export default defineNuxtConfig({
         project: 'javascript-nuxt'
       },
       replaysSessionSampleRate: 0.1,
-      replaysOnErrorSampleRate: 1.0
+      replaysOnErrorSampleRate: 1.0,
+      telemetry: false // Add this line to disable telemetry
     }]
   ],
 
