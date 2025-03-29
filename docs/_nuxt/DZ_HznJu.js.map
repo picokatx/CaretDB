@@ -1,1 +1,0 @@
-{"version":3,"file":"DZ_HznJu.js","sources":["../../../../node_modules/@nuxtjs/mdc/dist/runtime/components/prose/ProseTd.vue"],"sourcesContent":["<template>\n  <td>\n    <slot />\n  </td>\n</template>\n"],"names":["_cache","_openBlock","_createElementBlock"],"mappings":"saAGOA,EAAA,QADKC,EAAA,EAAAC,EAAA,KAAA,KAAA","x_google_ignoreList":[0]}

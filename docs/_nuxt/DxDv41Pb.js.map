@@ -1,1 +1,0 @@
-{"version":3,"file":"DxDv41Pb.js","sources":["../../../../node_modules/@nuxtjs/mdc/dist/runtime/components/prose/ProseThead.vue"],"sourcesContent":["<template>\n  <thead>\n    <slot />\n  </thead>\n</template>\n"],"names":["_cache","_openBlock","_createElementBlock"],"mappings":"saAGUA,EAAA,QADEC,EAAA,EAAAC,EAAA,QAAA,KAAA","x_google_ignoreList":[0]}
