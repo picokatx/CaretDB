@@ -49,7 +49,11 @@ export default defineNuxtConfig({
     '~/assets/scss/app.css',
     'aos/dist/aos.css'
   ],
-
+  
+  app: {
+    baseURL: process.env.NUXT_APP_BASE_URL || '/SQLProject/',
+    buildAssetsDir: '/_nuxt/',
+  },
   plugins: [
     { src: '~/plugins/aos.client.ts', mode: 'client' }
   ],
