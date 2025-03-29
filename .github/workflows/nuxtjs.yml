@@ -18,7 +18,9 @@ jobs:
       - run: npm install
         working-directory: ./public/v2/SpyNet
       - name: Build Nuxt
-        run: NUXT_APP_BASE_URL=/SQLProject/ npx nuxt build --preset github_pages
+        env:
+          NUXT_APP_BASE_URL: /SQLProject/
+        run: npx nuxt build --preset github_pages
         working-directory: ./public/v2/SpyNet
       - name: List output directory (for debugging)
         run: find ./public/v2/SpyNet/.output -type f | sort
