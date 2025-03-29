@@ -5,7 +5,8 @@ import Nora from '@primevue/themes/nora';
 import Material from '@primevue/themes/material';
 import { definePreset } from '@primevue/themes';
 import Particles from "@tsparticles/vue3";
-// const app = createApp(App);
+import * as Sentry from "@sentry/nuxt";
+
 const MyPreset = definePreset(Material, {
   semantic: {
     // primary: {
@@ -66,7 +67,17 @@ export default defineNuxtConfig({
     '@nuxtjs/eslint-module',
     '@primevue/nuxt-module',
     '@nuxtjs/mdc',
-    '@sentry/nuxt/module'
+    ['@sentry/nuxt', {
+      integrations: {
+        replay: true
+      },
+      sourceMapsUploadOptions: {
+        org: 'pkcat',
+        project: 'javascript-nuxt'
+      },
+      replaysSessionSampleRate: 0.1,
+      replaysOnErrorSampleRate: 1.0
+    }]
   ],
 
   primevue: {
@@ -85,14 +96,7 @@ export default defineNuxtConfig({
     }
   },
 
-  sentry: {
-    sourceMapsUploadOptions: {
-      org: 'pkcat',
-      project: 'javascript-nuxt'
-    }
-  },
-
   sourcemap: {
     client: 'hidden'
-  }
+  },
 })
