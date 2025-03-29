@@ -50,6 +50,17 @@ export default defineNuxtConfig({
     'aos/dist/aos.css'
   ],
 
+  // This is critical for GitHub Pages deployment
+  app: {
+    baseURL: '/picokatx.github.io/', // replace with your repo name if different
+    buildAssetsDir: '/_nuxt/' // Default, but explicitly setting it
+  },
+  
+  // If you're using nitro, make sure to configure it as well
+  nitro: {
+    preset: 'github-pages'
+  },
+
   plugins: [
     { src: '~/plugins/aos.client.ts', mode: 'client' }
   ],
