@@ -54,6 +54,16 @@ export default defineNuxtConfig({
     baseURL: process.env.NUXT_APP_BASE_URL || '/SQLProject/',
     buildAssetsDir: '/_nuxt/',
   },
+  
+  // Enable route rules for static site generation
+  nitro: {
+    preset: 'github_pages',
+    // Make sure routes are properly generated
+    routeRules: {
+      '/**': { prerender: true }
+    }
+  },
+  
   plugins: [
     { src: '~/plugins/aos.client.ts', mode: 'client' }
   ],
@@ -99,7 +109,11 @@ export default defineNuxtConfig({
       }
     }
   },
-  experimental: { appManifest: false },
+  experimental: {
+    appManifest: false,
+    payloadExtraction: true,
+    renderJsonPayloads: true
+  },
   sourcemap: {
     client: 'hidden'
   },
