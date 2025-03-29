@@ -1,0 +1,1 @@
+{"version":3,"file":"BvZTRi4l.js","sources":["../../../mdc-configs.mjs"],"sourcesContent":["let configs\nexport function getMdcConfigs () {\nif (!configs) {\n  configs = Promise.all([\n  ])\n}\nreturn configs\n}"],"names":["configs","getMdcConfigs"],"mappings":"+UAAA,IAAIA,EACG,SAASC,GAAiB,CACjC,OAAKD,IACHA,EAAU,QAAQ,IAAI,CACrB,CAAA,GAEIA,CACP"}
