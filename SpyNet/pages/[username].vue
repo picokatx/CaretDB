@@ -11,13 +11,11 @@
 
 
 <script setup>
-import { ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { navigateTo, useRoute } from '#imports'
 
 const route = useRoute()
-const username = route.params.username || 'Guest'
-const displayDialog = ref(true)
-const closeDialog = () => {
-  displayDialog.value = false
+const username = route.params.username
+if (username) {
+  navigateTo({ path: '/', query: { username } })
 }
 </script>

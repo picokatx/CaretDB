@@ -24,7 +24,8 @@
       <template #title>Scalable Systems</template>
       <template #content>
         <p class="m-0">
-          With support for up to 240 yottabytes of data, 16 trillion tables and 32 million users, SpyNet will never constraint your ability to create.<br><br>- CEO, SpyNet Inc.
+          With support for up to 240 yottabytes of data, 16 trillion tables and 32 million users, SpyNet will never
+          constraint your ability to create.<br><br>- CEO, SpyNet Inc.
         </p>
       </template>
     </Card>
@@ -35,7 +36,8 @@
       <template #title>State-Of-The-Art Performance</template>
       <template #content>
         <p class="m-0">
-          Boasting 1.42 trillion transactions per second, SpyNet is always several years ahead of our competitors. We frequently communicate with our most loyal customers to ensure they get the best out of our infrastructure.
+          Boasting 1.42 trillion transactions per second, SpyNet is always several years ahead of our competitors. We
+          frequently communicate with our most loyal customers to ensure they get the best out of our infrastructure.
         </p>
       </template>
     </Card>
@@ -46,7 +48,8 @@
       <template #title>Always on the move</template>
       <template #content>
         <p class="m-0">
-          At SpyNet Incorporated, we hate stagnation. Our techonlogies are ever evolving, adapting the latest innovations in database management for your benefit.<br>- Public Relations Officer, SpyNet Inc.
+          At SpyNet Incorporated, we hate stagnation. Our techonlogies are ever evolving, adapting the latest
+          innovations in database management for your benefit.<br>- Public Relations Officer, SpyNet Inc.
         </p>
       </template>
     </Card>
@@ -92,6 +95,15 @@
       </p>
     </Panel>
   </div>
+
+  <Dialog :visible="displayDialog" header="customized greeting to your user based on the user's name input in the url" modal :closable="false">
+    <div class="p-d-flex p-jc-center p-ai-center">
+      <h3>Hello {{ username }}</h3>
+    </div>
+    <template #footer>
+      <Button label="Close" @click="closeDialog" />
+    </template>
+  </Dialog>
 </template>
 
 <style lang="scss">
@@ -127,6 +139,27 @@
   }
 }
 </style>
+
+<script setup>
+import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+const username = ref('')
+const displayDialog = ref(false)
+
+onMounted(() => {
+  if (route.query.username) {
+    username.value = route.query.username
+    displayDialog.value = true
+  }
+})
+
+const closeDialog = () => {
+  displayDialog.value = false
+}
+</script>
+
 
 <script>
 import Galleria from 'primevue/galleria';
