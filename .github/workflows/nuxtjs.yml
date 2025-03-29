@@ -77,6 +77,10 @@ jobs:
       - name: Static HTML export with Nuxt
         run: ${{ steps.detect-package-manager.outputs.manager }} run generate
         working-directory: ${{ steps.detect-package-manager.outputs.working-directory }}
+      - name: Fix CSS order in generated HTML
+        run: |
+          find ./dist -name "*.html" -exec sed -i 's/<\/body>/<style>[v-cloak]{display:none;}<\/style><\/body>/g' {} \;
+        working-directory: ${{ steps.detect-package-manager.outputs.working-directory }}
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
