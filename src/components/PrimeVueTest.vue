@@ -20,26 +20,51 @@
     <ProgressSpinner />
     <div class="mt-6 pt-4 border-t-1 border-gray-200">
       <h3 class="mb-3">Material Style Data Table</h3>
-      <ag-grid-vue :rowData="rowData" :columnDefs="colDefs" style="height: 500px">
+      <ag-grid-vue :columnDefs="colDefs" style="height: 500px" :theme="myTheme" :rowModelType="rowModelType"
+        :rowData="rowData" @grid-ready="onGridReady">
       </ag-grid-vue>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, type Ref } from 'vue';
+import { ref, shallowRef, type Ref } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { AgGridVue } from 'ag-grid-vue3';
+import { themeQuartz, colorSchemeDarkBlue, type GridReadyEvent, type IServerSideGetRowsRequest } from "ag-grid-enterprise";
 import {
   AllEnterpriseModule,
   ModuleRegistry,
   type IServerSideDatasource,
   type IServerSideGetRowsParams,
-  type LoadSuccessParams
+  type LoadSuccessParams,
+  type IDatasource,
+  type IGetRowsParams,
+  type RowModelType,
+  type GridApi
 } from 'ag-grid-enterprise';
-
 ModuleRegistry.registerModules([AllEnterpriseModule]);
 
+
+
+
+const myTheme = themeQuartz.withPart(colorSchemeDarkBlue).withParams({
+  spacing: 2,
+  wrapperBorderRadius: 0,
+  backgroundColor: '#1a202c',
+  foregroundColor: '#ce9178',
+  headerTextColor: '#84aedf',
+  headerBackgroundColor: '#42586d',
+  oddRowBackgroundColor: '#2a3a55',
+  headerColumnResizeHandleColor: '#84aedf',
+  // there's still other colors that need to be filled in
+});
+
+
+
+
+const gridApi = shallowRef<GridApi | null>(null);
+const rowModelType = ref<RowModelType>("serverSide");
 const rowData = ref([
   { fname: 'Jared', minit: 'D', lname: 'James', ssn: '111111100', bdate: '1966-10-10', address: '123 Peachtree, Atlanta, GA', sex: 'M', salary: 85120.00, superssn: '111111103', dno: 6 },
   { fname: 'Jon', minit: 'C', lname: 'Jones', ssn: '111111101', bdate: '1967-11-14', address: '111 Allgood, Atlanta, GA', sex: 'M', salary: 45120.00, superssn: '111111100', dno: 6 },
@@ -94,27 +119,70 @@ const colDefs = ref([
   { field: "superssn" },
   { field: "dno" }
 ]);
-// rowModelType="serverSide"
-// const datasource: IServerSideDatasource = {
-//   getRows(params: IServerSideGetRowsParams<any, any>) {
-//     fetch('./olympicWinners/', {
-//       method: 'post',
-//       body: JSON.stringify(params.request),
-//       headers: { 'Content-Type': 'application/json; charset=utf-8' }
-//     })
-//       .then(httpResponse => httpResponse.json())
-//       .then(response => {
-//         const loadSuccessParams: LoadSuccessParams = {
-//           rowData: response.rows,
-//           rowCount: response.lastRow
-//         }
-//         params.success(loadSuccessParams);
-//       })
-//       .catch(error => {
-//         params.fail();
-//       })
-//   }
-// };
+function createServerSideDatasource(server: any): IServerSideDatasource {
+  return {
+    getRows: (params) => {
+      console.log("[Datasource] - rows requested by grid: ", params.request);
+      // get data for request from our fake server
+      const response = server.getData(params.request);
+      // simulating real server call with a 500ms delay
+      setTimeout(() => {
+        if (response.success) {
+          // supply rows for requested block to grid
+          params.success({ rowData: response.rows });
+        } else {
+          params.fail();
+        }
+      }, 500);
+    },
+  };
+}
+function createFakeServer(allData: any[]) {
+  return {
+    getData: (request: IServerSideGetRowsRequest) => {
+      // in this simplified fake server all rows are contained in an array
+      console.log(allData);
+      const requestedRows = allData.slice(request.startRow, request.endRow);
+      return {
+        success: true,
+        rows: requestedRows,
+      };
+    },
+  };
+}
+const onGridReady = (params: GridReadyEvent) => {
+  gridApi.value = params.api;
+  fetch("./api/hello/")
+    .then((resp) => resp.json())
+    .then((data: any) => {
+      const fakeServer = createFakeServer(data.rows);
+      const datasource = createServerSideDatasource(fakeServer);
+      gridApi!.value!.setGridOption("serverSideDatasource", datasource);
+    }
+  );
+};
+
+
+const datasource: IDatasource = {
+  getRows(params: IGetRowsParams) {
+    fetch('./api/hello/', {
+      method: 'GET',
+      body: JSON.stringify(params.request),
+      headers: { 'Content-Type': 'application/json; charset=utf-8' }
+    })
+      .then(httpResponse => httpResponse.json())
+      .then(response => {
+        params.successCallback(response.rows, response.lastRow);
+      })
+      .catch(error => {
+        params.failCallback();
+      })
+  }
+};
+
+
+
+
 
 
 const toast = useToast();

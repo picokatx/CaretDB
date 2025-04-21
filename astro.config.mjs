@@ -11,5 +11,6 @@ export default defineConfig({
       jsx: true
     })
   ],
-  adapter: vercel()
+  adapter: vercel(),
+  output: 'server'
 });

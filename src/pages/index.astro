@@ -1,6 +1,10 @@
 ---
 import PrimeVueTest from '../components/PrimeVueTest.vue';
 import Head from '../components/Head.astro';
+import { GET } from './api/hello.ts'
+
+let response = await GET(Astro)
+const data = JSON.stringify(await response.json())
 ---
 
 <html lang="en">
@@ -12,6 +16,11 @@ import Head from '../components/Head.astro';
   </head>
   <body>
     <main>
+      <div>
+        <p>
+          {data}
+        </p>
+      </div>
       <PrimeVueTest client:load />
     </main>
   </body>
