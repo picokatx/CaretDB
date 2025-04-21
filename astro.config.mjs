@@ -1,12 +1,15 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
-
 import vue from '@astrojs/vue';
-
 import vercel from '@astrojs/vercel';
 
 // https://astro.build/config
 export default defineConfig({
-  integrations: [vue()],
+  integrations: [
+    vue({
+      appEntrypoint: '/src/lib/vue-app',
+      jsx: true
+    })
+  ],
   adapter: vercel()
 });
