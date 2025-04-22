@@ -1,0 +1,26 @@
+---
+import AppBarComponent from '../components/AppBarComponent.vue';
+import LoginComponent from '../components/LoginComponent.vue';
+import Head from '../components/Head.astro';
+import { getSession } from 'auth-astro/server';
+
+const session = await getSession(Astro.request);
+---
+
+<html lang="en">
+  <head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<meta name="generator" content={Astro.generator} />
+    <Head title="Test Page" global/>
+    <link rel="stylesheet" href="/styles/app.css">
+  </head>
+  <body>
+    <main>
+      <AppBarComponent client:load/>
+      <LoginComponent client:load/>
+    </main>
+    <p>Welcome {session?.user?.name}</p>
+    <p>Welcome {session?.user?.email}</p>
+  </body>
+</html>

@@ -1,6 +1,9 @@
 ---
+import AppBarComponent from '../components/AppBarComponent.vue';
+import DatabaseComponent from '../components/DatabaseComponent.vue';
 import Head from '../components/Head.astro';
-import "../styles/app.css";
+
+
 ---
 
 <html lang="en">
@@ -12,10 +15,8 @@ import "../styles/app.css";
   </head>
   <body>
     <main>
-      <button class="btn">Button</button>
-      <button class="btn btn-primary">One</button>
-      <button class="btn btn-secondary">Two</button>
-      <button class="btn btn-accent btn-outline">Three</button>
+      <AppBarComponent client:load/>
+      <DatabaseComponent client:load/>
     </main>
   </body>
 </html>

@@ -1,4 +1,7 @@
 <template>
+    <Textarea id="sql-query" placeholder="Enter SQL Query" class="w-full" v-model="sqlQuery" />
+    <Button id="run-query" label="Run Query" class="w-full" @click="onRunQuery" />
+
     <ag-grid-vue :columnDefs="colDefs" style="height: 500px" :theme="myTheme" rowModelType="serverSide"
       :defaultColDef="defaultColDef" :cellSelection=true :pagination="true"
       :paginationPageSizeSelector="[10, 25, 50, 100]" :paginationPageSize="50"
@@ -7,6 +10,7 @@
 </template>
 
 <script setup lang="ts">
+import Textarea from 'primevue/textarea';
 import { ref, shallowRef, type Ref } from 'vue';
 import { AgGridVue } from 'ag-grid-vue3';
 import { themeQuartz, colorSchemeDarkBlue, type GridReadyEvent, type IServerSideGetRowsRequest, type SizeColumnsToContentStrategy } from "ag-grid-enterprise";
@@ -26,6 +30,7 @@ ModuleRegistry.registerModules([AllEnterpriseModule]);
 
 var dataSource: IServerSideDatasource;
 var colDefs: ColDef[];
+const sqlQuery = ref("");
 
 const myTheme = themeQuartz.withPart(colorSchemeDarkBlue).withParams({
   spacing: 2,
@@ -69,23 +74,29 @@ function createServerSideDatasource(data: any[]): IServerSideDatasource {
 function createColDefs(data: any[]): ColDef[] {
   return Object.keys(data[0]).map(k => { return { field: k } })
 }
-const onGridReady = (params: GridReadyEvent) => {
-  gridApi.value = params.api;
-  fetch("./api/hello/", {
+function runQuery(query: string) {
+  fetch("./api/query_mysql", {
     method: "POST",
     headers: {
       'Accept': 'application/json',
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ a: 1, b: 'Textual content' })
+    body: JSON.stringify({ query: query})
   }).then((resp) => resp.json())
     .then((data: any) => {
+      console.log(data);
       dataSource = createServerSideDatasource(data.rows);
       const colDefs = createColDefs(data.rows);
       gridApi!.value!.setGridOption("serverSideDatasource", dataSource);
       gridApi!.value!.setGridOption("columnDefs", colDefs);
     }
     );
+}
+const onGridReady = (params: GridReadyEvent) => {
+  gridApi.value = params.api;
+  runQuery("SELECT * FROM project");
 };
-
+const onRunQuery = () => {
+  runQuery(sqlQuery.value);
+}
 </script>

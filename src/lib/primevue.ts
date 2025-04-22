@@ -8,7 +8,13 @@ import {
   DataTable,
   Column,
   ToastService,
-  ProgressSpinner
+  ProgressSpinner,
+  Toolbar,
+  Fieldset,
+  Divider,
+  Panel,
+  FloatLabel
+  
 } from 'primevue';
 
 import Nora from '@primeuix/themes/nora';
@@ -22,7 +28,12 @@ export const components = {
   Select,
   DataTable,
   Column,
-  ProgressSpinner
+  ProgressSpinner,
+  Toolbar,
+  Fieldset,
+  Divider,
+  Panel,
+  FloatLabel
 };
 
 export function configurePrimeVue(app: any) {
@@ -47,4 +58,10 @@ export function configurePrimeVue(app: any) {
   app.component('DataTable', DataTable);
   app.component('Column', Column);
   app.component('ProgressSpinner', ProgressSpinner);
+  app.component('Toolbar', Toolbar);
+  app.component('Fieldset', Fieldset);
+  app.component('Divider', Divider);
+  app.component('Panel', Panel);
+  app.component('FloatLabel', FloatLabel);
+  
 } 
