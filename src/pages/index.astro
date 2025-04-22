@@ -1,9 +1,12 @@
 ---
-import PrimeVueTest from '../components/PrimeVueTest.vue';
+import DataDisplay from '../components/DataDisplay.vue';
+import IndexComponent from '../components/IndexComponent.vue';
 import Head from '../components/Head.astro';
-import { GET } from './api/hello.ts'
+import { POST } from './api/hello.ts'
+import Button from 'primevue/button';
 
-let response = await GET(Astro)
+
+let response = await POST(Astro)
 const data = JSON.stringify(await response.json())
 ---
 
@@ -16,12 +19,7 @@ const data = JSON.stringify(await response.json())
   </head>
   <body>
     <main>
-      <div>
-        <p>
-          {data}
-        </p>
-      </div>
-      <PrimeVueTest client:load />
+      <IndexComponent client:load/>
     </main>
   </body>
 </html>
