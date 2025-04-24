@@ -38,14 +38,6 @@ export default defineConfig({
         } else {
           return null;
         }
-        // if (result.length==1 && result[0].password === credentials.password) {
-        //   const user: User = {
-        //     id: result[0].user_id,
-        //   }
-        //   return new Response(JSON.stringify(user));
-        // } else {
-        //   return new Response(JSON.stringify({error: "Invalid credentials"}), {status: 401});
-        // }
       }
     })
   ],

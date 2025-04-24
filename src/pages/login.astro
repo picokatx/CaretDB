@@ -1,26 +1,118 @@
 ---
-import AppBarComponent from '../components/AppBarComponent.vue';
-import LoginComponent from '../components/LoginComponent.vue';
-import Head from '../components/Head.astro';
-import { getSession } from 'auth-astro/server';
+import { getSession } from "auth-astro/server";
+import "../styles/app.css";
+
 
 const session = await getSession(Astro.request);
+
+// Simple check if there's an error query param (e.g., from failed login)
+const error = Astro.url.searchParams.get("error");
+
+// Fetch CSRF token server-side
+let csrfToken = null;
+try {
+	// Construct the full URL for the fetch request
+	const csrfUrl = new URL("/api/auth/csrf", Astro.url.origin);
+	const csrfResponse = await fetch(csrfUrl.toString(), {
+		headers: {
+			// Forward cookies from the incoming request
+			'cookie': Astro.request.headers.get('cookie') ?? ''
+		}
+	});
+	if (csrfResponse.ok) {
+		const csrfData = await csrfResponse.json();
+		csrfToken = csrfData.csrfToken;
+	}
+} catch (e) {
+	console.error("Failed to fetch CSRF token:", e);
+}
 ---
 
-<html lang="en">
-  <head>
-	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<meta name="generator" content={Astro.generator} />
-    <Head title="Test Page" global/>
-    <link rel="stylesheet" href="/styles/app.css">
-  </head>
-  <body>
-    <main>
-      <AppBarComponent client:load/>
-      <LoginComponent client:load/>
-    </main>
-    <p>Welcome {session?.user?.name}</p>
-    <p>Welcome {session?.user?.email}</p>
-  </body>
+<html lang="en" data-theme="cupcake">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Login</title>
+		<style is:global>
+			body {
+				min-height: 100vh;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				background-color: hsl(var(--b2));
+			}
+		</style>
+	</head>
+	<body>
+		{session ? (
+			<div class="card w-96 bg-base-100 shadow-xl text-center">
+				<div class="card-body">
+					<h2 class="card-title block">Welcome Back!</h2>
+					<p>Welcome, {session.user?.name ?? session.user?.email}!</p>
+					<div class="card-actions justify-center mt-4">
+						<button id="logout" class="btn btn-primary">Logout</button>
+					</div>
+					<details class="text-left mt-4 collapse collapse-arrow border border-base-300 bg-base-200">
+						<summary class="collapse-title text-sm font-medium">Session Details</summary>
+						<div class="collapse-content">
+							<pre class="text-xs whitespace-pre-wrap break-all">{JSON.stringify(session, null, 2)}</pre>
+						</div>
+					</details>
+				</div>
+			</div>
+		) : (
+			<div class="card w-96 bg-base-100 shadow-xl">
+				<div class="card-body">
+					<h1 class="card-title text-2xl mb-4">Login</h1>
+
+					{error && <p class="text-error text-sm mb-4">Login failed. Please check your credentials.</p>}
+
+					<form id="login-form" method="POST" action="/api/auth/callback/credentials">
+						<input type="hidden" name="csrfToken" value={csrfToken ?? ''} />
+
+						<div class="form-control w-full max-w-xs">
+							<label class="label" for="email">
+								<span class="label-text">Email</span>
+							</label>
+							<input type="email" id="email" name="email" value="aliceandbob@gmail.com" required class="input input-bordered w-full max-w-xs" />
+						</div>
+
+						<div class="form-control w-full max-w-xs mt-2">
+							<label class="label" for="password">
+								<span class="label-text">Password</span>
+							</label>
+							<input type="password" id="password" name="password" value="qwertyuiop" required class="input input-bordered w-full max-w-xs" />
+						</div>
+
+						<div class="form-control mt-4">
+							<label class="label cursor-pointer justify-start gap-2">
+								<input type="checkbox" name="rememberMe" class="checkbox checkbox-sm" />
+								<span class="label-text">Remember me</span>
+							</label>
+						</div>
+
+						<div class="form-control mt-6">
+							<button type="submit" class="btn btn-primary">Login</button>
+						</div>
+					</form>
+
+					<div class="text-center text-sm mt-4">
+						Don't have an account? <a href="/register" class="link link-primary link-hover">Register</a>
+					</div>
+
+				</div>
+			</div>
+		)}
+
+		<script>
+			const { signOut } = await import("auth-astro/client");
+
+			const logoutButton = document.getElementById("logout");
+			if (logoutButton) {
+				logoutButton.onclick = () => signOut();
+			}
+		</script>
+	</body>
 </html>

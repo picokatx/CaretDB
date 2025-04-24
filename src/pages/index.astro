@@ -1,21 +1,126 @@
 ---
 import Head from '../components/Head.astro';
 import "../styles/app.css";
+
+// Placeholder for system name - replace 'ClickstreamDB' with your actual name
+const systemName = "ClickstreamDB";
 ---
 
-<html lang="en">
+<html lang="en" data-theme="synthwave"> // Assuming synthwave theme from app.css
   <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<meta name="generator" content={Astro.generator} />
-    <Head title="Test Page" />
+    <Head title=`${systemName} - Low-Level User Behavior Analysis` />
   </head>
-  <body>
-    <main>
-      <button class="btn">Button</button>
-      <button class="btn btn-primary">One</button>
-      <button class="btn btn-secondary">Two</button>
-      <button class="btn btn-accent btn-outline">Three</button>
+  <body class="bg-base-100 text-base-content">
+    <main class="container mx-auto px-4 py-8">
+
+      <!-- Hero Section -->
+      <div class="hero min-h-[60vh] bg-base-200 rounded-box mb-12">
+        <div class="hero-content text-center">
+          <div class="max-w-md">
+            <h1 class="text-5xl font-bold text-primary">{systemName}</h1>
+            <p class="py-6 text-xl">Unlock deep insights into web behavior by analyzing user interaction at the core level. Go beyond high-level summaries with our RDBMS designed for granular clickstream data.</p>
+            <button class="btn btn-primary mr-2">Get Started</button>
+            <button class="btn btn-outline">Learn More</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Problem/Solution -->
+      <section class="mb-12">
+        <h2 class="text-3xl font-bold text-center mb-6">Beyond Surface-Level Analytics</h2>
+        <div class="grid md:grid-cols-2 gap-8 items-center">
+          <div>
+            <h3 class="text-2xl font-semibold mb-3">The Challenge with High-Level Views</h3>
+            <p class="mb-2">Tools like Sentry are vital for debugging but focus on modelled interactions. They can miss nuances, struggle with custom UI elements, and don't always capture the fundamental patterns of user input.</p>
+            <p>Handling raw browsing data like WebLINX datasets is powerful but complex and requires significant wrangling before analysis.</p>
+          </div>
+          <div class="bg-base-200 p-6 rounded-box">
+            <h3 class="text-2xl font-semibold mb-3 text-primary">Our Solution: Granular & Structured Data</h3>
+            <p class="mb-2">{systemName} bridges the gap. We record low-level user inputs (clicks, mouse movements, scrolls, keystrokes) consistently, regardless of frontend implementation.</p>
+            <p>This data is stored in a structured relational database, making complex queries, filtering, and analysis straightforward.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Features/Benefits -->
+      <section class="mb-12">
+        <h2 class="text-3xl font-bold text-center mb-8">Why {systemName}?</h2>
+        <div class="grid md:grid-cols-3 gap-6">
+          <div class="card bg-base-200 shadow-xl">
+            <div class="card-body">
+              <h3 class="card-title">Low-Level Recording</h3>
+              <p>Capture the fundamental building blocks of user interaction – clicks, drags, scrolls – independent of specific HTML structures.</p>
+            </div>
+          </div>
+          <div class="card bg-base-200 shadow-xl">
+            <div class="card-body">
+              <h3 class="card-title">Relational & Queryable</h3>
+              <p>Leverage the power of SQL and RDBMS for complex joins and efficient data retrieval. Consistent schema for longitudinal studies.</p>
+            </div>
+          </div>
+          <div class="card bg-base-200 shadow-xl">
+            <div class="card-body">
+              <h3 class="card-title">Streamlined Research</h3>
+              <p>Focus on deriving insights, not parsing raw logs. Easily filter and aggregate data for web analytics and clickstream analysis.</p>
+            </div>
+          </div>
+          <div class="card bg-base-200 shadow-xl">
+            <div class="card-body">
+              <h3 class="card-title">Deep UX Insights</h3>
+              <p>Understand how low-level design system choices (colors, typography, component structure) impact user behavior at a granular level.</p>
+            </div>
+          </div>
+          <div class="card bg-base-200 shadow-xl">
+            <div class="card-body">
+              <h3 class="card-title">ML-Ready Data</h3>
+              <p>Provides a clean, structured format ideal for training machine learning models on user interaction patterns.</p>
+            </div>
+          </div>
+          <div class="card bg-base-200 shadow-xl">
+            <div class="card-body">
+              <h3 class="card-title">Vertical Scalability</h3>
+              <p>Optimized for researcher workflows, scaling effectively by adding server resources as needed.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Target Audience -->
+      <section class="mb-12 bg-base-300 p-8 rounded-box">
+        <h2 class="text-3xl font-bold text-center mb-6">Built for Researchers</h2>
+        <div class="grid md:grid-cols-3 gap-6 text-center">
+          <div>
+            <h3 class="text-xl font-semibold mb-2">Data Scientists</h3>
+            <p>Easily observe patterns in low-level inputs and construct complex queries without needing to first interpret high-level request meanings.</p>
+          </div>
+          <div>
+            <h3 class="text-xl font-semibold mb-2">UX Researchers</h3>
+            <p>Analyze the impact of design tokens and UI changes on fundamental user interactions with precision.</p>
+          </div>
+          <div>
+            <h3 class="text-xl font-semibold mb-2">Machine Learning Engineers</h3>
+            <p>Access easily ingestible, structured data for training models that understand or mimic user browsing behavior.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Call to Action -->
+      <section class="text-center">
+        <h2 class="text-3xl font-bold mb-4">Ready to Dive Deeper?</h2>
+        <p class="mb-6 text-lg">Explore the potential of low-level user behavior analysis.</p>
+        <button class="btn btn-primary btn-lg">Explore Documentation</button>
+      </section>
+
     </main>
+
+    <footer class="footer footer-center p-4 bg-base-300 text-base-content mt-12">
+      <aside>
+        <p>Copyright © {new Date().getFullYear()} - All right reserved by {systemName} Team</p>
+      </aside>
+    </footer>
+
   </body>
 </html>
