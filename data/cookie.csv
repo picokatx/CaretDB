@@ -1,0 +1,17 @@
+ab_test,77e96e6578776221f909428797758852278b3d0aa8e009583fd6c1e65023e42c,/account,True,True,2228,2025-06-05 10:08:31,api010.testorg.com,variant_B,None,2025-03-31 07:37:31
+gdpr_consent,0f491149ae95d59e6ada1e71dbf8bbdfaf2057dcd22244bf48394b817bd504bf,/products,False,False,2607,2025-09-18 10:08:31,api014.testorg.com,{"necessary": true\,"analytics": false},Lax,2025-03-31 04:35:31
+session_id,09e9fc3cd956ec93874200929558c90f27db93e91e85061a4974b6a03edda537,/,True,False,933,2025-11-11 10:08:31,api002.testorg.com,7832081d-df61-494b-959b-7af7675af122,Lax,2025-03-31 00:38:31
+auth_token,a2d0e539e8faebd8432af14a40971cede4c2169d1473feace956648a9eb5d96f,/,False,True,1869,2025-05-02 10:08:31,api016.testorg.com,eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.29bf2e9c-aeb8-4f94-874f-2ae2f5b7fd13,Lax,2025-03-30 19:47:31
+theme,d978c21bb761deda6e2034860510bcdf0e729ccb1b63a252b64418f2b3910172,/products,False,False,3318,2025-05-01 10:08:31,www.example.net,system,Strict,2025-03-31 01:27:31
+user_prefs,4f91e1800ed5713b61f321141db2089ef7512cbc6beb68d152d97242e3162d8c,/cart,True,False,908,2025-12-17 10:08:31,www.example.net,{"theme": "light"\,"fontSize": 18},Lax,2025-03-30 16:57:31
+cart_items,d2c0cc581433237b3ad80ce33a4dd7c7e3794988c8da8a26413c3cd283c39849,/products,True,False,1197,2025-07-13 10:08:31,api016.testorg.com,["674c208a-7d62-40e2-9b8d-5db75654f5e8"\,"360f4423-1b76-4707-b065-0f453a4872cd"],None,2025-03-31 00:33:31
+user_prefs,bd746a7f72e48c688cd219518c3fb074765df24d907b6c225519c0ca703f13db,/account,False,True,1495,2025-12-12 10:08:31,www.testorg.com,{"theme": "light"\,"fontSize": 13},None,2025-03-30 21:54:31
+language,b1f99cfc70ecf663952bd7b41eccddc368f3d94b330ca891252a9f7a51ddd85f,/products,True,True,3665,2025-10-07 10:08:31,www.example.net,fr,Strict,2025-03-31 09:31:31
+ab_test,bfe06323c194fb42b4aff9d0545e4767ee45dd1136effbd3c62fdc97a684ff1c,/,True,True,3008,2026-02-16 10:08:31,www.example.net,variant_B,Lax,2025-03-30 23:33:31
+cart_items,1ac2b03e22df6f07376b193fc0e66980a07f6b39541224adae3ea219841f0fb1,/products,False,False,2454,2025-04-13 10:08:31,client015.example.net,["a0d070e8-6b93-4d11-86e1-f1c031389b76"\,"c2e50ea5-9509-4fcb-994a-80e0e818ca3f"\,"932fbdf8-40dc-4b46-8d94-57800c69cac4"\,"5e9c2827-6c34-410e-b60b-7121f4765549"],None,2025-03-31 00:52:31
+cart_items,db0d022a272b69720e1799664a05c45df4de7b85f2461d8d17ce10e712724ccf,/cart,True,True,2605,2025-12-23 10:08:31,www.testorg.com,["9ba9b46f-292b-4bc6-8f3d-ff42224375f8"\,"effdacec-94a6-485a-8737-29fb46d0abac"\,"7267ceed-d3fe-4f70-990b-c255147249dc"\,"4ce226dc-656a-4952-9cf3-536f9c619385"\,"79e9dc12-411e-43fb-86a3-1627d1c93dff"],Lax,2025-03-31 09:37:31
+theme,b1f99cfc70ecf663952bd7b41eccddc368f3d94b330ca891252a9f7a51ddd85f,/account,False,True,1944,2025-12-08 10:08:31,www.example.net,system,Lax,2025-03-31 00:16:31
+tracking_id,05157bf78fcc164f12b663ad20d3363e79a1ecb11b1171345b4da1248f399edd,/cart,False,True,1060,2025-11-01 10:08:31,www.test.org,UA-4400425-5,None,2025-03-31 00:31:31
+tracking_id,d2c0cc581433237b3ad80ce33a4dd7c7e3794988c8da8a26413c3cd283c39849,/products,True,False,2709,2025-06-21 10:08:31,www.example.net,UA-9871019-9,Strict,2025-03-30 20:02:31
+last_visit,ab48d0fc094fd55d1dd5b623277616bfdd6cda3327436f2a08a19a56dd247c35,/products,False,True,2413,2025-12-13 10:08:31,api008.testorg.com,2025-03-31T10:08:31Z,Lax,2025-03-31 00:34:31
+gdpr_consent,77e96e6578776221f909428797758852278b3d0aa8e009583fd6c1e65023e42c,/account,True,True,2440,2025-04-16 10:08:31,client001.example.net,{"necessary": true\,"analytics": false},Strict,2025-03-31 09:11:31
