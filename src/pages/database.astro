@@ -1,22 +1,106 @@
 ---
-import AppBarComponent from '../components/AppBarComponent.vue';
-import DatabaseComponent from '../components/DatabaseComponent.vue';
 import Head from '../components/Head.astro';
+import "../styles/app.css";
+import {
+  AllEnterpriseModule,
+  ModuleRegistry,
+  type IServerSideDatasource,
+  type IServerSideGetRowsParams,
+  type LoadSuccessParams,
+  type IDatasource,
+  type IGetRowsParams,
+  type RowModelType,
+  type GridApi,
+  type ColDef
+} from 'ag-grid-enterprise';
+ModuleRegistry.registerModules([AllEnterpriseModule]);
+import { createGrid } from 'ag-grid-community';
 
-
+const commandItems = [
+    { name: 'SQL Query', code: 'taiga.command.sql_query' },
+    { name: 'Search Text', code: 'taiga.command.search_text' }
+];
 ---
 
-<html lang="en">
+<html lang="en" data-theme="cupcake">
   <head>
-	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<meta name="generator" content={Astro.generator} />
-    <Head title="Test Page" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+    <Head title="Database View" /> {/* Updated Title */}
+    <style>
+      body {
+        min-height: 100vh;
+      }
+      main {
+        padding: 1rem;
+      }
+      .table-compact th, .table-compact td {
+         font-size: 0.8rem; /* Adjust size for compact tables */
+         padding: 0.3rem 0.5rem;
+      }
+    </style>
   </head>
   <body>
-    <main>
-      <AppBarComponent client:load/>
-      <DatabaseComponent client:load/>
+    <main class="flex flex-col lg:flex-row gap-4 p-4"> 
+      <div class="card bg-base-100 shadow-xl lg:max-w-xs flex-shrink-0">
+        <div class="card-body p-4">
+          <h2 class="card-title text-lg mb-3">Table Controls</h2>
+          <div class="form-control w-full mb-2">
+            <select id="command-dropdown" class="select select-bordered select-sm">
+              <option disabled selected>Run Command</option>
+              {commandItems.map(item => <option value={item.code}>{item.name}</option>)}
+            </select>
+            <button class="btn btn-sm btn-outline mt-1" onclick="alert('Command logic requires client-side JS')">Run Selected</button>
+             <button class="btn btn-sm btn-secondary mt-1" onclick="document.getElementById('sql_query_modal').showModal()">SQL Query</button>
+             <button class="btn btn-sm btn-secondary mt-1" onclick="document.getElementById('search_text_modal').showModal()">Search Text</button>
+          </div>
+
+          <div class="divider my-1"></div>
+
+          {/* Fieldset: Table Info */}
+          <div class="border border-base-300 rounded-md p-2 mb-2">
+            <h3 class="font-semibold text-sm mb-1">Table Info</h3>
+            <div class="overflow-x-auto">
+              <table class="table table-zebra table-compact w-full">
+                <thead>
+                  <tr><th>Key</th><th>Value</th></tr>
+                </thead>
+                <tbody>
+                  {[{key: "key", value: "value"}].map(row => <tr><td>{row.key}</td><td>{row.value}</td></tr>)}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Fieldset: Element Info */}
+           <div class="border border-base-300 rounded-md p-2">
+            <h3 class="font-semibold text-sm mb-1">Element Info</h3>
+             <div class="overflow-x-auto">
+              <table class="table table-zebra table-compact w-full">
+                <thead>
+                   <tr><th>Key</th><th>Value</th></tr>
+                </thead>
+                <tbody>
+                  {[{key: "key", value: "value"}].map(row => <tr><td>{row.key}</td><td>{row.value}</td></tr>)}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="divider lg:divider-horizontal"></div>
+
+      <div class="flex-grow card bg-base-100 shadow-xl">
+         <div class="card-body p-4">
+            <h2 class="card-title text-lg mb-3">Data Table</h2>
+             <div class="border border-dashed border-base-300 rounded-md min-h-96 flex items-center justify-center text-base-content/50">
+                <div id="myGrid" style="height: 500px"></div>
+             </div>
+         </div>
+      </div>
     </main>
   </body>
 </html>
