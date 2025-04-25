@@ -12,10 +12,14 @@ const systemName = "ClickstreamDB";
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<meta name="generator" content={Astro.generator} />
     <Head title={`${systemName} - Local Record & Replay`} />
-    {/* rrweb CSS still needed for potential replay styling */}
+    {/* rrweb and rrweb-player CSS */}
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/rrweb@latest/dist/style.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/rrweb-player@latest/dist/style.css"
     />
   </head>
   <body class="bg-base-100 text-base-content">
@@ -50,7 +54,7 @@ const systemName = "ClickstreamDB";
                     <div class="input">Replay Area</div>
                 </div>
                 <div id="replay-container" class="flex justify-center items-center bg-base-200 min-h-[436px]">
-                    {/* rrweb Replayer will attach here */}
+                    {/* rrweb-player will attach here */}
                 </div>
             </div>
         </div>
@@ -64,8 +68,8 @@ const systemName = "ClickstreamDB";
     </div>
 
     <script>
-      // Import only Replayer for the parent page
-      import { Replayer } from 'rrweb';
+      // Import rrweb-player for enhanced playback controls
+      import * as rrwebPlayer from 'rrweb-player';
 
       // Interface for the iframe window - parent only needs to know the callable functions
       interface IframeWindowWithRecorder extends Window {
@@ -82,7 +86,7 @@ const systemName = "ClickstreamDB";
         const statusEl = document.getElementById('status');
 
         let rrwebEvents: any[] = [];
-        let replayerInstance: Replayer | null = null;
+        let playerInstance: any = null;
         let isRecording = false;
 
         if (!recordFrame || !replayContainer || !startBtn || !stopBtn || !statusEl) {
@@ -112,11 +116,6 @@ const systemName = "ClickstreamDB";
              else if (event.data.type === 'statusUpdate') {
                  console.log(`[Parent] Status update from iframe: ${event.data.text}`);
                  updateStatus(event.data.text);
-                 // Optional: Still disable buttons on critical iframe error? User request implies maybe not.
-                 // if (event.data.text.startsWith('Error:')) {
-                 //    startBtn.disabled = true;
-                 //    stopBtn.disabled = true;
-                 // }
              }
         });
 
@@ -138,10 +137,10 @@ const systemName = "ClickstreamDB";
                 stopBtn.disabled = false;
                
                 // Clear previous replay
-                if (replayerInstance) {
-                    replayerInstance.destroy();
-                    replayerInstance = null;
+                if (playerInstance) {
+                    // For rrweb-player we need to remove it from DOM
                     if (replayContainer) replayContainer.innerHTML = '';
+                    playerInstance = null;
                 }
 
                 // Call the function defined INSIDE the iframe
@@ -182,39 +181,149 @@ const systemName = "ClickstreamDB";
                 return;
             }
 
-            // Initialize the replayer on the parent page
+            // Initialize the rrweb-player for enhanced playback controls
             try {
-                if (replayerInstance) {
-                    replayerInstance.destroy();
-                }
+                // Clear previous player
                  if (replayContainer) replayContainer.innerHTML = '';
                
-                replayerInstance = new Replayer(rrwebEvents, {
-                    root: replayContainer,
+                // Create the player with DaisyUI styling
+                playerInstance = new rrwebPlayer.default({
+                    target: replayContainer,
+                    props: {
+                        events: rrwebEvents,
+                        width: replayContainer.clientWidth,
+                        height: replayContainer.clientHeight,
+                        autoPlay: true,
+                        showController: true,
+                        speedOption: [1, 2, 4, 8],
                     skipInactive: true,
+                        // Custom styles using DaisyUI classes will be applied via CSS
+                    }
                 });
 
-                replayerInstance.on('replay-end', () => {
+                // Listen for player events
+                playerInstance.addEventListener('end', () => {
                     updateStatus('Replay finished. Ready to record again.');
                      startBtn.disabled = false; // Re-enable start button
-                    // stopBtn remains disabled
                 });
-                
-                replayerInstance.on('resize', () => {});
 
                 updateStatus('Replaying...');
-                replayerInstance.play();
+
+                // Add DaisyUI styling to player controls
+                setTimeout(() => {
+                    const controllerBtns = replayContainer.querySelectorAll('.rr-controller__btns button');
+                    controllerBtns.forEach(btn => {
+                        btn.classList.add('btn', 'btn-sm', 'btn-primary');
+                    });
+                    
+                    const speedController = replayContainer.querySelector('.rr-controller__speed');
+                    if (speedController) {
+                        speedController.classList.add('select', 'select-sm', 'select-primary');
+                    }
+                    
+                    const progressBar = replayContainer.querySelector('.rr-progress');
+                    if (progressBar) {
+                        progressBar.classList.add('progress', 'progress-primary');
+                    }
+                }, 100);
 
             } catch(error) {
                  console.error("Parent: Failed to initialize or start replay:", error);
                  updateStatus('Error during replay setup.');
                  startBtn.disabled = false; // Re-enable start button
-                 // stopBtn remains disabled
             }
         });
-
       });
     </script>
+    
+    <style>
+      /* Custom styles for rrweb-player with DaisyUI synthwave theme - using more specific selectors */
+      #replay-container .replayer-wrapper {
+        border: 1px solid hsl(var(--p)) !important;
+        box-shadow: 0 0 15px hsl(var(--pf, var(--p))) !important;
+      }
+      
+      #replay-container .rr-controller {
+        background-color: hsl(var(--b3)) !important;
+        border-radius: 0.5rem !important;
+        padding: 0.5rem !important;
+        border: 1px solid hsl(var(--p)) !important;
+        box-shadow: 0 0 10px hsl(var(--pf, var(--p))) !important;
+      }
+      
+      #replay-container .rr-timeline {
+        height: 16px !important;
+        background-color: hsl(var(--b2)) !important;
+        border-radius: 0.25rem !important;
+      }
+      
+      #replay-container .rr-timeline__slider {
+        background-color: hsl(var(--p)) !important;
+        box-shadow: 0 0 5px hsl(var(--pf, var(--p))) !important;
+      }
+      
+      #replay-container .rr-progress__handler {
+        background-color: hsl(var(--p)) !important;
+        border: 2px solid hsl(var(--pc)) !important;
+        box-shadow: 0 0 8px hsl(var(--pf, var(--p))) !important;
+      }
+      
+      #replay-container .rr-controller__btns button {
+        color: hsl(var(--pc)) !important;
+        background-color: hsl(var(--p)) !important;
+        border: none !important;
+        border-radius: 0.25rem !important;
+        box-shadow: 0 0 5px hsl(var(--pf, var(--p))) !important;
+      }
+      
+      #replay-container .rr-controller__btns button:hover {
+        background-color: hsl(var(--pf)) !important;
+      }
+      
+      /* Custom styling for the speed selector */
+      #replay-container .rr-controller__speed {
+        background-color: hsl(var(--p)) !important;
+        color: hsl(var(--pc)) !important;
+        border: none !important;
+        border-radius: 0.25rem !important;
+        box-shadow: 0 0 5px hsl(var(--pf, var(--p))) !important;
+      }
+      
+      /* Custom styling for inactive parts in timeline */
+      #replay-container .rr-progress__inactive {
+        background-color: rgba(203, 213, 225, 0.3) !important;
+      }
+      
+      /* Time display */
+      #replay-container .rr-controller__time {
+        color: hsl(var(--pc)) !important;
+        text-shadow: 0 0 5px hsl(var(--p)) !important;
+      }
+      
+      /* Additional selectors for controller buttons */
+      #replay-container .controller-button,
+      #replay-container .rr-controller__btns button,
+      #replay-container .rr-controller__btns .svelte-9brlez {
+        color: hsl(var(--pc)) !important;
+        background-color: hsl(var(--p)) !important;
+        border: none !important;
+      }
+      
+      /* Specifically target the play/pause toggle button */
+      #replay-container button.svelte-rtrzya, 
+      #replay-container .toggle-btn.svelte-15tkbqs,
+      #replay-container .toggle-btn {
+        color: hsl(var(--pc)) !important;
+        background-color: hsl(var(--p)) !important;
+      }
+      
+      /* Apply styles at the document level for maximum specificity */
+      :root:root:root .replayer-wrapper [class*="rr-"] {
+        --primary-color: hsl(var(--p));
+        --primary-text-color: hsl(var(--pc));
+        --background-color: hsl(var(--b3));
+      }
+    </style>
   </main>
 </body>
 </html>

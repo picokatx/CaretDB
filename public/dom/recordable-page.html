@@ -82,7 +82,7 @@
                         // Send recorded event back to the parent window
                         window.parent.postMessage({ type: 'rrwebEvent', event: event, isCheckout: isCheckout }, parentOrigin);
                     },
-                    maskAllInputs: true,
+                    maskAllInputs: false,
                     checkoutEveryNth: 100, // Example: Take full snapshot every 100 events
                 });
                 console.log('[iframe] rrweb recording started.');
