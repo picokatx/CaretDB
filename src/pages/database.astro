@@ -58,6 +58,69 @@ const testColDefs: ColDef[] = [
          padding: 0.3rem 0.5rem;
       }
     </style>
+    {/* Global styles to map DaisyUI variables to AG Grid Alpine theme */}
+    <style is:global>
+      .ag-theme-alpine {
+        /* General */
+         --ag-background-color: var(--b1) !important;
+         --ag-foreground-color: var(--bc) !important;
+         --ag-border-color: var(--b3) !important;
+         --ag-secondary-border-color: var(--b2) !important;
+         --ag-invalid-color: var(--er, red) !important;
+         --ag-icon-color: var(--bc) !important;
+
+        /* Header */
+         --ag-header-background-color: var(--b2) !important; 
+         --ag-header-foreground-color: var(--bc) !important;
+         --ag-header-cell-hover-background-color: var(--b3) !important;
+         --ag-header-cell-moving-background-color: var(--n) !important;
+
+        /* Rows */
+         --ag-odd-row-background-color: var(--b1) !important;
+         --ag-row-hover-color: var(--b2) !important;
+         --ag-selected-row-background-color: hsla(var(--p)/.3) !important; /* Use primary with opacity */
+
+        /* Inputs & Controls */
+         --ag-input-background-color: var(--b1) !important;
+         --ag-input-border-color: var(--b3) !important;
+         --ag-input-disabled-background-color: var(--b2) !important;
+         --ag-input-focus-border-color: var(--p) !important;
+         --ag-input-disabled-border-color: var(--b2) !important;
+         --ag-checkbox-background-color: var(--b1) !important;
+         --ag-checkbox-checked-color: var(--p) !important;
+         --ag-alpine-active-color: var(--p) !important; /* Used for checkbox background when checked, range selection */
+
+        /* Tooltips */
+         --ag-tooltip-background-color: var(--n) !important;
+         --ag-tooltip-foreground-color: var(--nc) !important;
+
+        /* Range Selection */
+         --ag-range-selection-border-color: var(--p) !important;
+         --ag-range-selection-background-color: hsla(var(--p)/.2) !important; 
+         --ag-range-selection-highlight-color: var(--s) !important; /* Secondary for cell range handle? */
+
+        /* --- Add these lines for Context Menu --- */
+        /* Menu Popup Background & Shadow */
+        --ag-menu-background-color: var(--b2) !important;
+        --ag-popup-background-color: var(--b2) !important; /* Often used by popups */
+        --ag-card-shadow: none !important; /* Remove default shadow if desired, or map to DaisyUI shadow */
+        --ag-menu-border: 1px solid var(--b3) !important; /* Add border */
+
+        /* Menu Item Styling */
+        --ag-menu-option-active-color: hsla(var(--p)/.3) !important; /* Background on hover/active */
+        --ag-list-item-background-color: transparent !important; /* Make items transparent by default */
+        --ag-menu-separator-color: var(--b3) !important; /* Separator line color */
+
+        /* Ensure text color is inherited */
+        --ag-menu-foreground-color: var(--bc) !important; 
+        /* --- End of Context Menu additions --- */
+
+        /* Other potential overrides - add as needed */
+        /* --ag-value-change-delta-up-color: var(--su); */
+        /* --ag-value-change-delta-down-color: var(--er); */
+        /* --ag-chip-background-color: hsla(var(--a)/.2); */ 
+      }
+    </style>
   </head>
   <body>
     <main class="flex flex-col lg:flex-row gap-4 p-4"> 
@@ -134,14 +197,27 @@ const testColDefs: ColDef[] = [
     </main>
 
     <script>
-      // No longer importing Grid types
-      
+      // Import JSDoc types for hinting
+      /**
+       * @typedef {import('ag-grid-enterprise').GridApi} GridApi
+       * @typedef {import('ag-grid-enterprise').ColDef} ColDef
+       * @typedef {import('ag-grid-enterprise').IServerSideDatasource} IServerSideDatasource
+       * @typedef {import('ag-grid-enterprise').IServerSideGetRowsParams} IServerSideGetRowsParams
+       * @typedef {import('ag-grid-enterprise').LoadSuccessParams} LoadSuccessParams
+       */
+
       const gridWrapper = document.getElementById('ag-grid-wrapper');
       const resultDisplay = document.getElementById('query-result-display');
 
-      // Simplified runQuery function
-      function runQuery(query: string) {
-        console.log(`[runQuery] Fetching: ${query}`);
+      /**
+       * Holds the AG Grid API instance once the grid is ready.
+       * @type {GridApi | null}
+       */
+      let gridApi = null;
+
+      /** @param {string} query */
+      function runQuery(query) {
+        console.log(`[runQuery] START - Fetching: ${query}`);
         // Update result display immediately
         if(resultDisplay) resultDisplay.textContent = `Fetching query: ${query}...`;
 
@@ -156,17 +232,43 @@ const testColDefs: ColDef[] = [
           if (!resp.ok) throw new Error(`HTTP error! status: ${resp.status}`);
           return resp.json();
         }).then((data) => {
-          console.log("[runQuery] Data received: ", data);
-          if(resultDisplay) resultDisplay.textContent = JSON.stringify(data, null, 2); // Display raw result
+          console.log(`[runQuery] Fetch successful. Data: `, data);
+          // Check the actual response structure from your API
+          const responseData = data; // Assuming data IS the object { success: boolean, rows?: any[], error?: string }
+          if(resultDisplay) resultDisplay.textContent = JSON.stringify(responseData, null, 2); // Display raw result
 
-          if (!(data && data.rows && data.rows.length > 0)) {
-             console.warn("[runQuery] No rows found in response.");
-             if(resultDisplay) resultDisplay.textContent = "Query ran, but no rows found.";
+          if (!gridApi) {
+            console.error(`[runQuery] Grid API not available yet!`);
+            return;
+          }
+
+          // Use the success flag from the API response
+          if (responseData && responseData.success && responseData.rows) {
+            console.log(`[runQuery] API reported success. Creating datasource and columns.`);
+            const dataSource = createServerSideDatasource(responseData.rows);
+            const colDefs = createColDefs(responseData.rows);
+
+            console.log(`[runQuery] Setting serverSideDatasource...`);
+            if (gridApi) gridApi.setGridOption("serverSideDatasource", dataSource);
+            console.log(`[runQuery] Setting columnDefs...`);
+            if (gridApi) gridApi.setGridOption("columnDefs", colDefs);
+            console.log(`[runQuery] Grid options set.`);
+          } else {
+            const errorMsg = responseData?.error || "No rows found or success flag false.";
+            console.warn(`[runQuery] API reported failure or no rows: ${errorMsg}`);
+            if(resultDisplay) resultDisplay.textContent = `Query failed or returned no data: ${errorMsg}`;
+            if (gridApi) gridApi.setGridOption("serverSideDatasource", null);
+            if (gridApi) gridApi.setGridOption("columnDefs", []);
           }
         }).catch(error => {
-          console.error("[runQuery] Fetch error:", error);
+          console.error(`[runQuery] Fetch CATCH block error:`, error);
           if(resultDisplay) resultDisplay.textContent = `Fetch Error: ${error.message}`;
+          if (gridApi) {
+            gridApi.setGridOption("serverSideDatasource", null);
+            gridApi.setGridOption("columnDefs", []);
+          }
         });
+        console.log(`[runQuery] END - Fetching: ${query}`);
       }
 
       // Get controls
@@ -186,6 +288,66 @@ const testColDefs: ColDef[] = [
       } else {
         console.error('Could not find controls or result display element.');
       }
+
+      // --- Server-Side Data Functions (Moved from AgGridAstro) ---
+      /**
+       * @param {any[]} data 
+       * @returns {IServerSideDatasource}
+       */
+      function createServerSideDatasource(data) {
+        console.log(`[createServerSideDatasource] Creating datasource for data:`, data);
+        return {
+          /** @param {IServerSideGetRowsParams} params */
+          getRows: (params) => {
+            console.log(`[Datasource] - rows requested by grid: `, params.request);
+            const response = {
+              success: true,
+              // Ensure using params.request for slicing, not just first N rows
+              rows: data.slice(params.request.startRow, params.request.endRow),
+              rowCount: data.length
+            };
+            setTimeout(() => {
+              if (response.success) {
+                /** @type {LoadSuccessParams} */
+                const successParams = { rowData: response.rows, rowCount: response.rowCount };
+                console.log(`[Datasource] Calling params.success with:`, successParams);
+                params.success(successParams);
+              } else {
+                console.log(`[Datasource] Calling params.fail()`);
+                params.fail();
+              }
+            }, 200);
+          }
+        };
+      }
+
+      /** 
+       * @param {any[]} data 
+       * @returns {ColDef[]}
+       */
+      function createColDefs(data) {
+        console.log(`[createColDefs] Creating columns for data:`, data);
+        if (!data || data.length === 0) return [];
+        return Object.keys(data[0]).map(k => ({ field: k, filter: true, floatingFilter: true }));
+      }
+
+      // Listener for agGridReady to get the API instance
+      gridWrapper.addEventListener('agGridReady', (event: Event) => {
+        console.log('Received agGridReady event');
+        
+        // Cast event to CustomEvent to access detail
+        const customEvent = event as CustomEvent;
+        if (customEvent.detail && customEvent.detail.api) {
+          gridApi = customEvent.detail.api;
+          console.log('Grid API stored. Running initial query.');
+          // Run initial query AFTER grid is ready and API is stored
+          runQuery("SELECT * FROM user");
+        } else if (gridApi) {
+          console.warn('agGridReady event received, but API already stored?');
+        } else {
+          console.error('agGridReady event did not contain expected API details.');
+        }
+      });
     </script>
   </body>
 </html>
