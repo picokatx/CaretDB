@@ -3,6 +3,7 @@
 // Adjust the import path if your layout is elsewhere
 import Head from '../components/Head.astro';
 import "../styles/app.css";
+import "../styles/rrweb-player.css";
 const systemName = "ClickstreamDB";
 ---
 
@@ -12,15 +13,16 @@ const systemName = "ClickstreamDB";
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<meta name="generator" content={Astro.generator} />
     <Head title={`${systemName} - Local Record & Replay`} />
-    {/* rrweb and rrweb-player CSS */}
+    {/* rrweb CSS only - player CSS is imported locally */}
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/rrweb@latest/dist/style.css"
     />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/rrweb-player@latest/dist/style.css"
-    />
+    <!-- <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/rrweb-player@latest/dist/style.css"
+     /> -->
+
   </head>
   <body class="bg-base-100 text-base-content">
   <main class="p-4">
@@ -196,36 +198,17 @@ const systemName = "ClickstreamDB";
                         autoPlay: true,
                         showController: true,
                         speedOption: [1, 2, 4, 8],
-                    skipInactive: true,
-                        // Custom styles using DaisyUI classes will be applied via CSS
+                        skipInactive: true,
                     }
                 });
-
+                
                 // Listen for player events
                 playerInstance.addEventListener('end', () => {
                     updateStatus('Replay finished. Ready to record again.');
-                     startBtn.disabled = false; // Re-enable start button
+                    startBtn.disabled = false; // Re-enable start button
                 });
 
                 updateStatus('Replaying...');
-
-                // Add DaisyUI styling to player controls
-                setTimeout(() => {
-                    const controllerBtns = replayContainer.querySelectorAll('.rr-controller__btns button');
-                    controllerBtns.forEach(btn => {
-                        btn.classList.add('btn', 'btn-sm', 'btn-primary');
-                    });
-                    
-                    const speedController = replayContainer.querySelector('.rr-controller__speed');
-                    if (speedController) {
-                        speedController.classList.add('select', 'select-sm', 'select-primary');
-                    }
-                    
-                    const progressBar = replayContainer.querySelector('.rr-progress');
-                    if (progressBar) {
-                        progressBar.classList.add('progress', 'progress-primary');
-                    }
-                }, 100);
 
             } catch(error) {
                  console.error("Parent: Failed to initialize or start replay:", error);
@@ -235,95 +218,6 @@ const systemName = "ClickstreamDB";
         });
       });
     </script>
-    
-    <style>
-      /* Custom styles for rrweb-player with DaisyUI synthwave theme - using more specific selectors */
-      #replay-container .replayer-wrapper {
-        border: 1px solid hsl(var(--p)) !important;
-        box-shadow: 0 0 15px hsl(var(--pf, var(--p))) !important;
-      }
-      
-      #replay-container .rr-controller {
-        background-color: hsl(var(--b3)) !important;
-        border-radius: 0.5rem !important;
-        padding: 0.5rem !important;
-        border: 1px solid hsl(var(--p)) !important;
-        box-shadow: 0 0 10px hsl(var(--pf, var(--p))) !important;
-      }
-      
-      #replay-container .rr-timeline {
-        height: 16px !important;
-        background-color: hsl(var(--b2)) !important;
-        border-radius: 0.25rem !important;
-      }
-      
-      #replay-container .rr-timeline__slider {
-        background-color: hsl(var(--p)) !important;
-        box-shadow: 0 0 5px hsl(var(--pf, var(--p))) !important;
-      }
-      
-      #replay-container .rr-progress__handler {
-        background-color: hsl(var(--p)) !important;
-        border: 2px solid hsl(var(--pc)) !important;
-        box-shadow: 0 0 8px hsl(var(--pf, var(--p))) !important;
-      }
-      
-      #replay-container .rr-controller__btns button {
-        color: hsl(var(--pc)) !important;
-        background-color: hsl(var(--p)) !important;
-        border: none !important;
-        border-radius: 0.25rem !important;
-        box-shadow: 0 0 5px hsl(var(--pf, var(--p))) !important;
-      }
-      
-      #replay-container .rr-controller__btns button:hover {
-        background-color: hsl(var(--pf)) !important;
-      }
-      
-      /* Custom styling for the speed selector */
-      #replay-container .rr-controller__speed {
-        background-color: hsl(var(--p)) !important;
-        color: hsl(var(--pc)) !important;
-        border: none !important;
-        border-radius: 0.25rem !important;
-        box-shadow: 0 0 5px hsl(var(--pf, var(--p))) !important;
-      }
-      
-      /* Custom styling for inactive parts in timeline */
-      #replay-container .rr-progress__inactive {
-        background-color: rgba(203, 213, 225, 0.3) !important;
-      }
-      
-      /* Time display */
-      #replay-container .rr-controller__time {
-        color: hsl(var(--pc)) !important;
-        text-shadow: 0 0 5px hsl(var(--p)) !important;
-      }
-      
-      /* Additional selectors for controller buttons */
-      #replay-container .controller-button,
-      #replay-container .rr-controller__btns button,
-      #replay-container .rr-controller__btns .svelte-9brlez {
-        color: hsl(var(--pc)) !important;
-        background-color: hsl(var(--p)) !important;
-        border: none !important;
-      }
-      
-      /* Specifically target the play/pause toggle button */
-      #replay-container button.svelte-rtrzya, 
-      #replay-container .toggle-btn.svelte-15tkbqs,
-      #replay-container .toggle-btn {
-        color: hsl(var(--pc)) !important;
-        background-color: hsl(var(--p)) !important;
-      }
-      
-      /* Apply styles at the document level for maximum specificity */
-      :root:root:root .replayer-wrapper [class*="rr-"] {
-        --primary-color: hsl(var(--p));
-        --primary-text-color: hsl(var(--pc));
-        --background-color: hsl(var(--b3));
-      }
-    </style>
   </main>
 </body>
 </html>
