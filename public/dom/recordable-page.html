@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recordable DOM (Self-Contained)</title>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; 
+            padding: 20px; 
+            background-color: #e0e0e0; 
+            color: #111;
+            line-height: 1.6;
+        }
+        button { padding: 10px 15px; margin: 10px 0; cursor: pointer; border-radius: 5px; border: 1px solid #555; background-color: #ccc; }
+        button:hover { background-color: #bbb; }
+        input[type="text"], textarea { padding: 10px; margin: 10px 0; width: 90%; border: 1px solid #777; border-radius: 5px; }
+        #message { margin-top: 15px; padding: 10px; background-color: #f8f8f8; border: 1px solid #ccc; border-radius: 5px; min-height: 20px; }
+        h1 { color: #333; }
+    </style>
+    <!-- Load rrweb library - use the standard browser build -->
+    <script src="https://cdn.jsdelivr.net/npm/rrweb@latest/dist/rrweb.min.js"></script>
+</head>
+<body>
+    <h1>Interact with this DOM</h1>
+    <p>Your actions here will be recorded when instructed by the parent page.</p>
+    
+    <label for="text-input">Text Input:</label><br>
+    <input type="text" id="text-input" placeholder="Type something..."><br>
+
+    <label for="click-button">Click Button:</label><br>
+    <button id="click-button">Click Me</button><br>
+    
+    <label for="text-area">Text Area:</label><br>
+    <textarea id="text-area" rows="3" placeholder="Enter multiple lines..."></textarea>
+
+    <div id="message">Status updates appear here...</div>
+
+    <script>
+        const btn = document.getElementById('click-button');
+        const input = document.getElementById('text-input');
+        const textarea = document.getElementById('text-area');
+        const msgDiv = document.getElementById('message');
+
+        let iframeStopFn = undefined; // Variable to hold the stop recording function
+        // IMPORTANT: Determine the parent origin reliably in production!
+        // Using '*' is insecure. For dev, assuming localhost is okay.
+        const parentOrigin = '*'; // Replace with window.location.ancestorOrigins[0] or a known origin
+
+        // Basic interaction feedback
+        btn.addEventListener('click', () => {
+            msgDiv.textContent = 'Button was clicked at ' + new Date().toLocaleTimeString();
+        });
+        input.addEventListener('input', (e) => {
+            msgDiv.textContent = `Input value: ${e.target.value}`;
+        });
+        textarea.addEventListener('input', (e) => {
+            msgDiv.textContent = `Textarea content changed. Length: ${e.target.value.length}`;
+        });
+
+        // --- rrweb Recording Logic --- 
+
+        // Function called by parent to START recording
+        window.startRecordingInIframe = () => { 
+            msgDiv.textContent = 'Recording started by parent.';
+            console.log('[iframe] startRecordingInIframe called.');
+            
+            if (typeof window.rrweb === 'undefined' || typeof window.rrweb.record !== 'function') {
+                console.error('[iframe] rrweb.record is not available!');
+                window.parent.postMessage({ type: 'statusUpdate', text: 'Error: rrweb lib missing in iframe' }, parentOrigin);
+                return;
+            }
+            
+            // Stop previous recording if any
+            if (typeof iframeStopFn === 'function') {
+                try { iframeStopFn(); } catch(e) { console.warn('[iframe] Error stopping previous recording:', e); }
+            }
+
+            try {
+                iframeStopFn = window.rrweb.record({
+                    emit(event, isCheckout) {
+                        // Send recorded event back to the parent window
+                        window.parent.postMessage({ type: 'rrwebEvent', event: event, isCheckout: isCheckout }, parentOrigin);
+                    },
+                    maskAllInputs: true,
+                    checkoutEveryNth: 100, // Example: Take full snapshot every 100 events
+                });
+                console.log('[iframe] rrweb recording started.');
+                if (!iframeStopFn) {
+                     console.error('[iframe] rrweb.record did not return a stop function!');
+                     window.parent.postMessage({ type: 'statusUpdate', text: 'Error: rrweb.record failed in iframe' }, parentOrigin);
+                }
+            } catch (err) {
+                 console.error('[iframe] Error starting rrweb recording:', err);
+                 const errorPrefix = 'Error starting recording in iframe: ';
+                 const errorMessage = err instanceof Error ? err.message : String(err);
+                 window.parent.postMessage({ type: 'statusUpdate', text: errorPrefix + errorMessage }, parentOrigin); 
+            }
+        };
+
+        // Function called by parent to STOP recording
+        window.stopRecordingInIframe = () => { 
+            msgDiv.textContent = 'Recording stopped by parent.';
+            console.log('[iframe] stopRecordingInIframe called.');
+            if (typeof iframeStopFn === 'function') {
+                try {
+                    iframeStopFn();
+                    console.log('[iframe] rrweb recording stopped.');
+                    iframeStopFn = undefined;
+                } catch (err) {
+                    console.error('[iframe] Error calling iframeStopFn:', err);
+                }
+            } else {
+                console.warn('[iframe] iframeStopFn not found or not a function when trying to stop.');
+            }
+        };
+
+        // --- Communication with Parent --- 
+
+        // Function to check if rrweb is ready and notify parent
+        function notifyParentWhenReady() {
+            let checkCount = 0;
+            const maxChecks = 50; // Try for 5 seconds (50 * 100ms)
+            const intervalId = setInterval(() => {
+                checkCount++;
+                if (typeof window.rrweb !== 'undefined' && typeof window.rrweb.record === 'function') {
+                    clearInterval(intervalId);
+                    console.log('[iframe] rrweb library confirmed ready. Notifying parent.');
+                    window.parent.postMessage({ type: 'iframeReady' }, parentOrigin);
+                    msgDiv.textContent = 'Ready for recording commands.';
+                } else if (checkCount >= maxChecks) {
+                    clearInterval(intervalId);
+                    console.error('[iframe] rrweb library failed to load after timeout.');
+                    window.parent.postMessage({ type: 'statusUpdate', text: 'Error: rrweb lib timeout in iframe' }, parentOrigin);
+                    msgDiv.textContent = 'Error: Could not load recorder library.';
+                }
+            }, 100); // Check every 100ms
+        }
+
+        // Call the check function once the initial script runs
+        // It will delay the iframeReady message until rrweb is loaded
+        notifyParentWhenReady();
+        
+
+    </script>
+</body>
+</html> 
