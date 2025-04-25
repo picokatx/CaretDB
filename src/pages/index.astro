@@ -1,6 +1,14 @@
 ---
 import Head from '../components/Head.astro';
+import * as Sentry from "@sentry/astro";
 import "../styles/app.css";
+Sentry.startSpan({
+  name: "My Span",
+}, () => {
+  console.log("Sentry span started");
+});
+// Set the Document-Policy header for JS profiling
+Astro.response.headers.set('Document-Policy', 'js-profiling');
 
 // Placeholder for system name - replace 'ClickstreamDB' with your actual name
 const systemName = "ClickstreamDB";
@@ -15,7 +23,19 @@ const systemName = "ClickstreamDB";
   </head>
   <body class="bg-base-100 text-base-content">
     <main class="container mx-auto px-4 py-8">
-
+      <button id="error-button" class="btn btn-primary">Throw test error</button>
+      <script>
+        import * as Sentry from '@sentry/astro';
+        (document.querySelector("#error-button"))?.addEventListener("click", () => {
+          console.log("Sent Sentry error");
+          Sentry.captureException(new Error('Button Click Error Test - Captured Manually'));
+          Sentry.captureFeedback({
+            name: "Button Click Error Test",
+            email: "test@example.com",
+            message: "This is a test error from client-side script",
+          });
+        });
+      </script>
       <!-- Hero Section -->
       <div class="hero min-h-[60vh] bg-base-200 rounded-box mb-12">
         <div class="hero-content text-center">
