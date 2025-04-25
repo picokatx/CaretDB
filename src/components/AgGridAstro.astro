@@ -1,0 +1,147 @@
+---
+// src/components/AgGridAstro.astro
+// Use Enterprise imports
+import type { GridOptions, ColDef } from 'ag-grid-enterprise';
+// Note: Actual AG Grid *instance* logic MUST run client-side
+
+interface Props {
+  gridOptions?: GridOptions;
+  rowData?: any[];
+  columnDefs?: ColDef[];
+  theme?: string; // e.g., "ag-theme-alpine"
+  style?: string; // e.g., "height: 500px; width: 100%;"
+  class?: string; // Additional container classes
+  gridId?: string;
+}
+
+const {
+  gridOptions = {},
+  rowData,
+  columnDefs,
+  theme = "ag-theme-alpine", // Default theme
+  style = "height: 500px; width: 100%;", // Default style
+  class: userClassName, // Renamed to avoid conflict with class keyword
+  gridId = `astro-ag-grid-${crypto.randomUUID()}`, // Generate unique ID if needed
+}: Props = Astro.props;
+
+// Combine base options from gridOptions prop
+const baseGridOptions: GridOptions = { 
+  rowModelType: 'serverSide',
+  ...gridOptions 
+};
+
+// Construct the class string explicitly, ensuring it's always a string
+const themeClass = theme || 'ag-theme-alpine'; // Ensure theme is not empty
+let containerClasses = themeClass;
+// Explicitly check if userClassName is a non-empty string
+if (typeof userClassName === 'string' && userClassName.trim() !== '') {
+  containerClasses += ` ${userClassName}`;
+}
+
+---
+
+{/* Container div for AG Grid */}
+<div
+  id={gridId}
+  class={containerClasses}
+  style={style}
+>
+  {/* AG Grid will populate this div */}
+</div>
+
+<!-- Load AG Grid Enterprise via CDN -->
+<!-- Make sure the version matches your installed types if applicable -->
+<!-- For example, if you installed types for v31.x, use a v31.x CDN link -->
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.3.2/dist/ag-grid-enterprise.min.js"></script>
+
+<!-- Script to initialize the grid using the CDN's global agGrid object -->
+<script define:vars={{ gridId, baseGridOptions }}>
+  /**
+   * @typedef {import('ag-grid-enterprise').GridApi} GridApi
+   * @typedef {import('ag-grid-enterprise').GridOptions} GridOptions
+   */
+
+  /** @type {GridApi | null} */
+  let gridApiInstance = null;
+  /** @type {MutationObserver | null} */
+  let observer = null;
+
+  // Function to check if agGrid is loaded and then initialize
+  function checkAndInitGrid() {
+    /**
+     * Check if the global agGrid object exists from the CDN script.
+     */
+    if (typeof agGrid !== 'undefined') {
+      console.log('AG Grid Astro (CDN) - agGrid global found. Initializing...');
+
+      /** @type {HTMLElement | null} */
+      const gridDiv = document.getElementById(gridId);
+
+      if (gridDiv) {
+        console.log(`AG Grid Astro (CDN) - Initializing grid: ${gridId}`);
+        /** @type {GridOptions} */
+        const finalOptions = { ...baseGridOptions }; 
+
+        // Use the global agGrid object from the CDN
+        gridApiInstance = agGrid.createGrid(gridDiv, finalOptions);
+        console.log(`AG Grid Astro (CDN) - Grid created for: ${gridId}`);
+
+        // API Exposure
+        if (gridApiInstance) {
+          const apiEventPayload = { api: gridApiInstance, columnApi: gridApiInstance.columnApi };
+          const gridReadyEvent = new CustomEvent('agGridReady', { bubbles: true, detail: apiEventPayload });
+          gridDiv.dispatchEvent(gridReadyEvent);
+          console.log(`AG Grid Astro (CDN) - Dispatched agGridReady event for ${gridId}`);
+        } else {
+           console.error("AG Grid Astro (CDN) - gridApiInstance is null after creation attempt.");
+        }
+
+        // Cleanup Logic
+        if (gridDiv.parentNode) {
+          observer = new MutationObserver((mutationsList, obs) => {
+            for (const mutation of mutationsList) {
+              if (mutation.removedNodes) {
+                mutation.removedNodes.forEach(removedNode => {
+                  if (removedNode === gridDiv && gridApiInstance) {
+                    console.log(`AG Grid Astro (CDN) - Destroying grid via MutationObserver: ${gridId}`);
+                    gridApiInstance.destroy();
+                    gridApiInstance = null;
+                    obs.disconnect();
+                    observer = null;
+                    return;
+                  }
+                });
+              }
+            }
+          });
+          observer.observe(gridDiv.parentNode, { childList: true });
+          console.log(`AG Grid Astro (CDN) - MutationObserver watching parent of ${gridId}`);
+        }
+      } else {
+        console.error(`AG Grid Astro (CDN) - Container element with ID \"${gridId}\" not found.`);
+      }
+
+      // Fallback cleanup listener - registered once agGrid is confirmed
+      const cleanup = () => {
+          if (gridApiInstance) {
+              console.log(`AG Grid Astro (CDN) - Destroying grid via astro:before-preparation: ${gridId}`);
+              gridApiInstance.destroy();
+              gridApiInstance = null;
+              if (observer) {
+                  observer.disconnect();
+                  observer = null;
+              }
+          }
+      };
+      document.addEventListener('astro:before-preparation', cleanup, { once: true });
+
+    } else {
+      // agGrid global not found yet, try again shortly
+      console.log('AG Grid Astro (CDN) - agGrid global not ready, retrying in 50ms...');
+      setTimeout(checkAndInitGrid, 50); 
+    }
+  } // End of checkAndInitGrid
+
+  // Start the checking process
+  checkAndInitGrid();
+</script> 

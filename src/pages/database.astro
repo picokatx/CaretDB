@@ -1,25 +1,39 @@
 ---
 import Head from '../components/Head.astro';
 import "../styles/app.css";
-import {
-  AllEnterpriseModule,
-  ModuleRegistry,
-  type IServerSideDatasource,
-  type IServerSideGetRowsParams,
-  type LoadSuccessParams,
-  type IDatasource,
-  type IGetRowsParams,
-  type RowModelType,
-  type GridApi,
-  type ColDef
-} from 'ag-grid-enterprise';
-ModuleRegistry.registerModules([AllEnterpriseModule]);
-import { createGrid } from 'ag-grid-community';
+import AgGridAstro from '../components/AgGridAstro.astro';
+// Import GridOptions and ColDef for typing
+import type { ColDef } from 'ag-grid-enterprise';
 
 const commandItems = [
     { name: 'SQL Query', code: 'taiga.command.sql_query' },
     { name: 'Search Text', code: 'taiga.command.search_text' }
 ];
+
+// Dummy Data for Testing
+const testRowData = [
+  { make: "Tesla", model: "Model Y", price: 64950, electric: true, month: "June" },
+  { make: "Ford", model: "F-Series", price: 33850, electric: false, month: "October" },
+  { make: "Toyota", model: "Corolla", price: 29600, electric: false, month: "August" },
+  { make: "Mercedes", model: "EQS", price: 150000, electric: true, month: "March" },
+  { make: "BMW", model: "i4", price: 55000, electric: true, month: "July" }
+];
+
+const testColDefs: ColDef[] = [
+  { field: "make", checkboxSelection: true, filter: true, floatingFilter: true },
+  { field: "model", filter: 'agTextColumnFilter' },
+  { field: "price", filter: 'agNumberColumnFilter' },
+  { field: "electric" },
+  { field: "month", comparator: (valueA, valueB) => {
+      const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      return months.indexOf(valueA) - months.indexOf(valueB);
+    }
+  }
+];
+
+// We configure grid options mostly in AgGridAstro now, especially rowModelType
+// We pass initial colDefs here, though AgGridAstro's runQuery will likely override them
+
 ---
 
 <html lang="en" data-theme="cupcake">
@@ -27,7 +41,11 @@ const commandItems = [
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
-    <Head title="Database View" /> {/* Updated Title */}
+    <Head title="Database View" />
+    {/* IMPORTANT: Ensure AG Grid CSS is linked globally */}
+    {/* Example linking - adjust path as needed */}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-grid.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-alpine.css"/>
     <style>
       body {
         min-height: 100vh;
@@ -43,17 +61,12 @@ const commandItems = [
   </head>
   <body>
     <main class="flex flex-col lg:flex-row gap-4 p-4"> 
-      <div class="card bg-base-100 shadow-xl lg:max-w-xs flex-shrink-0">
+      <div class="card bg-base-100 shadow-xl lg:max-w-xs flex-shrink-0" id="controls-card-body">
         <div class="card-body p-4">
           <h2 class="card-title text-lg mb-3">Table Controls</h2>
-          <div class="form-control w-full mb-2">
-            <select id="command-dropdown" class="select select-bordered select-sm">
-              <option disabled selected>Run Command</option>
-              {commandItems.map(item => <option value={item.code}>{item.name}</option>)}
-            </select>
-            <button class="btn btn-sm btn-outline mt-1" onclick="alert('Command logic requires client-side JS')">Run Selected</button>
-             <button class="btn btn-sm btn-secondary mt-1" onclick="document.getElementById('sql_query_modal').showModal()">SQL Query</button>
-             <button class="btn btn-sm btn-secondary mt-1" onclick="document.getElementById('search_text_modal').showModal()">Search Text</button>
+          <div class="form-control w-full">
+            <textarea id="sql-input" class="textarea textarea-bordered textarea-sm w-full" rows="4" placeholder="Enter SQL query here...">SELECT * FROM user</textarea>
+            <button id="run-query-button" class="btn btn-sm btn-primary mt-2">Run Query</button>
           </div>
 
           <div class="divider my-1"></div>
@@ -88,19 +101,91 @@ const commandItems = [
             </div>
           </div>
 
+          {/* Query Result Display Area */}
+          <div class="border border-base-300 rounded-md p-2 mt-2">
+            <h3 class="font-semibold text-sm mb-1">Last Query Result</h3>
+            <div class="overflow-x-auto bg-base-200 rounded p-1">
+              <pre id="query-result-display" class="text-xs whitespace-pre-wrap break-all">Awaiting query...</pre>
+            </div>
+          </div>
+
         </div>
       </div>
 
       <div class="divider lg:divider-horizontal"></div>
 
-      <div class="flex-grow card bg-base-100 shadow-xl">
+      <div id="ag-grid-wrapper" class="flex-grow card bg-base-100 shadow-xl">
          <div class="card-body p-4">
             <h2 class="card-title text-lg mb-3">Data Table</h2>
-             <div class="border border-dashed border-base-300 rounded-md min-h-96 flex items-center justify-center text-base-content/50">
-                <div id="myGrid" style="height: 500px"></div>
+             <div class="min-h-96">
+               {/* Pass dummy data and options to the grid component */}
+               {/* Ensure theme matches CSS import */}
+               {/* Example style */}
+               {/* Load and hydrate the component */}
+               <AgGridAstro
+                 columnDefs={testColDefs}
+                 rowData={testRowData}
+                 theme="ag-theme-alpine"
+                 style="height: 600px; width: 100%;"
+               />
              </div>
          </div>
       </div>
     </main>
+
+    <script>
+      // No longer importing Grid types
+      
+      const gridWrapper = document.getElementById('ag-grid-wrapper');
+      const resultDisplay = document.getElementById('query-result-display');
+
+      // Simplified runQuery function
+      function runQuery(query: string) {
+        console.log(`[runQuery] Fetching: ${query}`);
+        // Update result display immediately
+        if(resultDisplay) resultDisplay.textContent = `Fetching query: ${query}...`;
+
+        fetch("/api/query_mysql", { 
+          method: "POST",
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ query: query })
+        }).then((resp) => {
+          if (!resp.ok) throw new Error(`HTTP error! status: ${resp.status}`);
+          return resp.json();
+        }).then((data) => {
+          console.log("[runQuery] Data received: ", data);
+          if(resultDisplay) resultDisplay.textContent = JSON.stringify(data, null, 2); // Display raw result
+
+          if (!(data && data.rows && data.rows.length > 0)) {
+             console.warn("[runQuery] No rows found in response.");
+             if(resultDisplay) resultDisplay.textContent = "Query ran, but no rows found.";
+          }
+        }).catch(error => {
+          console.error("[runQuery] Fetch error:", error);
+          if(resultDisplay) resultDisplay.textContent = `Fetch Error: ${error.message}`;
+        });
+      }
+
+      // Get controls
+      const sqlInput = document.getElementById('sql-input') as HTMLTextAreaElement;
+      const runQueryButton = document.getElementById('run-query-button');
+
+      // Add button listener
+      if (sqlInput && runQueryButton && resultDisplay) {
+        runQueryButton.addEventListener('click', () => {
+          const query = sqlInput.value.trim();
+          if (query) {
+            runQuery(query);
+          } else {
+            resultDisplay.textContent = "Please enter a query.";
+          }
+        });
+      } else {
+        console.error('Could not find controls or result display element.');
+      }
+    </script>
   </body>
 </html>
