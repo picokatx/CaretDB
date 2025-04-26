@@ -1,0 +1,22 @@
+---
+interface Props {
+  initialSrc?: string;
+}
+
+const { initialSrc = "/dom/recordable-page.html" } = Astro.props;
+---
+
+<div class="flex-1">
+  <h2 class="text-xl font-semibold mb-2">Recording Window (Local Content)</h2>
+  <p class="mb-2 text-info bg-base-200 p-2 rounded text-sm">
+    Interact with the content below. Recording is managed within the iframe.
+  </p>
+  <div class="mockup-browser border bg-base-300">
+    <div class="mockup-browser-toolbar">
+      <div class="input" id="iframe-url-display">{initialSrc}</div>
+    </div>
+    <div class="flex justify-center bg-base-200">
+      <iframe id="record-frame" src={initialSrc} width="95%" height="400px" class="border border-neutral my-4"></iframe>
+    </div>
+  </div>
+</div> 

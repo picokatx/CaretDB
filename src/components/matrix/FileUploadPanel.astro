@@ -1,0 +1,43 @@
+---
+// Props and imports
+---
+
+<!-- HTML Upload/Paste Section -->
+<div class="mb-6 bg-base-200 p-4 rounded-box">
+  <h2 class="text-xl font-semibold mb-3">Custom Content</h2>
+  
+  <div class="flex flex-col md:flex-row gap-4">
+    <!-- File Upload Area -->
+    <div class="flex-1">
+      <h3 class="font-medium mb-2">Upload HTML File</h3>
+      <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-base-300 bg-base-100 border-base-300">
+        <div class="flex flex-col items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+          <p class="mt-2 text-sm text-center">
+            <span class="font-semibold">Click to upload</span> or drag and drop
+          </p>
+          <p class="text-xs text-base-content/60">HTML files only</p>
+        </div>
+        <input type="file" class="hidden" accept=".html,.htm" id="html-file-input" />
+      </label>
+      <div class="flex justify-end mt-2">
+        <button class="btn btn-sm btn-primary" id="upload-html-btn">Upload</button>
+      </div>
+    </div>
+    
+    <!-- HTML Paste Area -->
+    <div class="flex-1">
+      <h3 class="font-medium mb-2">Paste HTML Content</h3>
+      <div class="flex flex-col h-full">
+        <textarea class="textarea textarea-bordered flex-grow h-32 w-full" placeholder="Paste HTML content here..." id="html-content-input"></textarea>
+        <div class="flex justify-end mt-2">
+          <button class="btn btn-sm btn-primary" id="load-html-btn">Load Content</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- No client-side script here - will be imported from scripts directory --> 

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sample HTML for Testing</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Page for RRWeb Recording</h1>
+    
+    <div class="container">
+        <h2>Form Interactions</h2>
+        <form id="testForm">
+            <div>
+                <label for="name">Name:</label>
+                <input type="text" id="name" placeholder="Enter your name">
+            </div>
+            <div>
+                <label for="message">Message:</label>
+                <textarea id="message" rows="4" placeholder="Type your message here"></textarea>
+            </div>
+            <button type="button" id="submitBtn">Submit</button>
+        </form>
+    </div>
+    
+    <div class="container">
+        <h2>API Interaction</h2>
+        <button id="fetchDataBtn">Fetch Sample Data</button>
+        <div id="apiResult" style="margin-top: 10px; padding: 10px; background-color: #f5f5f5;"></div>
+    </div>
+    
+    <div class="container">
+        <h2>DOM Manipulation</h2>
+        <button id="addElementBtn">Add Element</button>
+        <button id="changeColorBtn">Change Colors</button>
+        <div id="elementsContainer" style="margin-top: 10px; min-height: 100px;"></div>
+    </div>
+    
+    <script>
+        // Form interaction
+        document.getElementById('submitBtn').addEventListener('click', function() {
+            const name = document.getElementById('name').value;
+            const message = document.getElementById('message').value;
+            
+            console.log('Form submitted:', { name, message });
+            alert(`Thank you, ${name}! Your message has been submitted.`);
+        });
+        
+        // API interaction
+        document.getElementById('fetchDataBtn').addEventListener('click', function() {
+            const resultContainer = document.getElementById('apiResult');
+            resultContainer.innerHTML = 'Loading...';
+            
+            // Using JSONPlaceholder API for a sample request
+            fetch('https://jsonplaceholder.typicode.com/todos/1')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('API response:', data);
+                    resultContainer.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                })
+                .catch(error => {
+                    console.error('API error:', error);
+                    resultContainer.innerHTML = `Error: ${error.message}`;
+                });
+        });
+        
+        // DOM manipulation
+        let elementCount = 0;
+        let currentColor = '#f0f0f0';
+        
+        document.getElementById('addElementBtn').addEventListener('click', function() {
+            elementCount++;
+            const container = document.getElementById('elementsContainer');
+            const newElement = document.createElement('div');
+            
+            newElement.textContent = `Element #${elementCount}`;
+            newElement.style.padding = '10px';
+            newElement.style.margin = '5px 0';
+            newElement.style.backgroundColor = currentColor;
+            
+            container.appendChild(newElement);
+            console.log(`Added element #${elementCount}`);
+        });
+        
+        document.getElementById('changeColorBtn').addEventListener('click', function() {
+            // Generate a random color
+            const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16);
+            currentColor = randomColor;
+            
+            // Update all existing elements
+            const elements = document.getElementById('elementsContainer').children;
+            for (let i = 0; i < elements.length; i++) {
+                elements[i].style.backgroundColor = randomColor;
+            }
+            
+            console.log('Changed color to:', randomColor);
+        });
+    </script>
+</body>
+</html> 

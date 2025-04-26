@@ -16,6 +16,7 @@
     "@sentry/profiling-node": "^9.14.0",
     "@tailwindcss/vite": "^4.1.4",
     "@tsparticles/slim": "^3.8.1",
+    "@types/uuid": "^10.0.0",
     "ag-grid-community": "^33.2.4",
     "ag-grid-enterprise": "^33.2.4",
     "aos": "^2.3.4",
@@ -26,7 +27,8 @@
     "mysql2": "^3.14.0",
     "rrweb": "2.0.0-alpha.4",
     "rrweb-player": "1.0.0-alpha.4",
-    "tailwindcss": "^4.1.4"
+    "tailwindcss": "^4.1.4",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@types/aos": "^3.0.7",
