@@ -78,6 +78,14 @@
             <button class="example-btn" data-url="https://jsonplaceholder.typicode.com/users">Fetch Users</button>
             <button class="example-btn" data-url="https://jsonplaceholder.typicode.com/photos">Fetch Photos</button>
         </div>
+        
+        <div class="request-test-methods mt-4">
+            <p>Test Different Request Methods:</p>
+            <button id="test-xhr-btn" class="example-btn">Test XHR</button>
+            <button id="test-fetch-btn" class="example-btn">Test Fetch</button>
+            <button id="test-image-btn" class="example-btn">Test Image Load</button>
+            <button id="test-all-btn" class="example-btn">Test All Methods</button>
+        </div>
     </div>
 
     <div id="message">Status updates appear here...</div>
@@ -229,6 +237,12 @@
         // Track network requests manually (for more accurate size)
         const manuallyTrackedRequests = {};
 
+        // Store original network method references
+        let originalXHROpen = null;
+        let originalXHRSend = null;
+        let originalXHRSetRequestHeader = null;
+        let originalFetch = null;
+
         // Create a performance observer to track resource timing
         const observeNetworkRequests = () => {
             if (typeof PerformanceObserver === 'undefined') {
@@ -244,6 +258,7 @@
                             // We'll enhance this with our manual tracking for fetch requests
                             const request = {
                                 url: entry.name,
+                                path: entry.name, // Use full URL as path
                                 initiatorType: entry.initiatorType,
                                 duration: Math.round(entry.duration * 100) / 100,
                                 size: entry.transferSize || entry.decodedBodySize || 0,
@@ -285,6 +300,349 @@
         
         let networkObserver = null;
 
+        // Function to intercept network requests
+        function interceptNetworkRequests() {
+            // Don't intercept if already intercepted
+            if (originalXHROpen !== null) return;
+            
+            console.log('[iframe] Setting up network request interception');
+            
+            // Intercept XMLHttpRequest
+            originalXHROpen = XMLHttpRequest.prototype.open;
+            originalXHRSend = XMLHttpRequest.prototype.send;
+            originalXHRSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
+            
+            // Override open method to capture request details
+            XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
+                this._requestMethod = method;
+                this._requestUrl = url;
+                this._requestHeaders = {};
+                this._requestStartTime = performance.now();
+                this._requestId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                
+                // Call original method
+                originalXHROpen.apply(this, arguments);
+            };
+            
+            // Override setRequestHeader to capture headers
+            XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
+                if (!this._requestHeaders) {
+                    this._requestHeaders = {};
+                }
+                this._requestHeaders[name] = value;
+                originalXHRSetRequestHeader.apply(this, arguments);
+            };
+            
+            // Override send method to capture request body and response
+            XMLHttpRequest.prototype.send = function(body) {
+                const xhr = this;
+                
+                // Store request body if any
+                if (body) {
+                    xhr._requestBody = body;
+                }
+                
+                // Function to extract response details safely
+                function captureResponse() {
+                    const endTime = performance.now();
+                    const duration = endTime - xhr._requestStartTime;
+                    
+                    // Get URL path
+                    let path = '';
+                    try {
+                        // Use full URL instead of just the path
+                        path = xhr._requestUrl;
+                    } catch (e) {
+                        path = xhr._requestUrl;
+                    }
+                    
+                    // Get response headers
+                    const headers = {};
+                    try {
+                        const headersText = xhr.getAllResponseHeaders();
+                        const headerLines = headersText.trim().split(/[\r\n]+/);
+                        
+                        headerLines.forEach(line => {
+                            const parts = line.split(': ');
+                            const name = parts.shift();
+                            const value = parts.join(': ');
+                            headers[name] = value;
+                        });
+                    } catch (e) {
+                        console.warn('[iframe] Error parsing response headers:', e);
+                    }
+                    
+                    // Get response size
+                    let size = 0;
+                    try {
+                        if (xhr.responseType === '' || xhr.responseType === 'text') {
+                            size = xhr.responseText ? xhr.responseText.length : 0;
+                        } else if (xhr.response) {
+                            // For other response types, try to get size from headers or estimate
+                            const contentLength = headers['content-length'] || headers['Content-Length'];
+                            if (contentLength) {
+                                size = parseInt(contentLength, 10) || 0;
+                            } else if (typeof xhr.response === 'string') {
+                                size = xhr.response.length;
+                            } else if (xhr.response instanceof ArrayBuffer) {
+                                size = xhr.response.byteLength;
+                            } else if (xhr.response instanceof Blob) {
+                                size = xhr.response.size;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[iframe] Error calculating response size:', e);
+                    }
+                    
+                    // Create request object
+                    const request = {
+                        id: xhr._requestId,
+                        url: xhr._requestUrl,
+                        path: path,
+                        method: xhr._requestMethod,
+                        initiatorType: 'xhr',
+                        startTime: xhr._requestStartTime,
+                        endTime: endTime,
+                        duration: Math.round(duration * 100) / 100,
+                        status: xhr.status,
+                        statusText: xhr.statusText,
+                        headers: headers,
+                        size: size,
+                        timestamp: new Date().toISOString()
+                    };
+                    
+                    // Add to network requests array
+                    networkRequests.push(request);
+                    
+                    // Send to parent if recording
+                    if (isRecording) {
+                        window.parent.postMessage({
+                            type: 'networkRequest',
+                            request: request
+                        }, parentOrigin);
+                    }
+                }
+                
+                // Attach event listeners to capture response
+                xhr.addEventListener('load', captureResponse);
+                xhr.addEventListener('error', captureResponse);
+                xhr.addEventListener('abort', captureResponse);
+                
+                // Call original send method
+                originalXHRSend.apply(this, arguments);
+            };
+            
+            // Intercept Fetch API
+            originalFetch = window.fetch;
+            
+            window.fetch = function(resource, init) {
+                const requestStartTime = performance.now();
+                const requestId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                
+                // Extract request details
+                let url = '';
+                let method = 'GET';
+                let headers = {};
+                
+                if (typeof resource === 'string') {
+                    url = resource;
+                } else if (resource instanceof Request) {
+                    url = resource.url;
+                    method = resource.method || 'GET';
+                    
+                    // Try to extract headers from Request object
+                    try {
+                        resource.headers.forEach((value, name) => {
+                            headers[name] = value;
+                        });
+                    } catch (e) {
+                        console.warn('[iframe] Error extracting headers from Request:', e);
+                    }
+                }
+                
+                // If init object provided, override defaults
+                if (init) {
+                    if (init.method) {
+                        method = init.method;
+                    }
+                    
+                    // Merge headers from init object
+                    if (init.headers) {
+                        if (init.headers instanceof Headers) {
+                            try {
+                                init.headers.forEach((value, name) => {
+                                    headers[name] = value;
+                                });
+                            } catch (e) {
+                                console.warn('[iframe] Error extracting headers from init.headers:', e);
+                            }
+                        } else if (typeof init.headers === 'object') {
+                            Object.entries(init.headers).forEach(([name, value]) => {
+                                headers[name] = value;
+                            });
+                        }
+                    }
+                }
+                
+                // Call original fetch
+                return originalFetch.apply(this, arguments)
+                    .then(response => {
+                        const endTime = performance.now();
+                        const duration = endTime - requestStartTime;
+                        
+                        // Clone response to avoid consuming it
+                        const clonedResponse = response.clone();
+                        
+                        // Extract path from URL
+                        let path = '';
+                        try {
+                            // Use full URL instead of just the path
+                            path = url;
+                        } catch (e) {
+                            path = url;
+                        }
+                        
+                        // Extract response headers
+                        const responseHeaders = {};
+                        try {
+                            clonedResponse.headers.forEach((value, name) => {
+                                responseHeaders[name] = value;
+                            });
+                        } catch (e) {
+                            console.warn('[iframe] Error extracting response headers:', e);
+                        }
+                        
+                        // Create request info object
+                        const requestInfo = {
+                            id: requestId,
+                            url: url,
+                            path: path,
+                            method: method,
+                            initiatorType: 'fetch',
+                            startTime: requestStartTime,
+                            endTime: endTime,
+                            duration: Math.round(duration * 100) / 100,
+                            status: clonedResponse.status,
+                            statusText: clonedResponse.statusText,
+                            requestHeaders: headers,
+                            responseHeaders: responseHeaders,
+                            timestamp: new Date().toISOString()
+                        };
+                        
+                        // Try to get response size from headers or by reading the response
+                        const contentLength = responseHeaders['content-length'] || responseHeaders['Content-Length'];
+                        
+                        if (contentLength) {
+                            requestInfo.size = parseInt(contentLength, 10) || 0;
+                            
+                            // Add to network requests and send immediately
+                            networkRequests.push(requestInfo);
+                            
+                            if (isRecording) {
+                                window.parent.postMessage({
+                                    type: 'networkRequest',
+                                    request: requestInfo
+                                }, parentOrigin);
+                            }
+                            
+                            return response;
+                        }
+                        
+                        // If no content-length header, try to get size from response
+                        return clonedResponse.text()
+                            .then(text => {
+                                requestInfo.size = text ? text.length : 0;
+                                
+                                // Add to network requests
+                                networkRequests.push(requestInfo);
+                                
+                                // Send to parent if recording
+                                if (isRecording) {
+                                    window.parent.postMessage({
+                                        type: 'networkRequest',
+                                        request: requestInfo
+                                    }, parentOrigin);
+                                }
+                                
+                                return response;
+                            })
+                            .catch(error => {
+                                console.warn('[iframe] Error getting response text:', error);
+                                requestInfo.size = 0;
+                                
+                                // Add to network requests even if we couldn't get the size
+                                networkRequests.push(requestInfo);
+                                
+                                if (isRecording) {
+                                    window.parent.postMessage({
+                                        type: 'networkRequest',
+                                        request: requestInfo
+                                    }, parentOrigin);
+                                }
+                                
+                                return response;
+                            });
+                    })
+                    .catch(error => {
+                        // Capture errors during fetch
+                        const endTime = performance.now();
+                        const duration = endTime - requestStartTime;
+                        
+                        // Create error request info
+                        const errorRequestInfo = {
+                            id: requestId,
+                            url: url,
+                            method: method,
+                            initiatorType: 'fetch',
+                            startTime: requestStartTime,
+                            endTime: endTime,
+                            duration: Math.round(duration * 100) / 100,
+                            status: 0,
+                            statusText: 'Error',
+                            error: error.message,
+                            timestamp: new Date().toISOString()
+                        };
+                        
+                        // Add to network requests
+                        networkRequests.push(errorRequestInfo);
+                        
+                        // Send to parent if recording
+                        if (isRecording) {
+                            window.parent.postMessage({
+                                type: 'networkRequest',
+                                request: errorRequestInfo
+                            }, parentOrigin);
+                        }
+                        
+                        // Re-throw error for normal application flow
+                        throw error;
+                    });
+            };
+            
+            return true;
+        }
+
+        // Function to restore original network methods
+        function restoreNetworkInterception() {
+            if (originalXHROpen === null) return;
+            
+            console.log('[iframe] Restoring original network methods');
+            
+            // Restore XMLHttpRequest methods
+            XMLHttpRequest.prototype.open = originalXHROpen;
+            XMLHttpRequest.prototype.send = originalXHRSend;
+            XMLHttpRequest.prototype.setRequestHeader = originalXHRSetRequestHeader;
+            
+            // Restore fetch
+            window.fetch = originalFetch;
+            
+            // Reset original method references
+            originalXHROpen = null;
+            originalXHRSend = null;
+            originalXHRSetRequestHeader = null;
+            originalFetch = null;
+        }
+
         // Function called by parent to START recording
         window.startRecordingInIframe = () => { 
             msgDiv.textContent = 'Recording started by parent.';
@@ -296,6 +654,11 @@
             
             // Start network request recording
             networkRequests = [];
+            
+            // Set up network interception
+            interceptNetworkRequests();
+            
+            // Set up Performance observer for resource timing
             if (!networkObserver) {
                 networkObserver = observeNetworkRequests();
             }
@@ -365,6 +728,9 @@
             // Disable console capture
             isRecording = false;
             restoreConsole();
+            
+            // Restore original network methods
+            restoreNetworkInterception();
             
             // Send final network request data
             window.parent.postMessage({
@@ -459,9 +825,8 @@
                             const requestSize = new Blob([text]).size;
                             console.log(`Response size for ${url}: ${requestSize} bytes`);
                             
-                            // Get URL path
-                            const urlObj = new URL(url);
-                            const path = urlObj.pathname + urlObj.search + urlObj.hash;
+                            // Use the full URL as the path
+                            const path = url;
                             
                             // Store in our manual tracking
                             manuallyTrackedRequests[url] = {
@@ -504,6 +869,137 @@
                     console.error('Fetch error:', error);
                     msgDiv.textContent = `Error: ${error.message}`;
                 });
+        }
+
+        // Track user interactions
+        const userInteractions = [];
+        function trackUserInteraction(event) {
+            if (!isRecording) return;
+            
+            // Create a simplified version of the event
+            // ... existing code ...
+        }
+
+        // Test different request methods
+        document.getElementById('test-xhr-btn')?.addEventListener('click', () => {
+            testXhrRequest();
+        });
+        
+        document.getElementById('test-fetch-btn')?.addEventListener('click', () => {
+            testFetchRequest();
+        });
+        
+        document.getElementById('test-image-btn')?.addEventListener('click', () => {
+            testImageLoad();
+        });
+        
+        document.getElementById('test-all-btn')?.addEventListener('click', () => {
+            testAllMethods();
+        });
+        
+        function testXhrRequest() {
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', 'https://jsonplaceholder.typicode.com/todos/2');
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    console.log('XHR request successful:', JSON.parse(xhr.responseText));
+                    msgDiv.textContent = 'XHR request completed successfully';
+                } else {
+                    console.error('XHR request failed:', xhr.status);
+                    msgDiv.textContent = `XHR request failed: ${xhr.status}`;
+                }
+            };
+            xhr.onerror = function() {
+                console.error('XHR request error');
+                msgDiv.textContent = 'XHR request error';
+            };
+            xhr.send();
+            msgDiv.textContent = 'XHR request sent...';
+        }
+        
+        function testFetchRequest() {
+            fetch('https://jsonplaceholder.typicode.com/todos/3')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Fetch request successful:', data);
+                    msgDiv.textContent = 'Fetch request completed successfully';
+                })
+                .catch(error => {
+                    console.error('Fetch request error:', error);
+                    msgDiv.textContent = `Fetch request error: ${error.message}`;
+                });
+            msgDiv.textContent = 'Fetch request sent...';
+        }
+        
+        function testImageLoad() {
+            // Create a container for the image
+            const container = document.createElement('div');
+            container.style.margin = '10px 0';
+            container.style.padding = '10px';
+            container.style.border = '1px solid #ccc';
+            container.style.borderRadius = '5px';
+            container.style.backgroundColor = '#f8f8f8';
+            container.style.textAlign = 'center';
+            
+            // Create title
+            const title = document.createElement('h3');
+            title.textContent = 'Google Logo';
+            title.style.fontSize = '14px';
+            title.style.margin = '0 0 10px 0';
+            container.appendChild(title);
+            
+            // Create the image element
+            const img = new Image();
+            img.alt = 'Google Logo';
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+            
+            // Add loading and loaded status
+            const status = document.createElement('p');
+            status.textContent = 'Loading image...';
+            status.style.fontSize = '12px';
+            status.style.margin = '10px 0 0 0';
+            container.appendChild(status);
+            
+            // Handle successful load
+            img.onload = function() {
+                console.log('Google logo loaded successfully');
+                status.textContent = 'Image loaded successfully';
+                status.style.color = 'green';
+                msgDiv.textContent = 'Google logo appended to DOM and loaded successfully';
+            };
+            
+            // Handle load error
+            img.onerror = function(e) {
+                console.error('Google logo load error:', e.type);
+                status.textContent = 'Error loading image: ' + e.type;
+                status.style.color = 'red';
+            };
+            
+            // Set crossOrigin to anonymous to avoid CORS issues
+            img.crossOrigin = 'anonymous';
+            
+            // Add a timestamp to prevent caching
+            const timestamp = new Date().getTime();
+            img.src = `https://picsum.photos/200/100`;
+            
+            // Add the image to the container
+            container.appendChild(img);
+            
+            // Append the container to the document
+            document.body.appendChild(container);
+            
+            // Update message
+            msgDiv.textContent = 'Google logo appending to DOM...';
+            
+            // Return container so it can be referenced later if needed
+            return container;
+        }
+        
+        function testAllMethods() {
+            testXhrRequest();
+            setTimeout(testFetchRequest, 500);
+            setTimeout(testImageLoad, 1000);
         }
     </script>
 </body>

@@ -55,7 +55,7 @@ const systemName = "ClickstreamDB";
       <h3 class="font-bold text-lg">Replay Timeline</h3>
       <div class="flex gap-2">
         <div class="tabs tabs-boxed">
-          <button id="timeline-view-btn" class="tab tab-active">Timeline</button>
+          <button id="timeline-view-btn" class="tab tab-active bg-primary text-primary-content">Timeline</button>
           <button id="console-view-btn" class="tab">Console Logs</button>
           <button id="network-view-btn" class="tab">Network</button>
           <button id="raw-view-btn" class="tab">Raw JSON</button>
@@ -74,7 +74,7 @@ const systemName = "ClickstreamDB";
       <div id="console-logs-view" class="hidden">
         <div class="flex items-center gap-2 mb-4">
           <div class="dropdown dropdown-hover">
-            <label tabindex="0" class="btn btn-sm">Log Level: Any</label>
+            <label tabindex="0" id="log-level-display" class="btn btn-sm">Log Level: Any</label>
             <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-200 rounded-box w-52">
               <li><a class="log-level-filter active" data-level="any">Any</a></li>
               <li><a class="log-level-filter" data-level="log">Log</a></li>
@@ -603,6 +603,9 @@ const systemName = "ClickstreamDB";
             // Format timestamp
             const timestamp = formatTimestamp(log.timestamp, baseTimestamp);
             
+            // Add level badge
+            const levelBadge = getLogLevelBadge(log.level || 'log');
+            
             // Add warning icon for errors
             let icon = '';
             if (log.level === 'error' || log.level === 'warn') {
@@ -615,6 +618,7 @@ const systemName = "ClickstreamDB";
                     <div class="flex justify-between items-start">
                         <div class="log-content ${levelClass} flex-1 cursor-pointer" data-expanded="false">
                             <div class="flex items-start">
+                                ${levelBadge}
                                 ${icon}
                                 <div class="log-message-container">
                                     <div class="log-message-preview">${escapeHtml(logContent.substring(0, 100))}... <span class="text-primary">[Click to expand]</span></div>
@@ -628,8 +632,9 @@ const systemName = "ClickstreamDB";
                     </div>
                 `;
                 
-                // Add click handler to expand/collapse
-                logItem.querySelector('.log-content')?.addEventListener('click', function() {
+                // Add click handler to expand/collapse with proper TypeScript typing
+                const logContentEl = logItem.querySelector('.log-content');
+                logContentEl?.addEventListener('click', function(this: HTMLElement) {
                     const expanded = this.getAttribute('data-expanded') === 'true';
                     const preview = this.querySelector('.log-message-preview');
                     const full = this.querySelector('.log-message-full');
@@ -651,7 +656,7 @@ const systemName = "ClickstreamDB";
                 logItem.innerHTML = `
                     <div class="flex justify-between items-center">
                         <div class="log-content ${levelClass}">
-                            ${icon}${escapeHtml(logContent)}
+                            ${levelBadge}${icon}${escapeHtml(logContent)}
                         </div>
                         <div class="log-timestamp text-xs opacity-70 ml-4 shrink-0">
                             ▶ ${timestamp}
@@ -753,6 +758,7 @@ const systemName = "ClickstreamDB";
             
             // Format status code with color
             let statusHtml = 'N/A';
+            console.log("req.statusCode", req.statusCode, req)
             if (req.statusCode) {
                 let statusClass = '';
                 if (req.statusCode >= 500) statusClass = 'text-error font-bold';
@@ -802,13 +808,10 @@ const systemName = "ClickstreamDB";
         }
     });
 
-    // Tab switching (update to include network tab)
+    // Tab switching (update to include network tab and better highlighting)
     timelineViewBtn?.addEventListener('click', () => {
         currentView = 'timeline';
-        timelineViewBtn.classList.add('tab-active');
-        rawViewBtn!.classList.remove('tab-active');
-        consoleViewBtn!.classList.remove('tab-active');
-        networkViewBtn!.classList.remove('tab-active');
+        updateTabHighlighting(timelineViewBtn);
         timelineView!.classList.remove('hidden');
         rawJsonView!.classList.add('hidden');
         consoleLogsView!.classList.add('hidden');
@@ -817,10 +820,7 @@ const systemName = "ClickstreamDB";
     
     rawViewBtn?.addEventListener('click', () => {
         currentView = 'raw';
-        rawViewBtn.classList.add('tab-active');
-        timelineViewBtn!.classList.remove('tab-active');
-        consoleViewBtn!.classList.remove('tab-active');
-        networkViewBtn!.classList.remove('tab-active');
+        updateTabHighlighting(rawViewBtn);
         rawJsonView!.classList.remove('hidden');
         timelineView!.classList.add('hidden');
         consoleLogsView!.classList.add('hidden');
@@ -829,10 +829,7 @@ const systemName = "ClickstreamDB";
 
     consoleViewBtn?.addEventListener('click', () => {
         currentView = 'console';
-        consoleViewBtn.classList.add('tab-active');
-        timelineViewBtn!.classList.remove('tab-active');
-        rawViewBtn!.classList.remove('tab-active');
-        networkViewBtn!.classList.remove('tab-active');
+        updateTabHighlighting(consoleViewBtn);
         consoleLogsView!.classList.remove('hidden');
         timelineView!.classList.add('hidden');
         rawJsonView!.classList.add('hidden');
@@ -842,35 +839,54 @@ const systemName = "ClickstreamDB";
     
     networkViewBtn?.addEventListener('click', () => {
         currentView = 'network';
-        networkViewBtn.classList.add('tab-active');
-        timelineViewBtn!.classList.remove('tab-active');
-        rawViewBtn!.classList.remove('tab-active');
-        consoleViewBtn!.classList.remove('tab-active');
+        updateTabHighlighting(networkViewBtn);
         networkRequestsView!.classList.remove('hidden');
         timelineView!.classList.add('hidden');
         rawJsonView!.classList.add('hidden');
         consoleLogsView!.classList.add('hidden');
         updateNetworkRequestsView();
     });
-
-    // Filter by log level
-    document.querySelectorAll('.log-level-filter').forEach((item) => {
-        item.addEventListener('click', (e) => {
-            // Update active class
-            document.querySelectorAll('.log-level-filter').forEach(el => {
-                el.classList.remove('active');
-            });
-            (e.currentTarget as HTMLElement).classList.add('active');
-            
-            // Update level filter
-            currentLogLevel = (e.currentTarget as HTMLElement).getAttribute('data-level') || 'any';
-            updateConsoleLogsView();
-            
-            // Update dropdown label
-            const dropdownLabel = document.querySelector('.dropdown label');
-            if (dropdownLabel) {
-                dropdownLabel.textContent = `Log Level: ${currentLogLevel.charAt(0).toUpperCase() + currentLogLevel.slice(1)}`;
+    
+    // Helper function to update tab highlighting
+    function updateTabHighlighting(activeTab: HTMLElement): void {
+        // Remove highlighting from all tabs
+        [timelineViewBtn, consoleViewBtn, networkViewBtn, rawViewBtn].forEach(tab => {
+            if (tab) {
+                tab.classList.remove('tab-active', 'bg-primary', 'text-primary-content');
             }
+        });
+        
+        // Add highlighting to active tab
+        activeTab.classList.add('tab-active', 'bg-primary', 'text-primary-content');
+    }
+
+    // Filter by log level - enhanced to update the display text
+    document.querySelectorAll('.log-level-filter').forEach(levelBtn => {
+        levelBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            
+            // Get the selected level
+            const target = e.currentTarget as HTMLElement;
+            const level = target.getAttribute('data-level') || 'any';
+            
+            // Update the filter
+            currentLogLevel = level;
+            
+            // Update active class
+            document.querySelectorAll('.log-level-filter').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            target.classList.add('active');
+            
+            // Update the dropdown label
+            const levelDisplay = document.getElementById('log-level-display');
+            if (levelDisplay) {
+                const displayText = level === 'any' ? 'Any' : formatLogLevel(level);
+                levelDisplay.textContent = `Log Level: ${displayText}`;
+            }
+            
+            // Update the view
+            updateConsoleLogsView();
         });
     });
 
@@ -1148,5 +1164,40 @@ const systemName = "ClickstreamDB";
              startBtn.disabled = false; // Re-enable start button
         }
     });
+
+    // Format log level for display
+    function formatLogLevel(level: string): string {
+        const levelMap: {[key: string]: string} = {
+            'log': 'LOG',
+            'info': 'INFO',
+            'warn': 'WARN',
+            'error': 'ERROR',
+            'debug': 'DEBUG'
+        };
+        return levelMap[level] || level.toUpperCase();
+    }
+    
+    // Get log level badge HTML
+    function getLogLevelBadge(level: string): string {
+        let badgeClass = 'badge badge-sm ';
+        switch(level) {
+            case 'error': 
+                badgeClass += 'badge-error'; 
+                break;
+            case 'warn': 
+                badgeClass += 'badge-warning'; 
+                break;
+            case 'info': 
+                badgeClass += 'badge-info'; 
+                break;
+            case 'debug': 
+                badgeClass += 'badge-ghost'; 
+                break;
+            default: 
+                badgeClass += 'badge-neutral';
+        }
+        
+        return `<span class="${badgeClass} mr-2">${formatLogLevel(level)}</span>`;
+    }
   });
 </script>
