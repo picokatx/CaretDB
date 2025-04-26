@@ -47,14 +47,14 @@
     
     <div class="card">
         <h2>Console Logs Testing</h2>
-        <label for="text-input">Text Input:</label><br>
-        <input type="text" id="text-input" placeholder="Type something..."><br>
+    <label for="text-input">Text Input:</label><br>
+    <input type="text" id="text-input" placeholder="Type something..."><br>
 
         <label for="click-button">Generate Console Logs:</label><br>
         <button id="click-button">Click to Log in Console</button><br>
-        
-        <label for="text-area">Text Area:</label><br>
-        <textarea id="text-area" rows="3" placeholder="Enter multiple lines..."></textarea>
+    
+    <label for="text-area">Text Area:</label><br>
+    <textarea id="text-area" rows="3" placeholder="Enter multiple lines..."></textarea>
     </div>
 
     <div class="card">
@@ -244,17 +244,52 @@
         let originalFetch = null;
 
         // Simple function to detect content type from URL or headers
-        function detectContentType(url, headers) {
-            // Try to get from content-type header first
+        function detectContentType(url, headers, initiatorType) {
+            // First, use initiatorType if available - most accurate source
+            if (initiatorType) {
+                switch (initiatorType) {
+                    case 'img':         return 'image';
+                    case 'css':         return 'stylesheet';
+                    case 'script':      return 'script';
+                    case 'fetch':       return 'fetch';
+                    case 'xmlhttprequest': return 'xhr';
+                    case 'beacon':      return 'beacon';
+                    case 'audio':       return 'audio';
+                    case 'video':       return 'video';
+                    case 'navigation':  return 'document';
+                    case 'iframe':      return 'document';
+                    case 'frame':       return 'document';
+                    case 'link':        
+                        // <link> can be used for stylesheets, prefetch, etc.
+                        if (url.endsWith('.css')) return 'stylesheet';
+                        return 'link';
+                    // Other possible values: object, embed, track, ping, early-hint, etc.
+                }
+            }
+            
+            // Then try to get from content-type header if available
             if (headers) {
                 const contentType = headers['content-type'] || headers['Content-Type'];
                 if (contentType) {
                     // Strip charset and other parameters
-                    return contentType.split(';')[0].trim();
+                    const mimeType = contentType.split(';')[0].trim();
+                    
+                    // Map common MIME types to simplified categories
+                    if (mimeType.startsWith('image/')) return 'image';
+                    if (mimeType.startsWith('text/css')) return 'stylesheet';
+                    if (mimeType.startsWith('text/html')) return 'document';
+                    if (mimeType.includes('javascript')) return 'script';
+                    if (mimeType === 'application/json') return 'json';
+                    if (mimeType.startsWith('font/') || mimeType.includes('font')) return 'font';
+                    if (mimeType.startsWith('audio/')) return 'audio';
+                    if (mimeType.startsWith('video/')) return 'video';
+                    
+                    // Return the raw MIME type if it doesn't fit our categories
+                    return mimeType;
                 }
             }
             
-            // Otherwise try to infer from URL
+            // Lastly, try to infer from URL
             try {
                 // Check for image extensions
                 if (/\.(jpg|jpeg|png|gif|webp|svg|ico)($|\?)/.test(url.toLowerCase())) {
@@ -277,6 +312,10 @@
                 if (/\.(woff2?|ttf|otf|eot)($|\?)/.test(url.toLowerCase())) {
                     return 'font';
                 }
+                
+                // Check for media
+                if (/\.(mp3|wav|ogg|flac)($|\?)/.test(url.toLowerCase())) return 'audio';
+                if (/\.(mp4|webm|ogv)($|\?)/.test(url.toLowerCase())) return 'video';
                 
                 // API endpoints often return JSON
                 if (url.includes('/api/')) return 'json';
@@ -303,13 +342,14 @@
                             // We'll enhance this with our manual tracking for fetch requests
                             const request = {
                                 url: entry.name,
+                                path: entry.name, // Use full URL as path
                                 initiatorType: entry.initiatorType,
                                 duration: Math.round(entry.duration * 100) / 100,
                                 size: entry.transferSize || entry.decodedBodySize || 0,
                                 timestamp: new Date().toISOString(),
                                 startTime: entry.startTime,
                                 responseEnd: entry.responseEnd,
-                                type: detectContentType(entry.name) // Add content type field
+                                type: detectContentType(entry.name, null, entry.initiatorType) // Use initiatorType directly
                             };
                             
                             // Update size if we have a manually tracked one (for fetch requests)
@@ -320,7 +360,7 @@
                                 delete manuallyTrackedRequests[entry.name];
                             }
                             
-                            console.log('[Network Tracking] Resource captured:', request.url, 'Size:', request.size, 'bytes');
+                            console.log('[Network Tracking] Resource captured:', request.url, 'Type:', request.type, 'Initiator:', entry.initiatorType);
                             
                             networkRequests.push(request);
                             
@@ -454,7 +494,7 @@
                         headers: headers,
                         size: size,
                         timestamp: new Date().toISOString(),
-                        type: detectContentType(xhr._requestUrl, headers) // Add content type field
+                        type: detectContentType(xhr._requestUrl, headers, 'xmlhttprequest') // Use proper initiatorType
                     };
                     
                     // Add to network requests array
@@ -573,7 +613,7 @@
                             requestHeaders: headers,
                             responseHeaders: responseHeaders,
                             timestamp: new Date().toISOString(),
-                            type: detectContentType(url, responseHeaders) // Add content type field
+                            type: detectContentType(url, responseHeaders, 'fetch') // Use proper initiatorType
                         };
                         
                         // Try to get response size from headers or by reading the response
@@ -648,7 +688,7 @@
                             statusText: 'Error',
                             error: error.message,
                             timestamp: new Date().toISOString(),
-                            type: detectContentType(url) // Add content type field
+                            type: detectContentType(url, null, 'fetch') // Use proper initiatorType
                         };
                         
                         // Add to network requests
@@ -895,7 +935,7 @@
                                 duration: 0, // Will be updated by PerformanceObserver
                                 size: requestSize,
                                 timestamp: new Date().toISOString(),
-                                type: detectContentType(url, {'content-type': response.headers.get('content-type')}) // Add content type field
+                                type: detectContentType(url, {'content-type': response.headers.get('content-type')}, 'fetch') // Use proper initiatorType
                             };
                             
                             // Immediately send to parent if recording
@@ -1010,6 +1050,14 @@
             status.style.fontSize = '12px';
             status.style.margin = '10px 0 0 0';
             container.appendChild(status);
+            
+            // Add information about the initiatorType
+            const initiatorInfo = document.createElement('p');
+            initiatorInfo.textContent = 'This image request will have initiatorType="img"';
+            initiatorInfo.style.fontSize = '11px';
+            initiatorInfo.style.opacity = '0.7';
+            initiatorInfo.style.margin = '5px 0 0 0';
+            container.appendChild(initiatorInfo);
             
             // Handle successful load
             img.onload = function() {
