@@ -243,6 +243,51 @@
         let originalXHRSetRequestHeader = null;
         let originalFetch = null;
 
+        // Simple function to detect content type from URL or headers
+        function detectContentType(url, headers) {
+            // Try to get from content-type header first
+            if (headers) {
+                const contentType = headers['content-type'] || headers['Content-Type'];
+                if (contentType) {
+                    // Strip charset and other parameters
+                    return contentType.split(';')[0].trim();
+                }
+            }
+            
+            // Otherwise try to infer from URL
+            try {
+                // Check for image extensions
+                if (/\.(jpg|jpeg|png|gif|webp|svg|ico)($|\?)/.test(url.toLowerCase())) {
+                    return 'image';
+                }
+                
+                // Check for script/css
+                if (/\.js($|\?)/.test(url.toLowerCase())) return 'script';
+                if (/\.css($|\?)/.test(url.toLowerCase())) return 'stylesheet';
+                
+                // Check for document types
+                if (/\.html?($|\?)/.test(url.toLowerCase())) return 'document';
+                
+                // Check for data formats
+                if (/\.json($|\?)/.test(url.toLowerCase()) || url.includes('jsonplaceholder')) {
+                    return 'json';
+                }
+                
+                // Check for fonts
+                if (/\.(woff2?|ttf|otf|eot)($|\?)/.test(url.toLowerCase())) {
+                    return 'font';
+                }
+                
+                // API endpoints often return JSON
+                if (url.includes('/api/')) return 'json';
+                
+                // Default
+                return 'other';
+            } catch (e) {
+                return 'unknown';
+            }
+        }
+
         // Create a performance observer to track resource timing
         const observeNetworkRequests = () => {
             if (typeof PerformanceObserver === 'undefined') {
@@ -258,13 +303,13 @@
                             // We'll enhance this with our manual tracking for fetch requests
                             const request = {
                                 url: entry.name,
-                                path: entry.name, // Use full URL as path
                                 initiatorType: entry.initiatorType,
                                 duration: Math.round(entry.duration * 100) / 100,
                                 size: entry.transferSize || entry.decodedBodySize || 0,
                                 timestamp: new Date().toISOString(),
                                 startTime: entry.startTime,
-                                responseEnd: entry.responseEnd
+                                responseEnd: entry.responseEnd,
+                                type: detectContentType(entry.name) // Add content type field
                             };
                             
                             // Update size if we have a manually tracked one (for fetch requests)
@@ -350,8 +395,8 @@
                     // Get URL path
                     let path = '';
                     try {
-                        // Use full URL instead of just the path
-                        path = xhr._requestUrl;
+                        const urlObj = new URL(xhr._requestUrl);
+                        path = urlObj.pathname + urlObj.search + urlObj.hash;
                     } catch (e) {
                         path = xhr._requestUrl;
                     }
@@ -408,7 +453,8 @@
                         statusText: xhr.statusText,
                         headers: headers,
                         size: size,
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date().toISOString(),
+                        type: detectContentType(xhr._requestUrl, headers) // Add content type field
                     };
                     
                     // Add to network requests array
@@ -496,8 +542,8 @@
                         // Extract path from URL
                         let path = '';
                         try {
-                            // Use full URL instead of just the path
-                            path = url;
+                            const urlObj = new URL(url);
+                            path = urlObj.pathname + urlObj.search + urlObj.hash;
                         } catch (e) {
                             path = url;
                         }
@@ -526,7 +572,8 @@
                             statusText: clonedResponse.statusText,
                             requestHeaders: headers,
                             responseHeaders: responseHeaders,
-                            timestamp: new Date().toISOString()
+                            timestamp: new Date().toISOString(),
+                            type: detectContentType(url, responseHeaders) // Add content type field
                         };
                         
                         // Try to get response size from headers or by reading the response
@@ -600,7 +647,8 @@
                             status: 0,
                             statusText: 'Error',
                             error: error.message,
-                            timestamp: new Date().toISOString()
+                            timestamp: new Date().toISOString(),
+                            type: detectContentType(url) // Add content type field
                         };
                         
                         // Add to network requests
@@ -825,8 +873,9 @@
                             const requestSize = new Blob([text]).size;
                             console.log(`Response size for ${url}: ${requestSize} bytes`);
                             
-                            // Use the full URL as the path
-                            const path = url;
+                            // Get URL path
+                            const urlObj = new URL(url);
+                            const path = urlObj.pathname + urlObj.search + urlObj.hash;
                             
                             // Store in our manual tracking
                             manuallyTrackedRequests[url] = {
@@ -845,7 +894,8 @@
                                 statusCode: statusCode,
                                 duration: 0, // Will be updated by PerformanceObserver
                                 size: requestSize,
-                                timestamp: new Date().toISOString()
+                                timestamp: new Date().toISOString(),
+                                type: detectContentType(url, {'content-type': response.headers.get('content-type')}) // Add content type field
                             };
                             
                             // Immediately send to parent if recording

@@ -122,6 +122,7 @@ const systemName = "ClickstreamDB";
                 <th>Path</th>
                 <th>Method</th>
                 <th>Status</th>
+                <th>Type</th>
                 <th>Size</th>
                 <th>Duration</th>
                 <th>Time</th>
@@ -129,7 +130,7 @@ const systemName = "ClickstreamDB";
             </thead>
             <tbody id="network-timeline">
               <tr>
-                <td colspan="6" class="text-center py-4">No network requests recorded yet</td>
+                <td colspan="7" class="text-center py-4">No network requests recorded yet</td>
               </tr>
             </tbody>
           </table>
@@ -720,16 +721,17 @@ const systemName = "ClickstreamDB";
         const filteredRequests = networkRequests.filter(req => {
             if (!networkSearchText) return true;
             
-            // Search in both full URL and path
+            // Search in URL, path, and now also in type
             return req.url.toLowerCase().includes(networkSearchText.toLowerCase()) ||
-                  (req.path && req.path.toLowerCase().includes(networkSearchText.toLowerCase()));
+                  (req.path && req.path.toLowerCase().includes(networkSearchText.toLowerCase())) ||
+                  (req.type && req.type.toLowerCase().includes(networkSearchText.toLowerCase()));
         });
         
         // Clear previous content
         networkTimeline.innerHTML = '';
         
         if (filteredRequests.length === 0) {
-            networkTimeline.innerHTML = '<tr><td colspan="6" class="text-center py-4">No network requests recorded</td></tr>';
+            networkTimeline.innerHTML = '<tr><td colspan="7" class="text-center py-4">No network requests recorded</td></tr>';
             return;
         }
         
@@ -781,6 +783,7 @@ const systemName = "ClickstreamDB";
                 <td class="max-w-xs truncate">${fullPath}</td>
                 <td>${method}</td>
                 <td>${statusHtml}</td>
+                <td>${req.type || 'unknown'}</td>
                 <td>${formattedSize}</td>
                 <td>${formattedDuration}</td>
                 <td>${timeDisplay}</td>
