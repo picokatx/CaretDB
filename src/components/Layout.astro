@@ -1,0 +1,35 @@
+---
+import Head from './Head.astro';
+import Topbar from './Topbar.astro';
+import "../styles/app.css";
+import "../styles/rrweb-player.css";
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = "ClickstreamDB - Web Recording and Replay Tool" } = Astro.props;
+---
+
+<html lang="en" data-theme="synthwave">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+    <Head title={title} />
+    <meta name="description" content={description} />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/rrweb@latest/dist/style.css" />
+  </head>
+  <body class="bg-base-100 text-base-content min-h-screen flex flex-col">
+    <Topbar />
+    <main class="flex-1 p-4">
+      <slot />
+    </main>
+    <footer class="footer footer-center p-4 bg-base-300 text-base-content">
+      <div>
+        <p>Copyright © {new Date().getFullYear()} - ClickstreamDB</p>
+      </div>
+    </footer>
+  </body>
+</html> 

@@ -14,9 +14,29 @@
         }
         button { padding: 10px 15px; margin: 10px 0; cursor: pointer; border-radius: 5px; border: 1px solid #555; background-color: #ccc; }
         button:hover { background-color: #bbb; }
-        input[type="text"], textarea { padding: 10px; margin: 10px 0; width: 90%; border: 1px solid #777; border-radius: 5px; }
+        input[type="text"], textarea, select { padding: 10px; margin: 10px 0; width: 90%; border: 1px solid #777; border-radius: 5px; }
         #message { margin-top: 15px; padding: 10px; background-color: #f8f8f8; border: 1px solid #ccc; border-radius: 5px; min-height: 20px; }
         h1 { color: #333; }
+        .card {
+            background-color: #f8f8f8;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        h2 {
+            margin-top: 0;
+            color: #444;
+            font-size: 1.2em;
+        }
+        .request-controls, .request-examples {
+            margin-bottom: 10px;
+        }
+        .example-btn {
+            padding: 5px 10px;
+            margin-right: 5px;
+            font-size: 0.9em;
+        }
     </style>
     <!-- Load rrweb library - use the standard browser build -->
     <script src="https://cdn.jsdelivr.net/npm/rrweb@latest/dist/rrweb.min.js"></script>
@@ -25,14 +45,40 @@
     <h1>Interact with this DOM</h1>
     <p>Your actions here will be recorded when instructed by the parent page.</p>
     
-    <label for="text-input">Text Input:</label><br>
-    <input type="text" id="text-input" placeholder="Type something..."><br>
+    <div class="card">
+        <h2>Console Logs Testing</h2>
+        <label for="text-input">Text Input:</label><br>
+        <input type="text" id="text-input" placeholder="Type something..."><br>
 
-    <label for="click-button">Click Button:</label><br>
-    <button id="click-button">Click Me</button><br>
-    
-    <label for="text-area">Text Area:</label><br>
-    <textarea id="text-area" rows="3" placeholder="Enter multiple lines..."></textarea>
+        <label for="click-button">Generate Console Logs:</label><br>
+        <button id="click-button">Click to Log in Console</button><br>
+        
+        <label for="text-area">Text Area:</label><br>
+        <textarea id="text-area" rows="3" placeholder="Enter multiple lines..."></textarea>
+    </div>
+
+    <div class="card">
+        <h2>Network Requests Testing</h2>
+        <div class="request-controls">
+            <label for="url-input">Request URL:</label>
+            <input type="text" id="url-input" placeholder="https://example.com/api" value="https://jsonplaceholder.typicode.com/todos/1">
+            
+            <label for="method-select">Method:</label>
+            <select id="method-select">
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+            </select>
+            
+            <button id="fetch-button">Make Request</button>
+        </div>
+        
+        <div class="request-examples">
+            <p>Quick Examples:</p>
+            <button class="example-btn" data-url="https://jsonplaceholder.typicode.com/todos/1">Fetch Todo</button>
+            <button class="example-btn" data-url="https://jsonplaceholder.typicode.com/users">Fetch Users</button>
+            <button class="example-btn" data-url="https://jsonplaceholder.typicode.com/photos">Fetch Photos</button>
+        </div>
+    </div>
 
     <div id="message">Status updates appear here...</div>
 
@@ -41,29 +87,218 @@
         const input = document.getElementById('text-input');
         const textarea = document.getElementById('text-area');
         const msgDiv = document.getElementById('message');
+        const urlInput = document.getElementById('url-input');
+        const methodSelect = document.getElementById('method-select');
+        const fetchButton = document.getElementById('fetch-button');
+        const exampleButtons = document.querySelectorAll('.example-btn');
 
         let iframeStopFn = undefined; // Variable to hold the stop recording function
         // IMPORTANT: Determine the parent origin reliably in production!
         // Using '*' is insecure. For dev, assuming localhost is okay.
         const parentOrigin = '*'; // Replace with window.location.ancestorOrigins[0] or a known origin
 
+        // Override console methods to capture logs
+        const originalConsole = {
+            log: console.log,
+            warn: console.warn,
+            error: console.error,
+            info: console.info,
+            debug: console.debug
+        };
+
+        // Track if recording is active
+        let isRecording = false;
+
+        // Function to override console methods
+        function overrideConsole() {
+            console.log = function() {
+                originalConsole.log.apply(console, arguments);
+                if (isRecording) {
+                    sendConsoleLog('log', Array.from(arguments));
+                }
+            };
+            
+            console.warn = function() {
+                originalConsole.warn.apply(console, arguments);
+                if (isRecording) {
+                    sendConsoleLog('warn', Array.from(arguments));
+                }
+            };
+            
+            console.error = function() {
+                originalConsole.error.apply(console, arguments);
+                if (isRecording) {
+                    sendConsoleLog('error', Array.from(arguments));
+                }
+            };
+            
+            console.info = function() {
+                originalConsole.info.apply(console, arguments);
+                if (isRecording) {
+                    sendConsoleLog('info', Array.from(arguments));
+                }
+            };
+            
+            console.debug = function() {
+                originalConsole.debug.apply(console, arguments);
+                if (isRecording) {
+                    sendConsoleLog('debug', Array.from(arguments));
+                }
+            };
+        }
+
+        // Function to restore original console methods
+        function restoreConsole() {
+            console.log = originalConsole.log;
+            console.warn = originalConsole.warn;
+            console.error = originalConsole.error;
+            console.info = originalConsole.info;
+            console.debug = originalConsole.debug;
+        }
+
+        // Function to send console logs to parent
+        function sendConsoleLog(level, args) {
+            try {
+                // Serialize arguments to handle complex objects
+                const serializedArgs = args.map(arg => {
+                    if (typeof arg === 'object') {
+                        try {
+                            return JSON.stringify(arg);
+                        } catch (e) {
+                            return String(arg);
+                        }
+                    }
+                    return arg;
+                });
+                
+                window.parent.postMessage({
+                    type: 'consoleLog',
+                    level: level,
+                    args: serializedArgs,
+                    timestamp: Date.now()
+                }, parentOrigin);
+            } catch (e) {
+                originalConsole.error('Error sending console log to parent:', e);
+            }
+        }
+
         // Basic interaction feedback
         btn.addEventListener('click', () => {
-            msgDiv.textContent = 'Button was clicked at ' + new Date().toLocaleTimeString();
+            msgDiv.textContent = 'Console logs generated at ' + new Date().toLocaleTimeString();
+            console.log('Button clicked! This generates a basic console.log entry');
+            console.info('Button info:', { element: 'click-button', time: new Date().toISOString() });
+            console.warn('This is a warning log from the button click');
+            if (input.value) {
+                console.log('Input contains text:', input.value);
+            } else {
+                console.error('No text in the input field!');
+            }
         });
         input.addEventListener('input', (e) => {
             msgDiv.textContent = `Input value: ${e.target.value}`;
+            console.log('Input changed:', e.target.value);
         });
         textarea.addEventListener('input', (e) => {
             msgDiv.textContent = `Textarea content changed. Length: ${e.target.value.length}`;
+            console.log('Textarea updated, new length:', e.target.value.length);
+            if (e.target.value.length > 50) {
+                console.warn('Textarea content is getting long');
+            }
         });
 
+        // Prevent errors from propagating to Sentry
+        window.addEventListener('error', (event) => {
+            if (event.message && (
+                event.message.includes('SecurityError') || 
+                event.message.includes('cross-origin') || 
+                event.message.includes('stylesheet')
+            )) {
+                event.stopImmediatePropagation();
+                event.preventDefault();
+                console.warn('[iframe] Prevented error from propagating:', event.message);
+                return true;
+            }
+            return false;
+        }, true);
+
         // --- rrweb Recording Logic --- 
+
+        // Network request recording
+        let networkRequests = [];
+        
+        // Track network requests manually (for more accurate size)
+        const manuallyTrackedRequests = {};
+
+        // Create a performance observer to track resource timing
+        const observeNetworkRequests = () => {
+            if (typeof PerformanceObserver === 'undefined') {
+                console.warn('[iframe] PerformanceObserver not supported in this browser');
+                return;
+            }
+            
+            try {
+                const observer = new PerformanceObserver((list) => {
+                    for (const entry of list.getEntries()) {
+                        if (entry.entryType === 'resource') {
+                            // Some browsers don't properly report transferSize
+                            // We'll enhance this with our manual tracking for fetch requests
+                            const request = {
+                                url: entry.name,
+                                initiatorType: entry.initiatorType,
+                                duration: Math.round(entry.duration * 100) / 100,
+                                size: entry.transferSize || entry.decodedBodySize || 0,
+                                timestamp: new Date().toISOString(),
+                                startTime: entry.startTime,
+                                responseEnd: entry.responseEnd
+                            };
+                            
+                            // Update size if we have a manually tracked one (for fetch requests)
+                            if (manuallyTrackedRequests[entry.name]) {
+                                request.size = manuallyTrackedRequests[entry.name].size;
+                                request.method = manuallyTrackedRequests[entry.name].method;
+                                // Remove from tracked requests as it's now been merged with the PerformanceEntry
+                                delete manuallyTrackedRequests[entry.name];
+                            }
+                            
+                            console.log('[Network Tracking] Resource captured:', request.url, 'Size:', request.size, 'bytes');
+                            
+                            networkRequests.push(request);
+                            
+                            // Send to parent if recording is active
+                            if (isRecording) {
+                                window.parent.postMessage({
+                                    type: 'networkRequest',
+                                    request: request
+                                }, parentOrigin);
+                            }
+                        }
+                    }
+                });
+                
+                observer.observe({ entryTypes: ['resource'] });
+                return observer;
+            } catch (e) {
+                console.error('[iframe] Error setting up PerformanceObserver:', e);
+                return null;
+            }
+        };
+        
+        let networkObserver = null;
 
         // Function called by parent to START recording
         window.startRecordingInIframe = () => { 
             msgDiv.textContent = 'Recording started by parent.';
             console.log('[iframe] startRecordingInIframe called.');
+            
+            // Enable console capture
+            isRecording = true;
+            overrideConsole();
+            
+            // Start network request recording
+            networkRequests = [];
+            if (!networkObserver) {
+                networkObserver = observeNetworkRequests();
+            }
             
             if (typeof window.rrweb === 'undefined' || typeof window.rrweb.record !== 'function') {
                 console.error('[iframe] rrweb.record is not available!');
@@ -84,6 +319,30 @@
                     },
                     maskAllInputs: false,
                     checkoutEveryNth: 100, // Example: Take full snapshot every 100 events
+                    ignoreCSSAttributes: true, // Ignore CSS attributes to prevent CORS issues
+                    blockClass: 'rrweb-block', // Add a class name to exclude elements
+                    ignoreClass: 'rrweb-ignore', // Add a class name to exclude elements
+                    inlineStylesheet: true, // Keep stylesheets inline to avoid CORS issues
+                    recordCanvas: true,
+                    recordLog: true, // Enable console log recording
+                    logOptions: {
+                        level: ['info', 'log', 'warn', 'error'],
+                        lengthThreshold: 1000, // Max length of logged content
+                    },
+                    hooks: {
+                        // Hook that disables stylesheet access to prevent CORS issues
+                        afterSnapshot: (snapshot) => {
+                            // Process snapshot to remove any cross-origin stylesheet references
+                            if (snapshot && snapshot.storage && snapshot.storage.styleSheetRules) {
+                                for (const key in snapshot.storage.styleSheetRules) {
+                                    if (key.includes('cross-origin') || key.includes('SecurityError')) {
+                                        delete snapshot.storage.styleSheetRules[key];
+                                    }
+                                }
+                            }
+                            return snapshot;
+                        }
+                    }
                 });
                 console.log('[iframe] rrweb recording started.');
                 if (!iframeStopFn) {
@@ -102,6 +361,17 @@
         window.stopRecordingInIframe = () => { 
             msgDiv.textContent = 'Recording stopped by parent.';
             console.log('[iframe] stopRecordingInIframe called.');
+            
+            // Disable console capture
+            isRecording = false;
+            restoreConsole();
+            
+            // Send final network request data
+            window.parent.postMessage({
+                type: 'allNetworkRequests',
+                requests: networkRequests
+            }, parentOrigin);
+            
             if (typeof iframeStopFn === 'function') {
                 try {
                     iframeStopFn();
@@ -141,7 +411,100 @@
         // It will delay the iframeReady message until rrweb is loaded
         notifyParentWhenReady();
         
+        // Network request functionality
+        fetchButton.addEventListener('click', () => {
+            makeNetworkRequest();
+        });
 
+        // Example button handlers
+        exampleButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const url = e.target.getAttribute('data-url');
+                if (url) {
+                    urlInput.value = url;
+                    makeNetworkRequest();
+                }
+            });
+        });
+
+        function makeNetworkRequest() {
+            const url = urlInput.value.trim();
+            const method = methodSelect.value;
+            
+            if (!url) {
+                console.error('URL is required for network request');
+                msgDiv.textContent = 'Error: URL is required';
+                return;
+            }
+            
+            msgDiv.textContent = `Making ${method} request to: ${url}`;
+            console.log(`Initiating ${method} fetch to: ${url}`);
+            
+            fetch(url, { method })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    console.log(`Network response received: ${response.status}`);
+                    
+                    // Store the status code
+                    const statusCode = response.status;
+                    
+                    // Clone the response for size calculation
+                    const clone = response.clone();
+                    return response.json().then(data => {
+                        // Get the actual response text to measure accurate size
+                        return clone.text().then(text => {
+                            // Track the request size manually
+                            const requestSize = new Blob([text]).size;
+                            console.log(`Response size for ${url}: ${requestSize} bytes`);
+                            
+                            // Get URL path
+                            const urlObj = new URL(url);
+                            const path = urlObj.pathname + urlObj.search + urlObj.hash;
+                            
+                            // Store in our manual tracking
+                            manuallyTrackedRequests[url] = {
+                                size: requestSize,
+                                method: method,
+                                statusCode: statusCode,
+                                path: path
+                            };
+                            
+                            // Create a network request object
+                            const requestObj = {
+                                url: url,
+                                path: path,
+                                initiatorType: 'fetch',
+                                method: method,
+                                statusCode: statusCode,
+                                duration: 0, // Will be updated by PerformanceObserver
+                                size: requestSize,
+                                timestamp: new Date().toISOString()
+                            };
+                            
+                            // Immediately send to parent if recording
+                            if (isRecording) {
+                                window.parent.postMessage({
+                                    type: 'networkRequest',
+                                    request: requestObj
+                                }, parentOrigin);
+                            }
+                            
+                            return data;
+                        });
+                    });
+                })
+                .then(data => {
+                    console.log('Response data:', data);
+                    const dataSize = JSON.stringify(data).length;
+                    msgDiv.textContent = `Request successful! Received ${dataSize} bytes`;
+                })
+                .catch(error => {
+                    console.error('Fetch error:', error);
+                    msgDiv.textContent = `Error: ${error.message}`;
+                });
+        }
     </script>
 </body>
 </html> 

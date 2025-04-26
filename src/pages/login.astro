@@ -1,7 +1,6 @@
 ---
+import Layout from '../components/Layout.astro';
 import { getSession } from "auth-astro/server";
-import "../styles/app.css";
-
 
 const session = await getSession(Astro.request);
 
@@ -28,24 +27,17 @@ try {
 }
 ---
 
-<html lang="en" data-theme="cupcake">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Login</title>
-		<style is:global>
-			body {
-				min-height: 100vh;
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				background-color: hsl(var(--b2));
-			}
-		</style>
-	</head>
-	<body>
+<Layout title="ClickstreamDB - Login">
+	<style>
+		.login-container {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			min-height: 80vh;
+		}
+	</style>
+
+	<div class="login-container">
 		{session ? (
 			<div class="card w-96 bg-base-100 shadow-xl text-center">
 				<div class="card-body">
@@ -101,18 +93,17 @@ try {
 					<div class="text-center text-sm mt-4">
 						Don't have an account? <a href="/register" class="link link-primary link-hover">Register</a>
 					</div>
-
 				</div>
 			</div>
 		)}
+	</div>
+</Layout>
 
-		<script>
-			const { signOut } = await import("auth-astro/client");
+<script>
+	const { signOut } = await import("auth-astro/client");
 
-			const logoutButton = document.getElementById("logout");
-			if (logoutButton) {
-				logoutButton.onclick = () => signOut();
-			}
-		</script>
-	</body>
-</html>
+	const logoutButton = document.getElementById("logout");
+	if (logoutButton) {
+		logoutButton.onclick = () => signOut();
+	}
+</script>

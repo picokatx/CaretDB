@@ -1,0 +1,96 @@
+---
+import Layout from '../components/Layout.astro';
+import { getSession } from "auth-astro/server";
+
+// Get the current user session
+const session = await getSession(Astro.request);
+---
+
+<Layout title="ClickstreamDB - Settings">
+  <div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8">Settings</h1>
+    
+    {session ? (
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <!-- Sidebar navigation -->
+        <div class="bg-base-200 p-4 rounded-box">
+          <h2 class="text-lg font-semibold mb-4">Settings Menu</h2>
+          <ul class="menu bg-base-200 w-full rounded-box">
+            <li><a href="#profile" class="font-medium">Profile</a></li>
+            <li><a href="#preferences" class="font-medium">Preferences</a></li>
+            <li><a href="#api-keys" class="font-medium">API Keys</a></li>
+            <li><a href="#notifications" class="font-medium">Notifications</a></li>
+          </ul>
+        </div>
+        
+        <!-- Main content -->
+        <div class="md:col-span-2">
+          <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+              <h2 class="card-title">User Profile</h2>
+              
+              <div class="flex items-center gap-4 mb-6">
+                <div class="avatar">
+                  <div class="w-24 rounded-full">
+                    <img src="https://daisyui.com/images/stock/photo-1534528741775-53994a69daeb.jpg" alt="User avatar" />
+                  </div>
+                </div>
+                <div>
+                  <h3 class="text-xl font-semibold">{session.user?.name || 'User'}</h3>
+                  <p class="text-base-content/70">{session.user?.email || 'user@example.com'}</p>
+                </div>
+              </div>
+              
+              <div class="form-control w-full max-w-md mb-4">
+                <label class="label">
+                  <span class="label-text">Display Name</span>
+                </label>
+                <input type="text" placeholder="Your name" class="input input-bordered w-full" value={session.user?.name || ''} />
+              </div>
+              
+              <div class="form-control w-full max-w-md mb-4">
+                <label class="label">
+                  <span class="label-text">Email</span>
+                </label>
+                <input type="email" placeholder="Your email" class="input input-bordered w-full" value={session.user?.email || ''} readonly />
+              </div>
+              
+              <div class="card-actions justify-end">
+                <button class="btn btn-primary">Save Changes</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    ) : (
+      <div class="card bg-base-100 shadow-xl max-w-md mx-auto">
+        <div class="card-body">
+          <h2 class="card-title">Please Login</h2>
+          <p>You need to be logged in to view and edit your settings.</p>
+          <div class="card-actions justify-end">
+            <a href="/login" class="btn btn-primary">Go to Login</a>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+</Layout>
+
+<script>
+  // Smooth scrolling for anchor links
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function(e: MouseEvent) {
+      e.preventDefault();
+      
+      const targetId = (this as HTMLAnchorElement).getAttribute('href');
+      if (!targetId) return;
+      
+      const targetElement = document.querySelector(targetId);
+      if (targetElement) {
+        targetElement.scrollIntoView({
+          behavior: 'smooth'
+        });
+      }
+    });
+  });
+</script> 

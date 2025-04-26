@@ -1,223 +1,1152 @@
 ---
-// Assuming you have a default layout like this
-// Adjust the import path if your layout is elsewhere
-import Head from '../components/Head.astro';
-import "../styles/app.css";
+// Use the new Layout component
+import Layout from '../components/Layout.astro';
 import "../styles/rrweb-player.css";
 const systemName = "ClickstreamDB";
 ---
 
-<html lang="en" data-theme="synthwave">
-  <head>
-	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<meta name="generator" content={Astro.generator} />
-    <Head title={`${systemName} - Local Record & Replay`} />
-    {/* rrweb CSS only - player CSS is imported locally */}
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/rrweb@latest/dist/style.css"
-    />
-    <!-- <link
-    rel="stylesheet"
-    href="https://cdn.jsdelivr.net/npm/rrweb-player@latest/dist/style.css"
-     /> -->
+<Layout title={`${systemName} - Local Record & Replay`}>
+  <h1 class="text-2xl font-bold mb-4">RRWeb Local Record & Replay (Iframe Managed)</h1>
 
-  </head>
-  <body class="bg-base-100 text-base-content">
-  <main class="p-4">
-    <h1 class="text-2xl font-bold mb-4">RRWeb Local Record & Replay (Iframe Managed)</h1>
+  <div class="flex flex-col md:flex-row gap-4">
+      <!-- Recording Area -->
+      <div class="flex-1">
+          <h2 class="text-xl font-semibold mb-2">Recording Window (Local Content)</h2>
+          <p class="mb-2 text-info bg-base-200 p-2 rounded text-sm">
+              Interact with the content below. Recording is managed within the iframe.
+          </p>
+          <div class="mockup-browser border bg-base-300">
+              <div class="mockup-browser-toolbar">
+                  <div class="input">/dom/recordable-page.html</div>
+              </div>
+              <div class="flex justify-center bg-base-200">
+                  <iframe id="record-frame" src="/dom/recordable-page.html" width="95%" height="400px" class="border border-neutral my-4"></iframe>
+              </div>
+          </div>
+      </div>
 
-    <div class="flex flex-col md:flex-row gap-4">
-        <!-- Recording Area -->
-        <div class="flex-1">
-            <h2 class="text-xl font-semibold mb-2">Recording Window (Local Content)</h2>
-            <p class="mb-2 text-info bg-base-200 p-2 rounded text-sm">
-                Interact with the content below. Recording is managed within the iframe.
-            </p>
-            <div class="mockup-browser border bg-base-300">
-                <div class="mockup-browser-toolbar">
-                    <div class="input">/dom/recordable-page.html</div>
-                </div>
-                <div class="flex justify-center bg-base-200">
-                    <iframe id="record-frame" src="/dom/recordable-page.html" width="95%" height="400px" class="border border-neutral my-4"></iframe>
-                </div>
-            </div>
+      <!-- Replay Area -->
+      <div class="flex-1">
+          <h2 class="text-xl font-semibold mb-2">Replay Window</h2>
+           <p class="mb-2 text-info bg-base-200 p-2 rounded text-sm">
+              Recorded session will replay here after you stop recording.
+          </p>
+          <div class="mockup-browser border bg-base-300">
+              <div class="mockup-browser-toolbar">
+                  <div class="input">Replay Area</div>
+              </div>
+              <div id="replay-container" class="flex justify-center items-center bg-base-200 min-h-[436px]">
+                  {/* rrweb-player will attach here */}
+              </div>
+          </div>
+      </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="mt-4 flex items-center gap-4">
+    <button id="start-record-btn" class="btn btn-success">Start Recording</button> <!-- Always enabled -->
+    <button id="stop-replay-btn" class="btn btn-error" disabled>Stop Recording & Replay</button>
+    <p id="status" class="font-semibold">Status: Idle</p>
+  </div>
+
+  <!-- Timeline Panel -->
+  <div id="timeline-panel" class="mt-8 border border-base-300 rounded-box bg-base-100 shadow-sm overflow-hidden">
+    <div class="px-4 py-3 border-b border-base-200 flex justify-between items-center">
+      <h3 class="font-bold text-lg">Replay Timeline</h3>
+      <div class="flex gap-2">
+        <div class="tabs tabs-boxed">
+          <button id="timeline-view-btn" class="tab tab-active">Timeline</button>
+          <button id="console-view-btn" class="tab">Console Logs</button>
+          <button id="network-view-btn" class="tab">Network</button>
+          <button id="raw-view-btn" class="tab">Raw JSON</button>
         </div>
-
-        <!-- Replay Area -->
-        <div class="flex-1">
-            <h2 class="text-xl font-semibold mb-2">Replay Window</h2>
-             <p class="mb-2 text-info bg-base-200 p-2 rounded text-sm">
-                Recorded session will replay here after you stop recording.
-            </p>
-            <div class="mockup-browser border bg-base-300">
-                <div class="mockup-browser-toolbar">
-                    <div class="input">Replay Area</div>
-                </div>
-                <div id="replay-container" class="flex justify-center items-center bg-base-200 min-h-[436px]">
-                    {/* rrweb-player will attach here */}
-                </div>
+        <button id="json-copy-btn" class="btn btn-sm btn-outline">Copy JSON</button>
+      </div>
+    </div>
+    
+    <div class="p-4">
+      <!-- Raw JSON View -->
+      <div id="raw-json-view" class="hidden">
+        <pre id="json-content" class="bg-base-300 p-4 rounded-box overflow-auto max-h-[50vh] text-xs"></pre>
+      </div>
+      
+      <!-- Console Logs View -->
+      <div id="console-logs-view" class="hidden">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="dropdown dropdown-hover">
+            <label tabindex="0" class="btn btn-sm">Log Level: Any</label>
+            <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-200 rounded-box w-52">
+              <li><a class="log-level-filter active" data-level="any">Any</a></li>
+              <li><a class="log-level-filter" data-level="log">Log</a></li>
+              <li><a class="log-level-filter" data-level="info">Info</a></li>
+              <li><a class="log-level-filter" data-level="warn">Warn</a></li>
+              <li><a class="log-level-filter" data-level="error">Error</a></li>
+            </ul>
+          </div>
+          <div class="form-control flex-1">
+            <div class="input-group">
+              <input id="console-search" type="text" placeholder="Search Console Logs" class="input input-bordered input-sm w-full" />
+              <button id="console-search-btn" class="btn btn-sm btn-square">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              </button>
             </div>
+          </div>
         </div>
+        <div id="console-timeline" class="bg-base-300 rounded-box overflow-auto max-h-[50vh] p-0">
+          <div class="p-4 text-center text-base-content/60">No console logs recorded yet</div>
+        </div>
+        <div class="mt-4 flex justify-center">
+          <button id="jump-to-current-timestamp" class="btn btn-sm btn-primary">
+            Jump to current timestamp
+          </button>
+        </div>
+      </div>
+      
+      <!-- Network Requests View -->
+      <div id="network-requests-view" class="hidden">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="form-control flex-1">
+            <div class="input-group">
+              <input id="network-search" type="text" placeholder="Search Network Requests" class="input input-bordered input-sm w-full" />
+              <button id="network-search-btn" class="btn btn-sm btn-square">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="overflow-x-auto">
+          <table class="table table-zebra table-compact w-full">
+            <thead>
+              <tr>
+                <th>Path</th>
+                <th>Method</th>
+                <th>Status</th>
+                <th>Size</th>
+                <th>Duration</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="network-timeline">
+              <tr>
+                <td colspan="6" class="text-center py-4">No network requests recorded yet</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <!-- Timeline View -->
+      <div id="timeline-view" class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <!-- Preview panel (2/5 width on large screens) -->
+        <div class="lg:col-span-2 bg-base-200 rounded-box p-4 flex items-center justify-center min-h-[50vh]">
+          <div id="timeline-preview" class="text-center">
+            <div class="mockup-browser border bg-base-300 w-full max-w-md mx-auto">
+              <div class="mockup-browser-toolbar">
+                <div class="input">/replay-preview</div>
+              </div>
+              <div class="bg-base-200 p-4 h-[300px] flex flex-col items-center justify-center">
+                <h4 class="text-lg font-semibold mb-4">Replay Preview</h4>
+                <p class="text-sm text-base-content/70">Start recording to capture events</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Events timeline (3/5 width on large screens) -->
+        <div class="lg:col-span-3 overflow-auto max-h-[50vh] bg-base-100 rounded-box border border-base-200">
+          <div id="event-timeline" class="p-2">
+            <div class="p-4 text-center text-base-content/60">No events recorded yet</div>
+          </div>
+        </div>
+      </div>
     </div>
+  </div>
+</Layout>
 
-    <!-- Controls -->
-    <div class="mt-4 flex items-center gap-4">
-      <button id="start-record-btn" class="btn btn-success">Start Recording</button> <!-- Always enabled -->
-      <button id="stop-replay-btn" class="btn btn-error" disabled>Stop Recording & Replay</button>
-      <p id="status" class="font-semibold">Status: Idle</p>
-    </div>
+<script>
+  // Import rrweb-player for enhanced playback controls
+  import * as rrwebPlayer from 'rrweb-player';
 
-    <script>
-      // Import rrweb-player for enhanced playback controls
-      import * as rrwebPlayer from 'rrweb-player';
+  // Interface for the iframe window - parent only needs to know the callable functions
+  interface IframeWindowWithRecorder extends Window {
+    startRecordingInIframe?: () => void;
+    stopRecordingInIframe?: () => void;
+  }
 
-      // Interface for the iframe window - parent only needs to know the callable functions
-      interface IframeWindowWithRecorder extends Window {
-        startRecordingInIframe?: () => void;
-        stopRecordingInIframe?: () => void;
-      }
+  // Define enums from rrweb
+  enum EventType {
+    DomContentLoaded = 0,
+    Load = 1,
+    FullSnapshot = 2,
+    IncrementalSnapshot = 3,
+    Meta = 4,
+    Custom = 5,
+    Plugin = 6
+  }
+  
+  enum IncrementalSource {
+    Mutation = 0,
+    MouseMove = 1,
+    MouseInteraction = 2,
+    Scroll = 3,
+    ViewportResize = 4,
+    Input = 5,
+    TouchMove = 6,
+    MediaInteraction = 7,
+    StyleSheetRule = 8,
+    CanvasMutation = 9,
+    Font = 10,
+    Log = 11,
+    Drag = 12,
+    StyleDeclaration = 13,
+    Selection = 14,
+    AdoptedStyleSheet = 15
+  }
+  
+  enum MouseInteractions {
+    MouseUp = 0,
+    MouseDown = 1,
+    Click = 2,
+    ContextMenu = 3,
+    DblClick = 4,
+    Focus = 5,
+    Blur = 6,
+    TouchStart = 7,
+    TouchMove_Departed = 8,
+    TouchEnd = 9,
+    TouchCancel = 10
+  }
 
-      document.addEventListener('DOMContentLoaded', () => {
-        console.log("Parent DOMContentLoaded fired.");
-        const recordFrame = document.getElementById('record-frame') as HTMLIFrameElement | null;
-        const replayContainer = document.getElementById('replay-container');
-        const startBtn = document.getElementById('start-record-btn') as HTMLButtonElement | null;
-        const stopBtn = document.getElementById('stop-replay-btn') as HTMLButtonElement | null;
-        const statusEl = document.getElementById('status');
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log("Parent DOMContentLoaded fired.");
+    const recordFrame = document.getElementById('record-frame') as HTMLIFrameElement | null;
+    const replayContainer = document.getElementById('replay-container');
+    const startBtn = document.getElementById('start-record-btn') as HTMLButtonElement | null;
+    const stopBtn = document.getElementById('stop-replay-btn') as HTMLButtonElement | null;
+    const timelineViewBtn = document.getElementById('timeline-view-btn');
+    const rawViewBtn = document.getElementById('raw-view-btn');
+    const consoleViewBtn = document.getElementById('console-view-btn');
+    const rawJsonView = document.getElementById('raw-json-view');
+    const timelineView = document.getElementById('timeline-view');
+    const consoleLogsView = document.getElementById('console-logs-view');
+    const eventTimeline = document.getElementById('event-timeline');
+    const timelinePreview = document.getElementById('timeline-preview');
+    const consoleTimeline = document.getElementById('console-timeline');
+    const jsonContent = document.getElementById('json-content');
+    const jsonCopyBtn = document.getElementById('json-copy-btn');
+    const consoleSearch = document.getElementById('console-search') as HTMLInputElement;
+    const consoleSearchBtn = document.getElementById('console-search-btn');
+    const jumpToCurrentBtn = document.getElementById('jump-to-current-timestamp');
+    const statusEl = document.getElementById('status');
 
-        let rrwebEvents: any[] = [];
-        let playerInstance: any = null;
-        let isRecording = false;
+    let rrwebEvents: any[] = [];
+    let consoleLogs: any[] = []; // Store console logs separately
+    let networkRequests: any[] = []; // Store network requests
+    let playerInstance: any = null;
+    let isRecording = false;
+    let currentView = 'timeline'; // 'timeline', 'raw', 'console', or 'network'
+    let selectedEventIndex = -1;
+    let currentLogLevel = 'any';
+    let consoleSearchText = '';
+    let networkSearchText = '';
 
-        if (!recordFrame || !replayContainer || !startBtn || !stopBtn || !statusEl) {
-            console.error("Parent: Essential UI elements not found! Cannot initialize.");
-            if (statusEl) statusEl.textContent = "Status: Error - UI elements missing";
+    if (!recordFrame || !replayContainer || !startBtn || !stopBtn || !timelineViewBtn || 
+        !rawViewBtn || !rawJsonView || !timelineView || !eventTimeline || !timelinePreview || 
+        !jsonContent || !jsonCopyBtn || !consoleViewBtn || !consoleLogsView || !consoleTimeline) {
+        console.error("Parent: Essential UI elements not found! Cannot initialize.");
+        if (statusEl) statusEl.textContent = "Status: Error - UI elements missing";
+        return;
+    }
+
+    const networkViewBtn = document.getElementById('network-view-btn');
+    const networkRequestsView = document.getElementById('network-requests-view');
+    const networkTimeline = document.getElementById('network-timeline');
+    const networkSearch = document.getElementById('network-search') as HTMLInputElement;
+    const networkSearchBtn = document.getElementById('network-search-btn');
+
+    // Helper function to format timestamp
+    function formatTimestamp(timestamp: number, base: number = 0): string {
+        const elapsed = Math.max(0, timestamp - base);
+        const seconds = Math.floor(elapsed / 1000);
+        const milliseconds = Math.floor((elapsed % 1000) / 10); // Get only 2 digits
+        
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Helper function to get event type name
+    function getEventTypeName(type: number): string {
+        return EventType[type] || `Unknown(${type})`;
+    }
+
+    // Helper function to get incremental source name
+    function getIncrementalSourceName(source: number): string {
+        return IncrementalSource[source] || `Unknown(${source})`;
+    }
+
+    // Helper function to get mouse interaction name
+    function getMouseInteractionName(interaction: number): string {
+        return MouseInteractions[interaction] || `Unknown(${interaction})`;
+    }
+
+    // Helper function to get log level class
+    function getLogLevelClass(level: string): string {
+        switch(level) {
+            case 'error': return 'text-error';
+            case 'warn': return 'text-warning';
+            case 'info': return 'text-info';
+            default: return 'text-base-content';
+        }
+    }
+
+    // Helper function to create parsed event details
+    function createEventDetails(event: any): string {
+        let details = '';
+        
+        switch(event.type) {
+            case EventType.Meta:
+                details = `URL: ${event.data.href}, Viewport: ${event.data.width}x${event.data.height}`;
+                break;
+                
+            case EventType.FullSnapshot:
+                details = 'Full DOM snapshot captured';
+                break;
+                
+            case EventType.IncrementalSnapshot:
+                switch(event.data.source) {
+                    case IncrementalSource.MouseMove:
+                        details = `Mouse moved (${event.data.positions.length} positions)`;
+                        break;
+                        
+                    case IncrementalSource.MouseInteraction:
+                        details = `${getMouseInteractionName(event.data.type)} at (${event.data.x}, ${event.data.y})`;
+                        break;
+                        
+                    case IncrementalSource.Scroll:
+                        details = `Scroll to (${event.data.x}, ${event.data.y})`;
+                        break;
+                        
+                    case IncrementalSource.Input:
+                        details = `Input value: "${event.data.text?.substring(0, 50)}${event.data.text?.length > 50 ? '...' : ''}"`;
+                        break;
+                        
+                    case IncrementalSource.Mutation:
+                        const adds = event.data.adds?.length || 0;
+                        const removes = event.data.removes?.length || 0;
+                        const texts = event.data.texts?.length || 0;
+                        const attributes = event.data.attributes?.length || 0;
+                        details = `DOM mutations: ${adds} additions, ${removes} removals, ${texts} text changes, ${attributes} attribute changes`;
+                        break;
+                    case IncrementalSource.ViewportResize:
+                        details = `Viewport resized to ${event.data.width}x${event.data.height}`;
+                        break;
+                    case IncrementalSource.Log:
+                        details = `Console ${event.data.level}: ${event.data.payload?.map((p: any) => typeof p === 'object' ? JSON.stringify(p) : p).join(' ')}`;
+                        break;
+                    default:
+                        details = `${getIncrementalSourceName(event.data.source)} event`;
+                }
+                break;
+                
+            default:
+                details = 'See raw data for details';
+        }
+        
+        return details;
+    }
+
+    // Get CSS class for event type
+    function getEventTypeClass(type: number, data: any): string {
+        if (type === EventType.IncrementalSnapshot) {
+            if (data.source === IncrementalSource.MouseInteraction) {
+                return 'text-info';
+            } else if (data.source === IncrementalSource.Input) {
+                return 'text-warning';
+            } else if (data.source === IncrementalSource.Mutation) {
+                return 'text-success';
+            } else if (data.source === IncrementalSource.Log) {
+                return getLogLevelClass(data.level || 'log');
+            }
+        } else if (type === EventType.FullSnapshot) {
+            return 'text-primary';
+        } else if (type === EventType.Meta) {
+            return 'text-secondary';
+        }
+        return 'text-base-content';
+    }
+
+    // Get icon for event type
+    function getEventTypeIcon(type: number, data: any): string {
+        if (type === EventType.IncrementalSnapshot) {
+            switch (data.source) {
+                case IncrementalSource.MouseInteraction:
+                    return '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg>';
+                case IncrementalSource.Input:
+                    return '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>';
+                case IncrementalSource.Mutation:
+                    return '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>';
+                case IncrementalSource.Log:
+                    if (data.level === 'error') {
+                        return '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>';
+                    } else if (data.level === 'warn') {
+                        return '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>';
+                    } else {
+                        return '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>';
+                    }
+                default:
+                    return '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>';
+            }
+        } else if (type === EventType.FullSnapshot) {
+            return '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>';
+        } else if (type === EventType.Meta) {
+            return '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>';
+        }
+        return '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>';
+    }
+
+    // Helper function to create compact event details
+    function createCompactEventDetails(event: any): string {
+        let details = '';
+        
+        switch(event.type) {
+            case EventType.Meta:
+                details = `${event.data.width}x${event.data.height}`;
+                break;
+                
+            case EventType.FullSnapshot:
+                details = 'Full DOM snapshot';
+                break;
+                
+            case EventType.IncrementalSnapshot:
+                switch(event.data.source) {
+                    case IncrementalSource.MouseMove:
+                        details = `${event.data.positions.length} positions`;
+                        break;
+                        
+                    case IncrementalSource.MouseInteraction:
+                        details = `${getMouseInteractionName(event.data.type)}`;
+                        break;
+                        
+                    case IncrementalSource.Input:
+                        const textValue = event.data.text || '';
+                        const truncated = textValue.length > 20 ? textValue.substring(0, 20) + '...' : textValue;
+                        details = `"${truncated}"`;
+                        break;
+                        
+                    case IncrementalSource.Mutation:
+                        const adds = event.data.adds?.length || 0;
+                        const removes = event.data.removes?.length || 0;
+                        if (adds && removes) {
+                            details = `${adds} added, ${removes} removed`;
+                        } else if (adds) {
+                            details = `${adds} added`;
+                        } else if (removes) {
+                            details = `${removes} removed`;
+                        } else {
+                            details = 'DOM changes';
+                        }
+                        break;
+                        
+                    case IncrementalSource.Log:
+                        const logContent = event.data.payload?.join ? 
+                            event.data.payload.join(' ').substring(0, 20) : 
+                            String(event.data.payload || '').substring(0, 20);
+                        details = `${event.data.level}: ${logContent}${logContent.length > 20 ? '...' : ''}`;
+                        break;
+                        
+                    default:
+                        details = getIncrementalSourceName(event.data.source);
+                }
+                break;
+                
+            default:
+                details = getEventTypeName(event.type);
+        }
+        
+        return details;
+    }
+
+    // Display selected event JSON and update preview
+    function selectEvent(index: number): void {
+        if (index >= 0 && index < rrwebEvents.length) {
+            selectedEventIndex = index;
+            
+            // Highlight all event elements
+            const eventElements = eventTimeline!.querySelectorAll('.event-item');
+            eventElements.forEach((el, i) => {
+                if (i === index) {
+                    el.classList.add('border-primary', 'border-2');
+                } else {
+                    el.classList.remove('border-primary', 'border-2');
+                }
+            });
+            
+            // Update preview with event information
+            const event = rrwebEvents[index];
+            
+            // TODO: For a real implementation, you could render a DOM snapshot or visualization
+            // based on the event. For now, we'll just show JSON details.
+            let previewContent = `
+                <div class="bg-base-200 p-4 rounded-lg">
+                    <h4 class="font-bold mb-2">${getEventTypeName(event.type)} at ${formatTimestamp(event.timestamp)}</h4>
+                    <p class="text-sm mb-4">${createEventDetails(event)}</p>
+                    <pre class="bg-base-300 p-3 rounded text-xs overflow-auto max-h-[200px]">${JSON.stringify(event, null, 2)}</pre>
+                </div>
+            `;
+            
+            timelinePreview!.innerHTML = previewContent;
+        }
+    }
+
+    // Generate timeline view
+    function generateTimelineView(events: any[]): void {
+        if (!eventTimeline) return;
+        
+        eventTimeline.innerHTML = '';
+        
+        if (events.length === 0) {
+            eventTimeline.innerHTML = '<div class="p-4 text-center">No events recorded</div>';
+            return;
+        }
+        
+        // Use the first event as the base timestamp
+        const baseTimestamp = events[0].timestamp;
+        
+        events.forEach((event, index) => {
+            const eventItem = document.createElement('div');
+            eventItem.className = 'event-item mb-2 p-2 bg-base-200 rounded-lg cursor-pointer hover:bg-base-300 border border-base-300 transition-all';
+            
+            // Add click handler to select this event
+            eventItem.addEventListener('click', () => {
+                selectEvent(index);
+            });
+            
+            // Get the event class based on type
+            const eventClass = getEventTypeClass(event.type, event.data);
+            const eventIcon = getEventTypeIcon(event.type, event.data);
+            
+            // Create a brief version of the event details
+            const shortDetails = createCompactEventDetails(event);
+            
+            // Create the event content
+            eventItem.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div class="${eventClass} font-semibold">
+                        ${eventIcon} 
+                        ${getEventTypeName(event.type)}
+                        ${event.type === EventType.IncrementalSnapshot ? 
+                            `(${getIncrementalSourceName(event.data.source)})` : ''}
+                    </div>
+                    <div class="text-xs opacity-70">${formatTimestamp(event.timestamp, baseTimestamp)}</div>
+                </div>
+                <div class="ml-5 text-sm mt-1">${shortDetails}</div>
+            `;
+            
+            eventTimeline.appendChild(eventItem);
+        });
+        
+        // Select the first event by default
+        if (events.length > 0) {
+            selectEvent(0);
+        }
+    }
+
+    // Generate console logs view
+    function updateConsoleLogsView(): void {
+        if (!consoleTimeline) return;
+        
+        // Filter console logs based on current settings
+        const filteredLogs = consoleLogs.filter(log => {
+            // Filter by log level if needed
+            if (currentLogLevel !== 'any' && log.level !== currentLogLevel) {
+                return false;
+            }
+            
+            // Filter by search text if needed
+            if (consoleSearchText) {
+                const logContent = log.args.join(' ').toLowerCase();
+                return logContent.includes(consoleSearchText);
+            }
+            
+            return true;
+        });
+        
+        // Clear previous content
+        consoleTimeline.innerHTML = '';
+        
+        if (filteredLogs.length === 0) {
+            consoleTimeline.innerHTML = '<div class="p-4 text-center text-base-content/60">No matching console logs found</div>';
+            return;
+        }
+        
+        // Use the first event overall (not just console events) as the base timestamp
+        const baseTimestamp = rrwebEvents.length > 0 ? rrwebEvents[0].timestamp : 
+                             consoleLogs.length > 0 ? consoleLogs[0].timestamp : 0;
+        
+        // Create console log items
+        filteredLogs.forEach(log => {
+            const logItem = document.createElement('div');
+            
+            // Set base class and add level-specific class
+            logItem.className = 'console-log-item border-b border-base-100 p-2 hover:bg-base-200';
+            
+            // Get styling based on log level
+            const levelClass = getLogLevelClass(log.level || 'log');
+            
+            // Format the log content
+            const logContent = log.args.join(' ');
+            const isLongMessage = logContent.length > 100;
+            
+            // Format timestamp
+            const timestamp = formatTimestamp(log.timestamp, baseTimestamp);
+            
+            // Add warning icon for errors
+            let icon = '';
+            if (log.level === 'error' || log.level === 'warn') {
+                icon = `<span class="${levelClass} mr-2">⚠</span>`;
+            }
+            
+            // Create the log item content with collapsible functionality for long messages
+            if (isLongMessage) {
+                logItem.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="log-content ${levelClass} flex-1 cursor-pointer" data-expanded="false">
+                            <div class="flex items-start">
+                                ${icon}
+                                <div class="log-message-container">
+                                    <div class="log-message-preview">${escapeHtml(logContent.substring(0, 100))}... <span class="text-primary">[Click to expand]</span></div>
+                                    <div class="log-message-full hidden">${escapeHtml(logContent)}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="log-timestamp text-xs opacity-70 ml-4 shrink-0 mt-1">
+                            ▶ ${timestamp}
+                        </div>
+                    </div>
+                `;
+                
+                // Add click handler to expand/collapse
+                logItem.querySelector('.log-content')?.addEventListener('click', function() {
+                    const expanded = this.getAttribute('data-expanded') === 'true';
+                    const preview = this.querySelector('.log-message-preview');
+                    const full = this.querySelector('.log-message-full');
+                    
+                    if (expanded) {
+                        // Collapse
+                        preview?.classList.remove('hidden');
+                        full?.classList.add('hidden');
+                        this.setAttribute('data-expanded', 'false');
+                    } else {
+                        // Expand
+                        preview?.classList.add('hidden');
+                        full?.classList.remove('hidden');
+                        this.setAttribute('data-expanded', 'true');
+                    }
+                });
+            } else {
+                // For short messages, no need for expand/collapse
+                logItem.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div class="log-content ${levelClass}">
+                            ${icon}${escapeHtml(logContent)}
+                        </div>
+                        <div class="log-timestamp text-xs opacity-70 ml-4 shrink-0">
+                            ▶ ${timestamp}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Add click handler to jump to this event in the player
+            logItem.addEventListener('click', (e) => {
+                // Don't trigger player jump if clicking on the message content (for expand/collapse)
+                if ((e.target as HTMLElement).closest('.log-content')) return;
+                
+                if (playerInstance && typeof playerInstance.goto === 'function') {
+                    playerInstance.goto(log.timestamp);
+                }
+            });
+            
+            consoleTimeline.appendChild(logItem);
+        });
+    }
+    
+    // Helper function to escape HTML in log messages
+    function escapeHtml(unsafe: string): string {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    // Helper to format byte size to human-readable format
+    function formatBytes(bytes: number): string {
+        if (bytes === 0) return '0 B';
+        if (!bytes || isNaN(bytes)) return '0 B';
+        
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(Math.max(bytes, 1)) / Math.log(k));
+        return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+    }
+
+    // Function for extracting full path from URL
+    function getFullPath(url: string): string {
+        try {
+            const urlObj = new URL(url);
+            return urlObj.pathname + urlObj.search + urlObj.hash;
+        } catch (e) {
+            return url;
+        }
+    }
+
+    // Generate network requests view
+    function updateNetworkRequestsView(): void {
+        if (!networkTimeline) return;
+        
+        console.log(`Updating network view with ${networkRequests.length} requests`);
+        
+        // Filter network requests based on search text
+        const filteredRequests = networkRequests.filter(req => {
+            if (!networkSearchText) return true;
+            
+            // Search in both full URL and path
+            return req.url.toLowerCase().includes(networkSearchText.toLowerCase()) ||
+                  (req.path && req.path.toLowerCase().includes(networkSearchText.toLowerCase()));
+        });
+        
+        // Clear previous content
+        networkTimeline.innerHTML = '';
+        
+        if (filteredRequests.length === 0) {
+            networkTimeline.innerHTML = '<tr><td colspan="6" class="text-center py-4">No network requests recorded</td></tr>';
+            return;
+        }
+        
+        // Use the first event as the base timestamp for relative time display
+        const baseTimestamp = rrwebEvents.length > 0 ? rrwebEvents[0].timestamp : 
+                            filteredRequests.length > 0 ? new Date(filteredRequests[0].timestamp).getTime() : 0;
+        
+        // Create network request items
+        filteredRequests.forEach(req => {
+            const row = document.createElement('tr');
+            row.className = 'hover';
+            
+            // Format the size - ensure it's a number
+            const size = typeof req.size === 'number' ? req.size : parseInt(req.size) || 0;
+            const formattedSize = formatBytes(size);
+            
+            // Format the duration to 2 decimal places
+            const duration = typeof req.duration === 'number' ? req.duration : parseFloat(req.duration) || 0;
+            const formattedDuration = duration.toFixed(2) + ' ms';
+            
+            // Get full path from URL
+            const fullPath = req.path ? req.path : getFullPath(req.url);
+            
+            // Get request method
+            const method = req.method || req.initiatorType || 'other';
+            
+            // Format status code with color
+            let statusHtml = 'N/A';
+            if (req.statusCode) {
+                let statusClass = '';
+                if (req.statusCode >= 500) statusClass = 'text-error font-bold';
+                else if (req.statusCode >= 400) statusClass = 'text-error';
+                else if (req.statusCode >= 300) statusClass = 'text-warning';
+                else if (req.statusCode >= 200) statusClass = 'text-success';
+                
+                statusHtml = `<span class="${statusClass}">${req.statusCode}</span>`;
+            }
+            
+            // Format timestamp relative to base
+            let timeDisplay = '-';
+            if (req.timestamp) {
+                const timestamp = new Date(req.timestamp).getTime();
+                timeDisplay = formatTimestamp(timestamp, baseTimestamp);
+            }
+                
+            // Create row cells
+            row.innerHTML = `
+                <td class="max-w-xs truncate">${fullPath}</td>
+                <td>${method}</td>
+                <td>${statusHtml}</td>
+                <td>${formattedSize}</td>
+                <td>${formattedDuration}</td>
+                <td>${timeDisplay}</td>
+            `;
+            
+            // Add tooltip with full URL
+            row.title = req.url;
+            
+            networkTimeline.appendChild(row);
+        });
+    }
+
+    // Network search functionality
+    networkSearchBtn?.addEventListener('click', () => {
+        if (networkSearch) {
+            networkSearchText = networkSearch.value.trim().toLowerCase();
+            updateNetworkRequestsView();
+        }
+    });
+    
+    networkSearch?.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter' && networkSearch) {
+            networkSearchText = networkSearch.value.trim().toLowerCase();
+            updateNetworkRequestsView();
+        }
+    });
+
+    // Tab switching (update to include network tab)
+    timelineViewBtn?.addEventListener('click', () => {
+        currentView = 'timeline';
+        timelineViewBtn.classList.add('tab-active');
+        rawViewBtn!.classList.remove('tab-active');
+        consoleViewBtn!.classList.remove('tab-active');
+        networkViewBtn!.classList.remove('tab-active');
+        timelineView!.classList.remove('hidden');
+        rawJsonView!.classList.add('hidden');
+        consoleLogsView!.classList.add('hidden');
+        networkRequestsView!.classList.add('hidden');
+    });
+    
+    rawViewBtn?.addEventListener('click', () => {
+        currentView = 'raw';
+        rawViewBtn.classList.add('tab-active');
+        timelineViewBtn!.classList.remove('tab-active');
+        consoleViewBtn!.classList.remove('tab-active');
+        networkViewBtn!.classList.remove('tab-active');
+        rawJsonView!.classList.remove('hidden');
+        timelineView!.classList.add('hidden');
+        consoleLogsView!.classList.add('hidden');
+        networkRequestsView!.classList.add('hidden');
+    });
+
+    consoleViewBtn?.addEventListener('click', () => {
+        currentView = 'console';
+        consoleViewBtn.classList.add('tab-active');
+        timelineViewBtn!.classList.remove('tab-active');
+        rawViewBtn!.classList.remove('tab-active');
+        networkViewBtn!.classList.remove('tab-active');
+        consoleLogsView!.classList.remove('hidden');
+        timelineView!.classList.add('hidden');
+        rawJsonView!.classList.add('hidden');
+        networkRequestsView!.classList.add('hidden');
+        updateConsoleLogsView();
+    });
+    
+    networkViewBtn?.addEventListener('click', () => {
+        currentView = 'network';
+        networkViewBtn.classList.add('tab-active');
+        timelineViewBtn!.classList.remove('tab-active');
+        rawViewBtn!.classList.remove('tab-active');
+        consoleViewBtn!.classList.remove('tab-active');
+        networkRequestsView!.classList.remove('hidden');
+        timelineView!.classList.add('hidden');
+        rawJsonView!.classList.add('hidden');
+        consoleLogsView!.classList.add('hidden');
+        updateNetworkRequestsView();
+    });
+
+    // Filter by log level
+    document.querySelectorAll('.log-level-filter').forEach((item) => {
+        item.addEventListener('click', (e) => {
+            // Update active class
+            document.querySelectorAll('.log-level-filter').forEach(el => {
+                el.classList.remove('active');
+            });
+            (e.currentTarget as HTMLElement).classList.add('active');
+            
+            // Update level filter
+            currentLogLevel = (e.currentTarget as HTMLElement).getAttribute('data-level') || 'any';
+            updateConsoleLogsView();
+            
+            // Update dropdown label
+            const dropdownLabel = document.querySelector('.dropdown label');
+            if (dropdownLabel) {
+                dropdownLabel.textContent = `Log Level: ${currentLogLevel.charAt(0).toUpperCase() + currentLogLevel.slice(1)}`;
+            }
+        });
+    });
+
+    // Search functionality
+    consoleSearch?.addEventListener('input', (e) => {
+        consoleSearchText = (e.target as HTMLInputElement).value.toLowerCase();
+        updateConsoleLogsView();
+    });
+    
+    consoleSearchBtn?.addEventListener('click', () => {
+        updateConsoleLogsView();
+    });
+
+    // Jump to current timestamp
+    jumpToCurrentBtn?.addEventListener('click', () => {
+        if (playerInstance && typeof playerInstance.goto === 'function') {
+            // Get the current player position
+            const currentTime = playerInstance.getCurrentTime ? 
+                playerInstance.getCurrentTime() : 
+                playerInstance.replayer ? playerInstance.replayer.getCurrentTime() : 0;
+                
+            playerInstance.goto(currentTime);
+        }
+    });
+
+    // Copy button handler
+    jsonCopyBtn.addEventListener('click', () => {
+        try {
+            let textToCopy = '';
+            
+            if (currentView === 'raw') {
+                textToCopy = jsonContent!.textContent || '';
+            } else if (selectedEventIndex >= 0) {
+                // Copy only the selected event JSON if in timeline view
+                textToCopy = JSON.stringify(rrwebEvents[selectedEventIndex], null, 2);
+            } else if (rrwebEvents.length > 0) {
+                // If no event selected but events exist, copy all
+                textToCopy = JSON.stringify(rrwebEvents, null, 2);
+            }
+            
+            navigator.clipboard.writeText(textToCopy);
+            updateStatus('JSON copied to clipboard.');
+        } catch (error) {
+            console.error('Error copying to clipboard:', error);
+            updateStatus('Error copying to clipboard.');
+        }
+    });
+
+    function updateStatus(text: string) {
+        if (statusEl) statusEl.textContent = `Status: ${text}`;
+    }
+
+    // Disable Sentry reporting for this app
+    window.addEventListener('error', (event) => {
+        // Check if this is a CORS error or a known error we want to prevent from sending to Sentry
+        if (event.message.includes('SecurityError') || 
+            event.message.includes('cross-origin') ||
+            event.message.includes('stylesheet')) {
+            // Prevent the error from propagating to error handlers like Sentry
+            event.stopImmediatePropagation();
+            event.preventDefault();
+            
+            // Just log it to the console but don't let it propagate to Sentry
+            console.warn('Intercepted error:', event.message);
+            return true;
+        }
+        return false;
+    }, true);
+
+    // Also handle unhandled promise rejections to prevent Sentry errors
+    window.addEventListener('unhandledrejection', (event) => {
+        // Check if this is a CORS-related promise rejection
+        if (event.reason && (
+            (typeof event.reason.message === 'string' && (
+                event.reason.message.includes('SecurityError') || 
+                event.reason.message.includes('cross-origin') ||
+                event.reason.message.includes('stylesheet')
+            )) || 
+            (event.reason.name === 'SecurityError')
+        )) {
+            // Prevent the rejection from propagating to error handlers like Sentry
+            event.stopImmediatePropagation();
+            event.preventDefault();
+            
+            // Just log it to the console but don't let it propagate to Sentry
+            console.warn('Intercepted promise rejection:', event.reason);
+            return true;
+        }
+        return false;
+    }, true);
+
+    // Listen for messages from the iframe
+    window.addEventListener('message', (event) => {
+        // Security check to validate message source (should be more specific in production)
+        if (event.source !== recordFrame?.contentWindow) {
+            console.warn('Parent: Received message from unknown source, ignoring.');
+            return;
+        }
+        
+        // Process different message types
+        switch (event.data?.type) {
+            case 'iframeReady':
+                console.log('Parent: Received iframe ready notification.');
+                if (startBtn) startBtn.disabled = false;
+                if (statusEl) statusEl.textContent = 'Status: Ready';
+                break;
+                
+            case 'rrwebEvent':
+                if (isRecording && event.data.event) {
+                    rrwebEvents.push(event.data.event);
+                    // If this is a console log event, extract it
+                    if (event.data.event.type === EventType.Plugin && 
+                        event.data.event.data.plugin === 'rrweb/console@1') {
+                        // Extract the console log data and add timestamp
+                        const logData = { ...event.data.event.data.payload };
+                        logData.timestamp = event.data.event.timestamp;
+                        consoleLogs.push(logData);
+                    }
+                }
+                break;
+                
+            case 'statusUpdate':
+                console.log(`Parent: Received status update: ${event.data.text}`);
+                if (statusEl) statusEl.textContent = `Status: ${event.data.text}`;
+                break;
+            
+            case 'consoleLog':
+                if (isRecording && event.data) {
+                    consoleLogs.push(event.data);
+                }
+                break;
+                
+            case 'networkRequest':
+                if (isRecording && event.data && event.data.request) {
+                    networkRequests.push(event.data.request);
+                }
+                break;
+                
+            case 'allNetworkRequests':
+                if (event.data && event.data.requests) {
+                    // Replace any individually received requests with the complete set
+                    networkRequests = event.data.requests;
+                }
+                break;
+                
+            default:
+                console.log('Parent: Received unknown message type from iframe:', event.data);
+        }
+    });
+
+    // --- Parent Button Event Listeners ---
+
+    startBtn.addEventListener('click', () => {
+        if (isRecording) {
+            console.warn("Parent: Start clicked but already recording.");
+            return;
+        }
+       
+        const iframeWin = recordFrame.contentWindow as IframeWindowWithRecorder | null;
+       
+        if (iframeWin && typeof iframeWin.startRecordingInIframe === 'function') {
+            isRecording = true;
+            rrwebEvents = [];
+            consoleLogs = []; // Clear console logs when starting a new recording
+            updateStatus('Recording... (in iframe)');
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+           
+            // Clear previous replay
+            if (playerInstance) {
+                // For rrweb-player we need to remove it from DOM
+                if (replayContainer) replayContainer.innerHTML = '';
+                playerInstance = null;
+            }
+
+            // Reset timeline view
+            if (eventTimeline) {
+                eventTimeline.innerHTML = '<div class="p-4 text-center text-base-content/60">Recording in progress...</div>';
+            }
+
+            // Call the function defined INSIDE the iframe
+            iframeWin.startRecordingInIframe();
+        } else {
+             updateStatus('Error: Cannot call start function in iframe. Is it loaded?');
+             console.error('Parent: Iframe window or startRecordingInIframe function not available.');
+             // Don't disable start button here, let user retry
+        }
+    });
+
+    stopBtn.addEventListener('click', () => {
+        if (!isRecording) return;
+
+         const iframeWin = recordFrame.contentWindow as IframeWindowWithRecorder | null;
+        
+        // Call stop function inside iframe
+        if (iframeWin && typeof iframeWin.stopRecordingInIframe === 'function') {
+            iframeWin.stopRecordingInIframe();
+        } else {
+            console.warn('Parent: Could not call stop function in iframe. Events might be incomplete.');
+        }
+       
+        isRecording = false;
+        updateStatus('Recording stopped. Preparing replay...');
+        stopBtn.disabled = true;
+
+        if (!replayContainer) {
+             updateStatus('Error: Replay container not found.');
+             startBtn.disabled = false; // Re-enable start button
+             return;
+        }
+
+        if (rrwebEvents.length === 0) {
+            updateStatus('No events recorded. Start recording again.');
+             if (replayContainer) replayContainer.innerHTML = '<p class="text-center p-4">No events were recorded.</p>';
+             startBtn.disabled = false; // Re-enable start button
+             if (eventTimeline) {
+                eventTimeline.innerHTML = '<div class="p-4 text-center text-base-content/60">No events recorded</div>';
+             }
             return;
         }
 
-        function updateStatus(text: string) {
-            if (statusEl) statusEl.textContent = `Status: ${text}`;
-        }
+        // Format the JSON for raw view
+        const formattedJson = JSON.stringify(rrwebEvents, null, 2);
+        jsonContent!.textContent = formattedJson;
+        
+        // Generate the timeline view
+        generateTimelineView(rrwebEvents);
+        
+        // Update the console logs view
+        updateConsoleLogsView();
+        
+        // Update the network requests view
+        updateNetworkRequestsView();
+        
+        // Set view to timeline
+        currentView = 'timeline';
+        timelineViewBtn!.classList.add('tab-active');
+        rawViewBtn!.classList.remove('tab-active');
+        consoleViewBtn!.classList.remove('tab-active');
+        timelineView!.classList.remove('hidden');
+        rawJsonView!.classList.add('hidden');
+        consoleLogsView!.classList.add('hidden');
+        networkRequestsView!.classList.add('hidden');
 
-        // Listen for messages from the iframe
-        window.addEventListener('message', (event) => {
-             // IMPORTANT: Check the origin for security in production!
-             // if (event.origin !== 'http://localhost:4321') return;
-
-             if (!event.data) return;
-
-             // Handle events sent from iframe
-             if (event.data.type === 'rrwebEvent') {
-                 if (isRecording && event.data.event) {
-                    rrwebEvents.push(event.data.event);
-                 }
-             }
-             // Handle status updates from iframe
-             else if (event.data.type === 'statusUpdate') {
-                 console.log(`[Parent] Status update from iframe: ${event.data.text}`);
-                 updateStatus(event.data.text);
-             }
-        });
-
-        // --- Parent Button Event Listeners ---
-
-        startBtn.addEventListener('click', () => {
-            if (isRecording) {
-                console.warn("Parent: Start clicked but already recording.");
-                return;
-            }
+        // Initialize the rrweb-player for enhanced playback controls
+        try {
+            // Clear previous player
+             if (replayContainer) replayContainer.innerHTML = '';
            
-            const iframeWin = recordFrame.contentWindow as IframeWindowWithRecorder | null;
-           
-            if (iframeWin && typeof iframeWin.startRecordingInIframe === 'function') {
-                isRecording = true;
-                rrwebEvents = [];
-                updateStatus('Recording... (in iframe)');
-                startBtn.disabled = true;
-                stopBtn.disabled = false;
-               
-                // Clear previous replay
-                if (playerInstance) {
-                    // For rrweb-player we need to remove it from DOM
-                    if (replayContainer) replayContainer.innerHTML = '';
-                    playerInstance = null;
+            // Create the player with DaisyUI styling
+            playerInstance = new rrwebPlayer.default({
+                target: replayContainer,
+                props: {
+                    events: rrwebEvents,
+                    width: replayContainer.clientWidth,
+                    height: replayContainer.clientHeight,
+                    autoPlay: true,
+                    showController: true,
+                    speedOption: [1, 2, 4, 8],
+                    skipInactive: true,
                 }
-
-                // Call the function defined INSIDE the iframe
-                iframeWin.startRecordingInIframe();
-            } else {
-                 updateStatus('Error: Cannot call start function in iframe. Is it loaded?');
-                 console.error('Parent: Iframe window or startRecordingInIframe function not available.');
-                 // Don't disable start button here, let user retry
-            }
-        });
-
-        stopBtn.addEventListener('click', () => {
-            if (!isRecording) return;
-
-             const iframeWin = recordFrame.contentWindow as IframeWindowWithRecorder | null;
+            });
             
-            // Call stop function inside iframe
-            if (iframeWin && typeof iframeWin.stopRecordingInIframe === 'function') {
-                iframeWin.stopRecordingInIframe();
-            } else {
-                console.warn('Parent: Could not call stop function in iframe. Events might be incomplete.');
-            }
-           
-            isRecording = false;
-            updateStatus('Recording stopped. Preparing replay...');
-            stopBtn.disabled = true;
+            // Listen for player events
+            playerInstance.addEventListener('end', () => {
+                updateStatus('Replay finished. Ready to record again.');
+                startBtn.disabled = false; // Re-enable start button
+            });
 
-            if (!replayContainer) {
-                 updateStatus('Error: Replay container not found.');
-                 startBtn.disabled = false; // Re-enable start button
-                 return;
-            }
+            updateStatus('Replaying...');
 
-            if (rrwebEvents.length === 0) {
-                updateStatus('No events recorded. Start recording again.');
-                 if (replayContainer) replayContainer.innerHTML = '<p class="text-center p-4">No events were recorded.</p>';
-                 startBtn.disabled = false; // Re-enable start button
-                return;
-            }
-
-            // Initialize the rrweb-player for enhanced playback controls
-            try {
-                // Clear previous player
-                 if (replayContainer) replayContainer.innerHTML = '';
-               
-                // Create the player with DaisyUI styling
-                playerInstance = new rrwebPlayer.default({
-                    target: replayContainer,
-                    props: {
-                        events: rrwebEvents,
-                        width: replayContainer.clientWidth,
-                        height: replayContainer.clientHeight,
-                        autoPlay: true,
-                        showController: true,
-                        speedOption: [1, 2, 4, 8],
-                        skipInactive: true,
-                    }
-                });
-                
-                // Listen for player events
-                playerInstance.addEventListener('end', () => {
-                    updateStatus('Replay finished. Ready to record again.');
-                    startBtn.disabled = false; // Re-enable start button
-                });
-
-                updateStatus('Replaying...');
-
-            } catch(error) {
-                 console.error("Parent: Failed to initialize or start replay:", error);
-                 updateStatus('Error during replay setup.');
-                 startBtn.disabled = false; // Re-enable start button
-            }
-        });
-      });
-    </script>
-  </main>
-</body>
-</html>
+        } catch(error) {
+             console.error("Parent: Failed to initialize or start replay:", error);
+             updateStatus('Error during replay setup.');
+             startBtn.disabled = false; // Re-enable start button
+        }
+    });
+  });
+</script>
