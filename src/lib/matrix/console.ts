@@ -1,7 +1,139 @@
+import { matrixGlobals as mGlob } from "./globals";
+import { getLogLevelClass, getLogLevelBadge } from "./timeline";
+import { formatTimestamp } from "./player";
 /**
  * Console controller for displaying console logs
  */
+export function updateConsoleLogsView(): void {
+  const consoleTimeline = document.getElementById('console-timeline') as HTMLDivElement;
+  if (!consoleTimeline) return;
 
+  // Filter console logs based on current settings
+  const filteredLogs = mGlob.consoleLogs.filter((log) => {
+    // Filter by log level if needed
+    if (mGlob.currentLogLevel !== "any" && log.level !== mGlob.currentLogLevel) {
+      return false;
+    }
+
+    // Filter by search text if needed
+    if (mGlob.consoleSearchText) {
+      const logContent = log.args.join(" ").toLowerCase();
+      return logContent.includes(mGlob.consoleSearchText);
+    }
+
+    return true;
+  });
+
+  // Clear previous content
+  consoleTimeline.innerHTML = "";
+
+  if (filteredLogs.length === 0) {
+    consoleTimeline.innerHTML =
+      '<div class="p-4 text-center text-base-content/60">No matching console logs found</div>';
+    return;
+  }
+
+  // Use the first event overall (not just console events) as the base timestamp
+  const baseTimestamp =
+    mGlob.rrwebEvents.length > 0
+      ? mGlob.rrwebEvents[0].timestamp
+      : mGlob.consoleLogs.length > 0
+        ? mGlob.consoleLogs[0].timestamp
+        : 0;
+
+  // Create console log items
+  filteredLogs.forEach((log) => {
+    const logItem = document.createElement("div");
+
+    // Set base class and add level-specific class
+    logItem.className =
+      "console-log-item border-b border-base-100 p-2 hover:bg-base-200";
+
+    // Get styling based on log level
+    const levelClass = getLogLevelClass(log.level || "log");
+
+    // Format the log content
+    const logContent = log.args.join(" ");
+    const isLongMessage = logContent.length > 100;
+
+    // Format timestamp
+    const timestamp = formatTimestamp(log.timestamp, baseTimestamp);
+
+    // Add level badge
+    const levelBadge = getLogLevelBadge(log.level || "log");
+
+    // Add warning icon for errors
+    let icon = "";
+    if (log.level === "error" || log.level === "warn") {
+      icon = `<span class="${levelClass} mr-2">⚠</span>`;
+    }
+
+    // Create the log item content with collapsible functionality for long messages
+    if (isLongMessage) {
+      logItem.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div class="log-content ${levelClass} flex-1 cursor-pointer" data-expanded="false">
+                        <div class="flex items-start">
+                            ${levelBadge}
+                            ${icon}
+                            <div class="log-message-container">
+                                <div class="log-message-preview">${escapeHtml(logContent.substring(0, 100))}... <span class="text-primary">[Click to expand]</span></div>
+                                <div class="log-message-full hidden">${escapeHtml(logContent)}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="log-timestamp text-xs opacity-70 ml-4 shrink-0 mt-1">
+                        ▶ ${timestamp}
+                    </div>
+                </div>
+            `;
+
+      // Add click handler to expand/collapse with proper TypeScript typing
+      const logContentEl = logItem.querySelector(".log-content");
+      logContentEl?.addEventListener("click", function (this: HTMLElement) {
+        const expanded = this.getAttribute("data-expanded") === "true";
+        const preview = this.querySelector(".log-message-preview");
+        const full = this.querySelector(".log-message-full");
+
+        if (expanded) {
+          // Collapse
+          preview?.classList.remove("hidden");
+          full?.classList.add("hidden");
+          this.setAttribute("data-expanded", "false");
+        } else {
+          // Expand
+          preview?.classList.add("hidden");
+          full?.classList.remove("hidden");
+          this.setAttribute("data-expanded", "true");
+        }
+      });
+    } else {
+      // For short messages, no need for expand/collapse
+      logItem.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div class="log-content ${levelClass}">
+                        ${levelBadge}${icon}${escapeHtml(logContent)}
+                    </div>
+                    <div class="log-timestamp text-xs opacity-70 ml-4 shrink-0">
+                        ▶ ${timestamp}
+                    </div>
+                </div>
+            `;
+    }
+
+    // Add click handler to jump to this event in the player
+    logItem.addEventListener("click", (e) => {
+      // Don't trigger player jump if clicking on the message content (for expand/collapse)
+      if ((e.target as HTMLElement).closest(".log-content")) return;
+
+      if (mGlob.playerInstance && typeof mGlob.playerInstance.goto === "function") {
+        mGlob.playerInstance.goto(log.timestamp);
+      }
+    });
+
+    consoleTimeline.appendChild(logItem);
+  });
+}
 /**
  * Console log entry interface
  */
@@ -124,15 +256,15 @@ function getLevelIcon(level: string): string {
 /**
  * Format timestamp to readable time
  */
-function formatTimestamp(timestamp: number): string {
-  const date = new Date(timestamp);
-  const hours = date.getHours().toString().padStart(2, '0');
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-  const seconds = date.getSeconds().toString().padStart(2, '0');
-  const milliseconds = date.getMilliseconds().toString().padStart(3, '0');
+// function formatTimestamp(timestamp: number): string {
+//   const date = new Date(timestamp);
+//   const hours = date.getHours().toString().padStart(2, '0');
+//   const minutes = date.getMinutes().toString().padStart(2, '0');
+//   const seconds = date.getSeconds().toString().padStart(2, '0');
+//   const milliseconds = date.getMilliseconds().toString().padStart(3, '0');
   
-  return `${hours}:${minutes}:${seconds}.${milliseconds}`;
-}
+//   return `${hours}:${minutes}:${seconds}.${milliseconds}`;
+// }
 
 /**
  * Display console entries in the container
@@ -250,3 +382,29 @@ function setupConsoleFilters(entries: ConsoleLogEntry[]): void {
     });
   }
 } 
+
+export function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+export function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  if (!bytes || isNaN(bytes)) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(Math.max(bytes, 1)) / Math.log(k));
+  return (bytes / Math.pow(k, i)).toFixed(1) + " " + sizes[i];
+}
+
+export function getFullPath(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.pathname + urlObj.search + urlObj.hash;
+  } catch (e) {
+    return url;
+  }
+}

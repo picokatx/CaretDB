@@ -52,26 +52,35 @@ export enum MouseInteractions {
  * Initialize and start the player with the recorded events
  */
 export function initPlayer(
-  events: any[], 
-  targetElement: HTMLElement,
-  onPlaybackFinished: () => void,
-  onStatusUpdate: (message: string) => void
+  events: any[],
+  targetElement: HTMLElement
 ): any {
+  const startBtn = document.getElementById('startBtn') as HTMLButtonElement;
+  const replayContainer = document.getElementById('replay-container') as HTMLElement;
+  const eventTimeline = document.getElementById('event-timeline') as HTMLElement;
+
   if (!targetElement) {
     console.error('Player target element not found');
     return null;
   }
 
   if (events.length === 0) {
-    onStatusUpdate('No events recorded. Start recording again.');
-    targetElement.innerHTML = '<p class="text-center p-4">No events were recorded.</p>';
+    updateStatus("No events recorded. Start recording again.");
+    if (replayContainer)
+      replayContainer.innerHTML =
+        '<p class="text-center p-4">No events were recorded.</p>';
+    startBtn.disabled = false; // Re-enable start button
+    if (eventTimeline) {
+      eventTimeline.innerHTML =
+        '<div class="p-4 text-center text-base-content/60">No events recorded</div>';
+    }
     return null;
   }
 
   try {
     // Clear previous player
     targetElement.innerHTML = '';
-   
+
     // Create the player with DaisyUI styling
     const playerInstance = new rrwebPlayer.default({
       target: targetElement,
@@ -85,23 +94,26 @@ export function initPlayer(
         skipInactive: true,
       }
     });
-    
     // Listen for player events
     playerInstance.addEventListener('end', () => {
-      onStatusUpdate('Replay finished. Ready to record again.');
-      onPlaybackFinished();
+      updateStatus('Replay finished. Ready to record again.');
+      startBtn.disabled = false;
     });
 
-    onStatusUpdate('Replaying...');
+    updateStatus('Replaying...');
     return playerInstance;
 
-  } catch(error) {
+  } catch (error) {
     console.error("Failed to initialize or start replay:", error);
-    onStatusUpdate('Error during replay setup.');
+    updateStatus('Error during replay setup.');
+    startBtn.disabled = false; // Re-enable start button
     return null;
   }
 }
-
+export function updateStatus(text: string) {
+  const statusEl = document.getElementById('status') as HTMLDivElement;
+  if (statusEl) statusEl.textContent = `Status: ${text}`;
+}
 /**
  * Helper function to format a timestamp
  */
@@ -109,10 +121,10 @@ export function formatTimestamp(timestamp: number, base: number = 0): string {
   const elapsed = Math.max(0, timestamp - base);
   const seconds = Math.floor(elapsed / 1000);
   const milliseconds = Math.floor((elapsed % 1000) / 10); // Get only 2 digits
-  
+
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
-  
+
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 

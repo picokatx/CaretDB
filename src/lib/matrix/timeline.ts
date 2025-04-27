@@ -56,7 +56,7 @@ export function initTimelineControls(
 /**
  * Helper function to update tab highlighting
  */
-function updateTabHighlighting(activeTab: HTMLElement): void {
+export function updateTabHighlighting(activeTab: HTMLElement): void {
   // Remove highlighting from all tabs
   const timelineViewBtn = document.getElementById('timeline-view-btn');
   const consoleViewBtn = document.getElementById('console-view-btn');
@@ -133,7 +133,7 @@ export function generateTimelineView(events: any[]): void {
 /**
  * Display selected event JSON and update preview
  */
-function selectEvent(index: number, events: any[]): void {
+export function selectEvent(index: number, events: any[]): void {
   const eventTimeline = document.getElementById('event-timeline');
   const timelinePreview = document.getElementById('timeline-preview');
   
@@ -199,7 +199,7 @@ function copyRawJson(): void {
 /**
  * Create parsed event details
  */
-function createEventDetails(event: any): string {
+export function createEventDetails(event: any): string {
   let details = '';
   
   switch(event.type) {
@@ -257,7 +257,7 @@ function createEventDetails(event: any): string {
 /**
  * Create compact event details
  */
-function createCompactEventDetails(event: any): string {
+export function createCompactEventDetails(event: any): string {
   let details = '';
   
   switch(event.type) {
@@ -374,7 +374,7 @@ function getEventTypeIcon(type: number, data: any): string {
 /**
  * Get CSS class for console log level
  */
-function getLogLevelClass(level: string): string {
+export function getLogLevelClass(level: string): string {
   switch(level) {
     case 'error': return 'text-error';
     case 'warn': return 'text-warning';
@@ -382,3 +382,36 @@ function getLogLevelClass(level: string): string {
     default: return 'text-base-content';
   }
 } 
+
+export function getLogLevelBadge(level: string): string {
+  let badgeClass = "badge badge-sm ";
+  switch (level) {
+    case "error":
+      badgeClass += "badge-error";
+      break;
+    case "warn":
+      badgeClass += "badge-warning";
+      break;
+    case "info":
+      badgeClass += "badge-info";
+      break;
+    case "debug":
+      badgeClass += "badge-ghost";
+      break;
+    default:
+      badgeClass += "badge-neutral";
+  }
+
+  return `<span class="${badgeClass} mr-2">${formatLogLevel(level)}</span>`;
+}
+
+export function formatLogLevel(level: string): string {
+  const levelMap: { [key: string]: string } = {
+    log: "LOG",
+    info: "INFO",
+    warn: "WARN",
+    error: "ERROR",
+    debug: "DEBUG",
+  };
+  return levelMap[level] || level.toUpperCase();
+}
