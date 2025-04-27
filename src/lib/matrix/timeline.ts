@@ -3,53 +3,165 @@
  */
 
 import { EventType, IncrementalSource, formatTimestamp, getEventTypeName, getIncrementalSourceName, getMouseInteractionName } from './player';
-
+import { matrixGlobals as mGlob } from "./globals";
+import { updateStatus } from "./player";
+import { updateNetworkRequestsView } from './network';
+import { updateConsoleLogsView } from './console';
 let selectedEventIndex = -1;
 
 /**
  * Initialize timeline controls and views
  */
-export function initTimelineControls(
-  onViewChange: (view: string) => void
-) {
+export function initTimelineControls() {
   const timelineViewBtn = document.getElementById('timeline-view-btn');
   const rawViewBtn = document.getElementById('raw-view-btn');
   const consoleViewBtn = document.getElementById('console-view-btn');
   const networkViewBtn = document.getElementById('network-view-btn');
   const jsonCopyBtn = document.getElementById('json-copy-btn');
-  
+  const networkSearch = document.getElementById(
+    "network-search"
+  ) as HTMLInputElement;
+  const networkSearchBtn = document.getElementById("network-search-btn");
+  const timelineView = document.getElementById('timeline-view') as HTMLDivElement;
+  const rawJsonView = document.getElementById('raw-json-view') as HTMLDivElement;
+  const consoleLogsView = document.getElementById('console-logs-view') as HTMLDivElement;
+  const networkRequestsView = document.getElementById('network-requests-view') as HTMLDivElement;
+  const consoleSearch = document.getElementById(
+    "console-search"
+  ) as HTMLInputElement;
+  const consoleSearchBtn = document.getElementById("console-search-btn");
+  const jumpToCurrentBtn = document.getElementById(
+    "jump-to-current-timestamp"
+  );
   if (!timelineViewBtn || !rawViewBtn || !consoleViewBtn || !networkViewBtn) {
     console.error('Timeline control elements not found');
     return;
   }
 
-  // Timeline view click
-  timelineViewBtn.addEventListener('click', () => {
-    updateTabHighlighting(timelineViewBtn);
-    onViewChange('timeline');
-  });
-  
-  // Raw view click
-  rawViewBtn.addEventListener('click', () => {
-    updateTabHighlighting(rawViewBtn);
-    onViewChange('raw');
+  networkSearchBtn?.addEventListener("click", () => {
+    if (networkSearch) {
+      mGlob.networkSearchText = networkSearch.value.trim().toLowerCase();
+      updateNetworkRequestsView();
+    }
   });
 
-  // Console view click
-  consoleViewBtn.addEventListener('click', () => {
+  networkSearch?.addEventListener("keyup", (e) => {
+    if (e.key === "Enter" && networkSearch) {
+      mGlob.networkSearchText = networkSearch.value.trim().toLowerCase();
+      updateNetworkRequestsView();
+    }
+  });
+
+  // Tab switching (update to include network tab and better highlighting)
+  timelineViewBtn?.addEventListener("click", () => {
+    mGlob.currentView = "timeline";
+    updateTabHighlighting(timelineViewBtn);
+    timelineView!.classList.remove("hidden");
+    rawJsonView!.classList.add("hidden");
+    consoleLogsView!.classList.add("hidden");
+    networkRequestsView!.classList.add("hidden");
+  });
+
+  rawViewBtn?.addEventListener("click", () => {
+    mGlob.currentView = "raw";
+    updateTabHighlighting(rawViewBtn);
+    rawJsonView!.classList.remove("hidden");
+    timelineView!.classList.add("hidden");
+    consoleLogsView!.classList.add("hidden");
+    networkRequestsView!.classList.add("hidden");
+  });
+
+  consoleViewBtn?.addEventListener("click", () => {
+    mGlob.currentView = "console";
     updateTabHighlighting(consoleViewBtn);
-    onViewChange('console');
+    consoleLogsView!.classList.remove("hidden");
+    timelineView!.classList.add("hidden");
+    rawJsonView!.classList.add("hidden");
+    networkRequestsView!.classList.add("hidden");
+    updateConsoleLogsView();
   });
-  
-  // Network view click
-  networkViewBtn.addEventListener('click', () => {
+
+  networkViewBtn?.addEventListener("click", () => {
+    mGlob.currentView = "network";
     updateTabHighlighting(networkViewBtn);
-    onViewChange('network');
+    networkRequestsView!.classList.remove("hidden");
+    timelineView!.classList.add("hidden");
+    rawJsonView!.classList.add("hidden");
+    consoleLogsView!.classList.add("hidden");
+    updateNetworkRequestsView();
   });
-  
+  // Filter by log level - enhanced to update the display text
+  document.querySelectorAll(".log-level-filter").forEach((levelBtn) => {
+    levelBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+
+      // Get the selected level
+      const target = e.currentTarget as HTMLElement;
+      const level = target.getAttribute("data-level") || "any";
+
+      // Update the filter
+      mGlob.currentLogLevel = level;
+
+      // Update active class
+      document.querySelectorAll(".log-level-filter").forEach((btn) => {
+        btn.classList.remove("active");
+      });
+      target.classList.add("active");
+
+      // Update the dropdown label
+      const levelDisplay = document.getElementById("log-level-display");
+      if (levelDisplay) {
+        const displayText = level === "any" ? "Any" : formatLogLevel(level);
+        levelDisplay.textContent = `Log Level: ${displayText}`;
+      }
+
+      // Update the view
+      updateConsoleLogsView();
+    });
+  });
+  // Search functionality
+  consoleSearch?.addEventListener("input", (e) => {
+    mGlob.consoleSearchText = (e.target as HTMLInputElement).value.toLowerCase();
+    updateConsoleLogsView();
+  });
+
+  consoleSearchBtn?.addEventListener("click", () => {
+    updateConsoleLogsView();
+  });
+
+  // Jump to current timestamp
+  jumpToCurrentBtn?.addEventListener("click", () => {
+    if (mGlob.playerInstance && typeof mGlob.playerInstance.goto === "function") {
+      // Get the current player position
+      const currentTime = mGlob.playerInstance.getCurrentTime
+        ? mGlob.playerInstance.getCurrentTime()
+        : mGlob.playerInstance.replayer
+          ? mGlob.playerInstance.replayer.getCurrentTime()
+          : 0;
+
+      mGlob.playerInstance.goto(currentTime);
+    }
+  });
   // JSON copy button click
   jsonCopyBtn?.addEventListener('click', () => {
-    copyRawJson();
+    try {
+      const jsonContent = document.getElementById('json-content');
+      let textToCopy = "";
+      if (mGlob.currentView === "raw") {
+        textToCopy = jsonContent!.textContent || "";
+      } else if (mGlob.selectedEventIndex >= 0) {
+        // Copy only the selected event JSON if in timeline view
+        textToCopy = JSON.stringify(mGlob.rrwebEvents[mGlob.selectedEventIndex], null, 2);
+      } else if (mGlob.rrwebEvents.length > 0) {
+        // If no event selected but events exist, copy all
+        textToCopy = JSON.stringify(mGlob.rrwebEvents, null, 2);
+      }
+      navigator.clipboard.writeText(textToCopy);
+      updateStatus("JSON copied to clipboard.");
+    } catch (error) {
+      console.error("Error copying to clipboard:", error);
+      updateStatus("Error copying to clipboard.");
+    }
   });
 }
 
@@ -62,13 +174,13 @@ export function updateTabHighlighting(activeTab: HTMLElement): void {
   const consoleViewBtn = document.getElementById('console-view-btn');
   const networkViewBtn = document.getElementById('network-view-btn');
   const rawViewBtn = document.getElementById('raw-view-btn');
-  
+
   [timelineViewBtn, consoleViewBtn, networkViewBtn, rawViewBtn].forEach(tab => {
     if (tab) {
       tab.classList.remove('tab-active', 'bg-primary', 'text-primary-content');
     }
   });
-  
+
   // Add highlighting to active tab
   activeTab.classList.add('tab-active', 'bg-primary', 'text-primary-content');
 }
@@ -78,52 +190,52 @@ export function updateTabHighlighting(activeTab: HTMLElement): void {
  */
 export function generateTimelineView(events: any[]): void {
   const eventTimeline = document.getElementById('event-timeline');
-  
+
   if (!eventTimeline) return;
-  
+
   eventTimeline.innerHTML = '';
-  
+
   if (events.length === 0) {
     eventTimeline.innerHTML = '<div class="p-4 text-center">No events recorded</div>';
     return;
   }
-  
+
   // Use the first event as the base timestamp
   const baseTimestamp = events[0].timestamp;
-  
+
   events.forEach((event, index) => {
     const eventItem = document.createElement('div');
     eventItem.className = 'event-item mb-2 p-2 bg-base-200 rounded-lg cursor-pointer hover:bg-base-300 border border-base-300 transition-all';
-    
+
     // Add click handler to select this event
     eventItem.addEventListener('click', () => {
       selectEvent(index, events);
     });
-    
+
     // Get the event class based on type
     const eventClass = getEventTypeClass(event.type, event.data);
     const eventIcon = getEventTypeIcon(event.type, event.data);
-    
+
     // Create a brief version of the event details
     const shortDetails = createCompactEventDetails(event);
-    
+
     // Create the event content
     eventItem.innerHTML = `
       <div class="flex justify-between items-center">
         <div class="${eventClass} font-semibold">
           ${eventIcon} 
           ${getEventTypeName(event.type)}
-          ${event.type === EventType.IncrementalSnapshot ? 
-            `(${getIncrementalSourceName(event.data.source)})` : ''}
+          ${event.type === EventType.IncrementalSnapshot ?
+        `(${getIncrementalSourceName(event.data.source)})` : ''}
         </div>
         <div class="text-xs opacity-70">${formatTimestamp(event.timestamp, baseTimestamp)}</div>
       </div>
       <div class="ml-5 text-sm mt-1">${shortDetails}</div>
     `;
-    
+
     eventTimeline.appendChild(eventItem);
   });
-  
+
   // Select the first event by default
   if (events.length > 0) {
     selectEvent(0, events);
@@ -136,12 +248,12 @@ export function generateTimelineView(events: any[]): void {
 export function selectEvent(index: number, events: any[]): void {
   const eventTimeline = document.getElementById('event-timeline');
   const timelinePreview = document.getElementById('timeline-preview');
-  
+
   if (!eventTimeline || !timelinePreview) return;
-  
+
   if (index >= 0 && index < events.length) {
     selectedEventIndex = index;
-    
+
     // Highlight all event elements
     const eventElements = eventTimeline.querySelectorAll('.event-item');
     eventElements.forEach((el, i) => {
@@ -151,10 +263,10 @@ export function selectEvent(index: number, events: any[]): void {
         el.classList.remove('border-primary', 'border-2');
       }
     });
-    
+
     // Update preview with event information
     const event = events[index];
-    
+
     // Create preview content
     let previewContent = `
       <div class="bg-base-200 p-4 rounded-lg">
@@ -163,7 +275,7 @@ export function selectEvent(index: number, events: any[]): void {
         <pre class="bg-base-300 p-3 rounded text-xs overflow-auto max-h-[200px]">${JSON.stringify(event, null, 2)}</pre>
       </div>
     `;
-    
+
     timelinePreview.innerHTML = previewContent;
   }
 }
@@ -174,26 +286,10 @@ export function selectEvent(index: number, events: any[]): void {
 export function updateRawJsonView(events: any[]): void {
   const jsonContent = document.getElementById('json-content');
   if (!jsonContent) return;
-  
+
   // Format the JSON for raw view
   const formattedJson = JSON.stringify(events, null, 2);
   jsonContent.textContent = formattedJson;
-}
-
-/**
- * Copy raw JSON to clipboard
- */
-function copyRawJson(): void {
-  const jsonContent = document.getElementById('json-content');
-  if (!jsonContent || !jsonContent.textContent) return;
-  
-  try {
-    navigator.clipboard.writeText(jsonContent.textContent);
-    alert('JSON copied to clipboard');
-  } catch (error) {
-    console.error('Error copying to clipboard:', error);
-    alert('Error copying to clipboard');
-  }
 }
 
 /**
@@ -201,34 +297,34 @@ function copyRawJson(): void {
  */
 export function createEventDetails(event: any): string {
   let details = '';
-  
-  switch(event.type) {
+
+  switch (event.type) {
     case EventType.Meta:
       details = `URL: ${event.data.href}, Viewport: ${event.data.width}x${event.data.height}`;
       break;
-      
+
     case EventType.FullSnapshot:
       details = 'Full DOM snapshot captured';
       break;
-      
+
     case EventType.IncrementalSnapshot:
-      switch(event.data.source) {
+      switch (event.data.source) {
         case IncrementalSource.MouseMove:
           details = `Mouse moved (${event.data.positions.length} positions)`;
           break;
-          
+
         case IncrementalSource.MouseInteraction:
           details = `${getMouseInteractionName(event.data.type)} at (${event.data.x}, ${event.data.y})`;
           break;
-          
+
         case IncrementalSource.Scroll:
           details = `Scroll to (${event.data.x}, ${event.data.y})`;
           break;
-          
+
         case IncrementalSource.Input:
           details = `Input value: "${event.data.text?.substring(0, 50)}${event.data.text?.length > 50 ? '...' : ''}"`;
           break;
-          
+
         case IncrementalSource.Mutation:
           const adds = event.data.adds?.length || 0;
           const removes = event.data.removes?.length || 0;
@@ -246,11 +342,11 @@ export function createEventDetails(event: any): string {
           details = `${getIncrementalSourceName(event.data.source)} event`;
       }
       break;
-      
+
     default:
       details = 'See raw data for details';
   }
-  
+
   return details;
 }
 
@@ -259,32 +355,32 @@ export function createEventDetails(event: any): string {
  */
 export function createCompactEventDetails(event: any): string {
   let details = '';
-  
-  switch(event.type) {
+
+  switch (event.type) {
     case EventType.Meta:
       details = `${event.data.width}x${event.data.height}`;
       break;
-      
+
     case EventType.FullSnapshot:
       details = 'Full DOM snapshot';
       break;
-      
+
     case EventType.IncrementalSnapshot:
-      switch(event.data.source) {
+      switch (event.data.source) {
         case IncrementalSource.MouseMove:
           details = `${event.data.positions.length} positions`;
           break;
-          
+
         case IncrementalSource.MouseInteraction:
           details = `${getMouseInteractionName(event.data.type)}`;
           break;
-          
+
         case IncrementalSource.Input:
           const textValue = event.data.text || '';
           const truncated = textValue.length > 20 ? textValue.substring(0, 20) + '...' : textValue;
           details = `"${truncated}"`;
           break;
-          
+
         case IncrementalSource.Mutation:
           const adds = event.data.adds?.length || 0;
           const removes = event.data.removes?.length || 0;
@@ -298,23 +394,23 @@ export function createCompactEventDetails(event: any): string {
             details = 'DOM changes';
           }
           break;
-          
+
         case IncrementalSource.Log:
-          const logContent = event.data.payload?.join ? 
-            event.data.payload.join(' ').substring(0, 20) : 
+          const logContent = event.data.payload?.join ?
+            event.data.payload.join(' ').substring(0, 20) :
             String(event.data.payload || '').substring(0, 20);
           details = `${event.data.level}: ${logContent}${logContent.length > 20 ? '...' : ''}`;
           break;
-          
+
         default:
           details = getIncrementalSourceName(event.data.source);
       }
       break;
-      
+
     default:
       details = getEventTypeName(event.type);
   }
-  
+
   return details;
 }
 
@@ -375,13 +471,13 @@ function getEventTypeIcon(type: number, data: any): string {
  * Get CSS class for console log level
  */
 export function getLogLevelClass(level: string): string {
-  switch(level) {
+  switch (level) {
     case 'error': return 'text-error';
     case 'warn': return 'text-warning';
     case 'info': return 'text-info';
     default: return 'text-base-content';
   }
-} 
+}
 
 export function getLogLevelBadge(level: string): string {
   let badgeClass = "badge badge-sm ";
