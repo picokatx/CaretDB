@@ -4,6 +4,7 @@ import { initPlayer, updateStatus } from "./player";
 import { generateTimelineView } from "./timeline";
 import { updateConsoleLogsView } from "./console";
 import { updateNetworkRequestsView } from "./network";
+import { updateTabHighlighting } from "./timeline";
 /**
  * Recorder controller for managing recording sessions
  */
@@ -173,11 +174,8 @@ export function initRecorder() {
       // Update the network requests view
       updateNetworkRequestsView();
 
-      // Set view to timeline
-      mGlob.currentView = "timeline";
-      timelineViewBtn!.classList.add("tab-active");
-      rawViewBtn!.classList.remove("tab-active");
-      consoleViewBtn!.classList.remove("tab-active");
+      // Set view to timeline using the helper function
+      updateTabHighlighting(timelineViewBtn);
       timelineView!.classList.remove("hidden");
       rawJsonView!.classList.add("hidden");
       consoleLogsView!.classList.add("hidden");

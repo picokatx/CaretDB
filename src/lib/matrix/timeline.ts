@@ -284,12 +284,25 @@ export function selectEvent(index: number, events: any[]): void {
  * Update the raw JSON view
  */
 export function updateRawJsonView(events: any[]): void {
-  const jsonContent = document.getElementById('json-content');
-  if (!jsonContent) return;
+  const jsonContent = document.getElementById('json-content') as HTMLPreElement;
+  const placeholder = document.getElementById('json-placeholder') as HTMLDivElement;
 
-  // Format the JSON for raw view
-  const formattedJson = JSON.stringify(events, null, 2);
-  jsonContent.textContent = formattedJson;
+  if (!jsonContent || !placeholder) {
+    console.error("Raw JSON view elements not found");
+    return;
+  }
+
+  if (events && events.length > 0) {
+    // Format the JSON for raw view
+    const formattedJson = JSON.stringify(events, null, 2);
+    jsonContent.textContent = formattedJson; // This clears the placeholder
+    placeholder.style.display = 'none'; // Explicitly hide just in case
+  } else {
+    // No events, show placeholder and clear any previous JSON
+    jsonContent.textContent = ''; // Clear previous content
+    placeholder.style.display = 'block'; // Ensure placeholder is visible
+    jsonContent.appendChild(placeholder); // Re-append if textContent cleared it
+  }
 }
 
 /**

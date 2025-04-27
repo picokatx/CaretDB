@@ -18,8 +18,10 @@ export function initFileHandlers(onFileUploaded: (url: string) => void, onStatus
   const htmlContentInput = document.getElementById('html-content-input') as HTMLTextAreaElement;
   const loadHtmlBtn = document.getElementById('load-html-btn') as HTMLButtonElement;
   const iframeUrlDisplay = document.getElementById('iframe-url-display');
+  const fileInputLabel = document.querySelector('label[for="html-file-input"]');
+  const fileUploadPrompt = document.getElementById('file-upload-prompt');
 
-  if (!fileInput || !uploadBtn || !htmlContentInput || !loadHtmlBtn) {
+  if (!fileInput || !uploadBtn || !htmlContentInput || !loadHtmlBtn || !fileInputLabel || !fileUploadPrompt) {
     console.error('File upload elements not found');
     return;
   }
@@ -36,8 +38,21 @@ export function initFileHandlers(onFileUploaded: (url: string) => void, onStatus
       alert('Please select a valid HTML file');
       return;
     }
+    
+    // Show loading state on the button
+    uploadBtn.disabled = true;
+    uploadBtn.classList.add('loading', 'loading-spinner');
+    const originalBtnText = uploadBtn.textContent;
+    // uploadBtn.textContent = 'Uploading...'; // Optional: Change text
 
-    await uploadHtmlFile(file, onFileUploaded, onStatusUpdate, iframeUrlDisplay);
+    try {
+      await uploadHtmlFile(file, onFileUploaded, onStatusUpdate, iframeUrlDisplay);
+    } finally {
+      // Restore button state regardless of success or error
+      uploadBtn.disabled = false;
+      uploadBtn.classList.remove('loading', 'loading-spinner');
+      uploadBtn.textContent = originalBtnText; // Restore original text
+    }
   });
 
   // Handle HTML content load
@@ -49,15 +64,33 @@ export function initFileHandlers(onFileUploaded: (url: string) => void, onStatus
       return;
     }
 
+    // Show loading state on the button
+    loadHtmlBtn.disabled = true;
+    loadHtmlBtn.classList.add('loading', 'loading-spinner');
+    const originalBtnText = loadHtmlBtn.textContent;
+    // loadHtmlBtn.textContent = 'Loading...'; // Optional: Change text
+
     // Create a temporary File object from the content
     const blob = new Blob([htmlContent], { type: 'text/html' });
     const file = new File([blob], 'pasted-content.html', { type: 'text/html' });
     
-    await uploadHtmlFile(file, onFileUploaded, onStatusUpdate, iframeUrlDisplay);
+    try {
+      await uploadHtmlFile(file, onFileUploaded, onStatusUpdate, iframeUrlDisplay);
+    } finally {
+      // Restore button state regardless of success or error
+      loadHtmlBtn.disabled = false;
+      loadHtmlBtn.classList.remove('loading', 'loading-spinner');
+      loadHtmlBtn.textContent = originalBtnText; // Restore original text
+    }
   });
 
   // Add drag and drop functionality for the upload area
-  setupDragAndDrop(fileInput);
+  setupDragAndDrop(fileInput, fileInputLabel, fileUploadPrompt);
+
+  // Add listener for file input changes to update UI
+  fileInput.addEventListener('change', () => {
+    updateFileInputUI(fileInput, fileInputLabel, fileUploadPrompt);
+  });
 }
 
 /**
@@ -97,6 +130,10 @@ async function uploadHtmlFile(
     
     // Call the success callback with the new URL
     onSuccess(result.url);
+
+    // Show toast notification
+    showUploadToast(file.name);
+
   } catch (error) {
     console.error('Error uploading HTML file:', error);
     onStatus(`Error - ${error instanceof Error ? error.message : 'Upload failed'}`);
@@ -106,9 +143,13 @@ async function uploadHtmlFile(
 /**
  * Setup drag and drop functionality
  */
-function setupDragAndDrop(fileInput: HTMLInputElement) {
-  const uploadArea = document.querySelector('label[for="html-file-input"]');
-  if (!uploadArea) return;
+function setupDragAndDrop(
+  fileInput: HTMLInputElement,
+  labelElement: Element | null,
+  promptElement: HTMLElement | null
+) {
+  const uploadArea = labelElement; // Use the label directly
+  if (!uploadArea || !labelElement || !promptElement) return;
   
   ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
     uploadArea.addEventListener(eventName, (e) => {
@@ -132,6 +173,72 @@ function setupDragAndDrop(fileInput: HTMLInputElement) {
   uploadArea.addEventListener('drop', (e) => {
     if (e instanceof DragEvent && e.dataTransfer?.files?.length) {
       fileInput.files = e.dataTransfer.files;
+      // Manually trigger UI update after setting files via drag/drop
+      updateFileInputUI(fileInput, labelElement, promptElement);
     }
   }, false);
+}
+
+/**
+ * Show a toast notification for successful file upload
+ */
+function showUploadToast(fileName: string) {
+  const container = document.getElementById('toast-container');
+  if (!container) {
+    console.warn('Toast container not found');
+    return;
+  }
+
+  const toastId = `toast-${Date.now()}`;
+  const toastElement = document.createElement('div');
+  toastElement.id = toastId;
+  toastElement.className = 'alert alert-success shadow-lg';
+  toastElement.innerHTML = `
+    <div>
+      <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <span>HTML file uploaded successfully: <strong>${fileName}</strong></span>
+    </div>
+  `;
+
+  container.appendChild(toastElement);
+
+  // Automatically remove the toast after 5 seconds
+  setTimeout(() => {
+    const elementToRemove = document.getElementById(toastId);
+    if (elementToRemove) {
+      container.removeChild(elementToRemove);
+    }
+  }, 5000);
+}
+
+/**
+ * Updates the file input UI to show a badge with the filename
+ * or the default prompt.
+ */
+function updateFileInputUI(
+  fileInput: HTMLInputElement,
+  labelElement: Element | null,
+  promptElement: HTMLElement | null
+) {
+  if (!labelElement || !promptElement) return;
+
+  const existingBadge = labelElement.querySelector('#file-upload-badge');
+  if (existingBadge) {
+    labelElement.removeChild(existingBadge);
+  }
+
+  if (fileInput.files && fileInput.files.length > 0) {
+    const file = fileInput.files[0];
+    promptElement.style.display = 'none'; // Hide prompt
+
+    const badge = document.createElement('span');
+    badge.id = 'file-upload-badge';
+    badge.className = 'badge badge-lg badge-outline p-4'; // Added padding
+    badge.textContent = file.name;
+    labelElement.appendChild(badge);
+  } else {
+    promptElement.style.display = ''; // Show prompt
+  }
 } 

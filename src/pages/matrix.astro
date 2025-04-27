@@ -7,7 +7,6 @@ import ReplayPanel from "../components/matrix/ReplayPanel.astro";
 import RecordingPanel from "../components/matrix/RecordingPanel.astro";
 import TimelinePanel from "../components/matrix/TimelinePanel.astro";
 
-
 import "../styles/rrweb-player.css";
 const systemName = "ClickstreamDB";
 ---
@@ -23,14 +22,25 @@ const systemName = "ClickstreamDB";
   </div>
   <ControlPanel />
   <TimelinePanel />
+  <!-- Add the toast container here -->
+  <div id="toast-container" class="toast toast-end toast-bottom z-50"></div>
 </Layout>
 
 <script>
-  import { initRecorder } from "../lib/matrix/recorder";;
+  import { initRecorder } from "../lib/matrix/recorder";
   import { initTimelineControls } from "../lib/matrix/timeline";
+  import { initFileHandlers } from "../lib/matrix/fileHandler";
 
   document.addEventListener("DOMContentLoaded", () => {
     initTimelineControls();
     initRecorder();
+    initFileHandlers(
+      (url) => {
+        console.log("File uploaded:", url);
+      },
+      (message) => {
+        console.log("Status:", message);
+      }
+    );
   });
 </script>
