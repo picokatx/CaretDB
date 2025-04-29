@@ -1,186 +1,10 @@
-export interface IMirror<TNode> {
-    getId(n: TNode | undefined | null): number;
-  
-    getNode(id: number): TNode | null;
-  
-    getIds(): number[];
-  
-    getMeta(n: TNode): serializedNodeWithId | null;
-  
-    removeNodeFromMap(n: TNode): void;
-  
-    has(id: number): boolean;
-  
-    hasNode(node: TNode): boolean;
-  
-    add(n: TNode, meta: serializedNodeWithId): void;
-  
-    replace(id: number, n: TNode): void;
-  
-    reset(): void;
-  }
-
-export interface ICanvas extends HTMLCanvasElement {
-    __context: string;
-  }
-  
-  export type idNodeMap = Map<number, Node>;
-  
-  export type nodeMetaMap = WeakMap<Node, serializedNodeWithId>;
-  
-export class Mirror implements IMirror<Node> {
-    private idNodeMap: idNodeMap = new Map();
-    private nodeMetaMap: nodeMetaMap = new WeakMap();
-
-    getId(n: Node | undefined | null): number {
-        if (!n) return -1;
-
-        const id = this.getMeta(n)?.id;
-
-        // if n is not a serialized Node, use -1 as its id.
-        return id ?? -1;
-    }
-
-    getNode(id: number): Node | null {
-        return this.idNodeMap.get(id) || null;
-    }
-
-    getIds(): number[] {
-        return Array.from(this.idNodeMap.keys());
-    }
-
-    getMeta(n: Node): serializedNodeWithId | null {
-        return this.nodeMetaMap.get(n) || null;
-    }
-
-    // removes the node from idNodeMap
-    // doesn't remove the node from nodeMetaMap
-    removeNodeFromMap(n: Node) {
-        const id = this.getId(n);
-        this.idNodeMap.delete(id);
-
-        if (n.childNodes) {
-            n.childNodes.forEach((childNode) =>
-                this.removeNodeFromMap((childNode as unknown) as Node),
-            );
-        }
-    }
-    has(id: number): boolean {
-        return this.idNodeMap.has(id);
-    }
-
-    hasNode(node: Node): boolean {
-        return this.nodeMetaMap.has(node);
-    }
-
-    add(n: Node, meta: serializedNodeWithId) {
-        const id = meta.id;
-        this.idNodeMap.set(id, n);
-        this.nodeMetaMap.set(n, meta);
-    }
-
-    replace(id: number, n: Node) {
-        const oldNode = this.getNode(id);
-        if (oldNode) {
-            const meta = this.nodeMetaMap.get(oldNode);
-            if (meta) this.nodeMetaMap.set(n, meta);
-        }
-        this.idNodeMap.set(id, n);
-    }
-
-    reset() {
-        this.idNodeMap = new Map();
-        this.nodeMetaMap = new WeakMap();
-    }
-}
-
-export function createMirror(): Mirror {
-    return new Mirror();
-}
-// @deprecated
-export interface INode extends Node {
-    __sn: serializedNodeWithId;
-}
-
-export type DataURLOptions = Partial<{
-    type: string;
-    quality: number;
-}>;
-
-export enum NodeType {
-    Document,
-    DocumentType,
-    Element,
-    Text,
-    CDATA,
-    Comment,
-}
-
-export type documentNode = {
-    type: NodeType.Document;
-    childNodes: serializedNodeWithId[];
-    compatMode?: string;
-};
-export type documentTypeNode = {
-    type: NodeType.DocumentType;
-    name: string;
-    publicId: string;
-    systemId: string;
-};
-
-
-export type attributes = {
-    [key: string]: string | number | true;
-};
-export type elementNode = {
-    type: NodeType.Element;
-    tagName: string;
-    attributes: attributes;
-    childNodes: serializedNodeWithId[];
-    isSVG?: true;
-    needBlock?: boolean;
-};
-
-export type textNode = {
-    type: NodeType.Text;
-    textContent: string;
-    isStyle?: true;
-};
-
-export type cdataNode = {
-    type: NodeType.CDATA;
-    textContent: '';
-};
-
-export type commentNode = {
-    type: NodeType.Comment;
-    textContent: string;
-};
-
-
-export type serializedNode = (
-    | documentNode
-    | documentTypeNode
-    | elementNode
-    | textNode
-    | cdataNode
-    | commentNode
-) & {
-    rootId?: number;
-    isShadowHost?: boolean;
-    isShadow?: boolean;
-};
-
-export type serializedNodeWithId = serializedNode & { id: number };
-
 export enum EventType {
     DomContentLoaded,
     Load,
     FullSnapshot,
     IncrementalSnapshot,
     Meta,
-    Custom,
-    Plugin,
+    Custom
 }
 
 export type domContentLoadedEvent = {
@@ -226,14 +50,6 @@ export type customEvent<T = unknown> = {
     };
 };
 
-export type pluginEvent<T = unknown> = {
-    type: EventType.Plugin;
-    data: {
-        plugin: string;
-        payload: T;
-    };
-};
-
 export enum IncrementalSource {
     Mutation,
     MouseMove,
@@ -251,6 +67,7 @@ export enum IncrementalSource {
     StyleDeclaration,
     Selection,
     AdoptedStyleSheet,
+    CustomElement,
 }
 
 export type mutationData = {
@@ -310,6 +127,10 @@ export type adoptedStyleSheetData = {
     source: IncrementalSource.AdoptedStyleSheet;
 } & adoptedStyleSheetParam;
 
+export type customElementData = {
+    source: IncrementalSource.CustomElement;
+} & customElementParam;
+
 export type incrementalData =
     | mutationData
     | mousemoveData
@@ -323,18 +144,18 @@ export type incrementalData =
     | fontData
     | selectionData
     | styleDeclarationData
-    | adoptedStyleSheetData;
+    | adoptedStyleSheetData
+    | customElementData;
 
-export type event =
+export type eventWithoutTime =
     | domContentLoadedEvent
     | loadedEvent
     | fullSnapshotEvent
     | incrementalSnapshotEvent
     | metaEvent
-    | customEvent
-    | pluginEvent;
+    | customEvent;
 
-export type eventWithTime = event & {
+export type eventWithTime = eventWithoutTime & {
     timestamp: number;
     delay?: number;
 };
@@ -384,17 +205,22 @@ export type SamplingStrategy = Partial<{
     canvas: 'all' | number;
 }>;
 
-export type RecordPlugin<TOptions = unknown> = {
-    name: string;
-    observer?: (
-        cb: (...args: Array<unknown>) => void,
-        win: IWindow,
-        options: TOptions,
-    ) => listenerHandler;
-    eventProcessor?: <TExtend>(event: eventWithTime) => eventWithTime & TExtend;
-    getMirror?: (mirror: Mirror) => void;
-    options: TOptions;
-};
+export interface ICrossOriginIframeMirror {
+    getId(
+        iframe: HTMLIFrameElement,
+        remoteId: number,
+        parentToRemoteMap?: Map<number, number>,
+        remoteToParentMap?: Map<number, number>,
+    ): number;
+    getIds(iframe: HTMLIFrameElement, remoteId: number[]): number[];
+    getRemoteId(
+        iframe: HTMLIFrameElement,
+        parentId: number,
+        map?: Map<number, number>,
+    ): number;
+    getRemoteIds(iframe: HTMLIFrameElement, parentId: number[]): number[];
+    reset(iframe?: HTMLIFrameElement): void;
+}
 
 export type hooksParam = {
     mutation?: mutationCallBack;
@@ -409,17 +235,18 @@ export type hooksParam = {
     canvasMutation?: canvasMutationCallback;
     font?: fontCallback;
     selection?: selectionCallback;
+    customElement?: customElementCallback;
 };
 
 // https://dom.spec.whatwg.org/#interface-mutationrecord
-export type mutationRecord = {
+export type mutationRecord = Readonly<{
     type: string;
     target: Node;
     oldValue: string | null;
     addedNodes: NodeList;
     removedNodes: NodeList;
     attributeName: string | null;
-};
+}>;
 
 export type textCursor = {
     node: Node;
@@ -430,7 +257,7 @@ export type textMutation = {
     value: string | null;
 };
 
-export type styleAttributeValue = {
+export type styleOMValue = {
     [key: string]: styleValueWithPriority | string | false;
 };
 
@@ -439,13 +266,15 @@ export type styleValueWithPriority = [string, string];
 export type attributeCursor = {
     node: Node;
     attributes: {
-        [key: string]: string | styleAttributeValue | null;
+        [key: string]: string | styleOMValue | null;
     };
+    styleDiff: styleOMValue;
+    _unchangedStyles: styleOMValue;
 };
 export type attributeMutation = {
     id: number;
     attributes: {
-        [key: string]: string | styleAttributeValue | null;
+        [key: string]: string | styleOMValue | null;
     };
 };
 
@@ -509,6 +338,12 @@ export enum MouseInteractions {
     TouchCancel,
 }
 
+export enum PointerTypes {
+    Mouse,
+    Pen,
+    Touch,
+}
+
 export enum CanvasContext {
     '2D',
     WebGL,
@@ -549,8 +384,9 @@ export type CanvasArg =
 type mouseInteractionParam = {
     type: MouseInteractions;
     id: number;
-    x: number;
-    y: number;
+    x?: number;
+    y?: number;
+    pointerType?: PointerTypes;
 };
 
 export type mouseInteractionCallBack = (d: mouseInteractionParam) => void;
@@ -690,7 +526,7 @@ export type inputValue = {
 
 export type inputCallback = (v: inputValue & { id: number }) => void;
 
-export const enum MediaInteractions {
+export enum MediaInteractions {
     Play,
     Pause,
     Seeked,
@@ -704,6 +540,7 @@ export type mediaInteractionParam = {
     currentTime?: number;
     volume?: number;
     muted?: boolean;
+    loop?: boolean;
     playbackRate?: number;
 };
 
@@ -731,16 +568,13 @@ export type selectionParam = {
 
 export type selectionCallback = (p: selectionParam) => void;
 
-export type DeprecatedMirror = {
-    map: {
-        [key: number]: INode;
+export type customElementParam = {
+    define?: {
+        name: string;
     };
-    getId: (n: Node) => number;
-    getNode: (id: number) => INode | null;
-    removeNodeFromMap: (n: Node) => void;
-    has: (id: number) => boolean;
-    reset: () => void;
 };
+
+export type customElementCallback = (c: customElementParam) => void;
 
 export type throttleOptions = {
     leading?: boolean;
@@ -776,7 +610,7 @@ export type Arguments<T> = T extends (...payload: infer U) => unknown
 export enum ReplayerEvents {
     Start = 'start',
     Pause = 'pause',
-    Resume = 'resume',
+    Play = 'play',
     Resize = 'resize',
     Finish = 'finish',
     FullsnapshotRebuilded = 'fullsnapshot-rebuilded',
@@ -804,3 +638,148 @@ declare global {
 export type IWindow = Window & typeof globalThis;
 
 export type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
+
+export type GetTypedKeys<Obj extends object, ValueType> = TakeTypeHelper<
+    Obj,
+    ValueType
+>[keyof TakeTypeHelper<Obj, ValueType>];
+export type TakeTypeHelper<Obj extends object, ValueType> = {
+    [K in keyof Obj]: Obj[K] extends ValueType ? K : never;
+};
+
+export type TakeTypedKeyValues<Obj extends object, Type> = Pick<
+    Obj,
+    TakeTypeHelper<Obj, Type>[keyof TakeTypeHelper<Obj, Type>]
+>;
+
+export enum NodeType {
+    Document,
+    DocumentType,
+    Element,
+    Text,
+    CDATA,
+    Comment,
+}
+
+export type documentNode = {
+    type: NodeType.Document;
+    childNodes: serializedNodeWithId[];
+    compatMode?: string;
+};
+
+export type documentTypeNode = {
+    type: NodeType.DocumentType;
+    name: string;
+    publicId: string;
+    systemId: string;
+};
+
+type cssTextKeyAttr = {
+    _cssText?: string;
+};
+
+export type attributes = cssTextKeyAttr & {
+    [key: string]:
+    | string
+    | number // properties e.g. rr_scrollLeft or rr_mediaCurrentTime
+    | true // e.g. checked  on <input type="radio">
+    | null; // an indication that an attribute was removed (during a mutation)
+};
+
+export type mediaAttributes = {
+    rr_mediaState: 'played' | 'paused';
+    rr_mediaCurrentTime: number;
+    /**
+     * for backwards compatibility this is optional but should always be set
+     */
+    rr_mediaPlaybackRate?: number;
+    /**
+     * for backwards compatibility this is optional but should always be set
+     */
+    rr_mediaMuted?: boolean;
+    /**
+     * for backwards compatibility this is optional but should always be set
+     */
+    rr_mediaLoop?: boolean;
+    /**
+     * for backwards compatibility this is optional but should always be set
+     */
+    rr_mediaVolume?: number;
+};
+
+export type elementNode = {
+    type: NodeType.Element;
+    tagName: string;
+    attributes: attributes;
+    childNodes: serializedNodeWithId[];
+    isSVG?: true;
+    needBlock?: boolean;
+    // This is a custom element or not.
+    isCustom?: true;
+};
+
+export type textNode = {
+    type: NodeType.Text;
+    textContent: string;
+};
+
+export type cdataNode = {
+    type: NodeType.CDATA;
+    textContent: '';
+};
+
+export type commentNode = {
+    type: NodeType.Comment;
+    textContent: string;
+};
+
+export type serializedNode = (
+    | documentNode
+    | documentTypeNode
+    | elementNode
+    | textNode
+    | cdataNode
+    | commentNode
+) & {
+    rootId?: number;
+    isShadowHost?: boolean;
+    isShadow?: boolean;
+};
+
+export type serializedNodeWithId = serializedNode & { id: number };
+
+export type serializedElementNodeWithId = Extract<
+    serializedNodeWithId,
+    Record<'type', NodeType.Element>
+>;
+
+export interface IMirror<TNode> {
+    getId(n: TNode | undefined | null): number;
+
+    getNode(id: number): TNode | null;
+
+    getIds(): number[];
+
+    getMeta(n: TNode): serializedNodeWithId | null;
+
+    removeNodeFromMap(n: TNode): void;
+
+    has(id: number): boolean;
+
+    hasNode(node: TNode): boolean;
+
+    add(n: TNode, meta: serializedNodeWithId): void;
+
+    replace(id: number, n: TNode): void;
+
+    reset(): void;
+}
+
+export type DataURLOptions = Partial<{
+    type: string;
+    quality: number;
+}>;
+
+// Types for @rrweb/packer
+export type PackFn = (event: eventWithTime) => string;
+export type UnpackFn = (raw: string) => eventWithTime;
