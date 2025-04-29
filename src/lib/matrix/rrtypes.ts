@@ -1,12 +1,17 @@
-// -------------------------------------------------------------------------------------------
-// this is like a super event type of our current event type ddl
+/*
+ * this is like a super event type of our current event type ddl
+ * 
+ * 
+ * 
+ * 
+ * 
+ */
 export enum EventType {
     DomContentLoaded,
     Load,
     FullSnapshot,
     IncrementalSnapshot,
-    Meta,
-    Custom
+    Meta
 }
 
 export type domContentLoadedEvent = {
@@ -42,15 +47,14 @@ export type metaEvent = {
         height: number;
     };
 };
-
-export type customEvent<T = unknown> = {
-    type: EventType.Custom;
-    data: {
-        tag: string;
-        payload: T;
-    };
-};
-// basically our current event ddl but more
+/*
+ * basically our current event ddl but more
+ * 
+ * 
+ * 
+ * 
+ * 
+ */
 export enum IncrementalSource {
     Mutation,
     MouseMove,
@@ -237,8 +241,7 @@ export type eventWithoutTime =
     | loadedEvent
     | fullSnapshotEvent
     | incrementalSnapshotEvent
-    | metaEvent
-    | customEvent;
+    | metaEvent;
 
 export type eventWithTime = eventWithoutTime & {
     timestamp: number;
@@ -391,87 +394,14 @@ export type styleSheetAddRule = {
 export type styleSheetDeleteRule = {
     index: number | number[];
 };
-
-export type ImageBitmapDataURLWorkerParams = {
-    id: number;
-    bitmap: ImageBitmap;
-    width: number;
-    height: number;
-    dataURLOptions: DataURLOptions;
-};
-
-export type ImageBitmapDataURLWorkerResponse =
-    | {
-        id: number;
-    }
-    | {
-        id: number;
-        type: string;
-        base64: string;
-        width: number;
-        height: number;
-    };
-
-export type DocumentDimension = {
-    x: number;
-    y: number;
-    // scale value relative to its parent iframe
-    relativeScale: number;
-    // scale value relative to the root iframe
-    absoluteScale: number;
-};
-
-export type throttleOptions = {
-    leading?: boolean;
-    trailing?: boolean;
-};
-
-export type listenerHandler = () => void;
-export type hookResetter = () => void;
-
-export type playerMetaData = {
-    startTime: number;
-    endTime: number;
-    totalTime: number;
-};
-
-export type actionWithDelay = {
-    doAction: () => void;
-    delay: number;
-};
-
-export type Handler = (event?: unknown) => void;
-
-export type Emitter = {
-    on(type: string, handler: Handler): void;
-    emit(type: string, event?: unknown): void;
-    off(type: string, handler: Handler): void;
-};
-
-export type Arguments<T> = T extends (...payload: infer U) => unknown
-    ? U
-    : unknown;
-
-export enum ReplayerEvents {
-    Start = 'start',
-    Pause = 'pause',
-    Play = 'play',
-    Resize = 'resize',
-    Finish = 'finish',
-    FullsnapshotRebuilded = 'fullsnapshot-rebuilded',
-    LoadStylesheetStart = 'load-stylesheet-start',
-    LoadStylesheetEnd = 'load-stylesheet-end',
-    SkipStart = 'skip-start',
-    SkipEnd = 'skip-end',
-    MouseInteraction = 'mouse-interaction',
-    EventCast = 'event-cast',
-    CustomEvent = 'custom-event',
-    Flush = 'flush',
-    StateChange = 'state-change',
-    PlayBack = 'play-back',
-    Destroy = 'destroy',
-}
-
+/*
+ * equivalent to Element in our DDL
+ * 
+ * 
+ * 
+ * 
+ * 
+ */
 export enum NodeType {
     Document,
     DocumentType,
@@ -499,32 +429,14 @@ type cssTextKeyAttr = {
 };
 
 export type attributes = cssTextKeyAttr & {
-    [key: string]:
-    | string
-    | number // properties e.g. rr_scrollLeft or rr_mediaCurrentTime
-    | true // e.g. checked  on <input type="radio">
-    | null; // an indication that an attribute was removed (during a mutation)
-};
-
-export type mediaAttributes = {
-    rr_mediaState: 'played' | 'paused';
-    rr_mediaCurrentTime: number;
-    /**
-     * for backwards compatibility this is optional but should always be set
-     */
-    rr_mediaPlaybackRate?: number;
-    /**
-     * for backwards compatibility this is optional but should always be set
-     */
-    rr_mediaMuted?: boolean;
-    /**
-     * for backwards compatibility this is optional but should always be set
-     */
-    rr_mediaLoop?: boolean;
-    /**
-     * for backwards compatibility this is optional but should always be set
-     */
-    rr_mediaVolume?: number;
+    [key: string]: // dyanmic number of properties with these types
+| string
+| number 
+| true   
+| null;  
+// properties e.g. rr_scrollLeft or rr_mediaCurrentTime
+// e.g. checked  on <input type="radio">
+// an indication that an attribute was removed (during a mutation)
 };
 
 export type elementNode = {
@@ -572,8 +484,3 @@ export type serializedElementNodeWithId = Extract<
     serializedNodeWithId,
     Record<'type', NodeType.Element>
 >;
-
-export type DataURLOptions = Partial<{
-    type: string;
-    quality: number;
-}>;
