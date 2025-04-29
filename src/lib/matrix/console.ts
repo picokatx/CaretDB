@@ -58,6 +58,8 @@ export function updateConsoleLogsView(): void {
 
     // Format timestamp
     const timestamp = formatTimestamp(log.timestamp, baseTimestamp);
+    const timestampMillis = log.timestamp; // Keep original milliseconds for player jump
+    const elapsedMillis = Math.max(0, log.timestamp - baseTimestamp); // Calculate elapsed ms
 
     // Add level badge
     const levelBadge = getLogLevelBadge(log.level || "log");
@@ -82,8 +84,11 @@ export function updateConsoleLogsView(): void {
                             </div>
                         </div>
                     </div>
-                    <div class="log-timestamp text-xs opacity-70 ml-4 shrink-0 mt-1">
-                        ▶ ${timestamp}
+                    <div class="log-timestamp text-xs opacity-70 ml-4 shrink-0 mt-1 flex items-center">
+                        <button class="btn btn-xs btn-ghost btn-circle mr-1 jump-to-log-btn" data-timestamp="${elapsedMillis}" title="Jump to this time">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </button>
+                        ${timestamp}
                     </div>
                 </div>
             `;
@@ -114,20 +119,26 @@ export function updateConsoleLogsView(): void {
                     <div class="log-content ${levelClass}">
                         ${levelBadge}${icon}${escapeHtml(logContent)}
                     </div>
-                    <div class="log-timestamp text-xs opacity-70 ml-4 shrink-0">
-                        ▶ ${timestamp}
+                    <div class="log-timestamp text-xs opacity-70 ml-4 shrink-0 flex items-center">
+                        <button class="btn btn-xs btn-ghost btn-circle mr-1 jump-to-log-btn" data-timestamp="${elapsedMillis}" title="Jump to this time">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </button>
+                        ${timestamp}
                     </div>
                 </div>
             `;
     }
 
-    // Add click handler to jump to this event in the player
-    logItem.addEventListener("click", (e) => {
-      // Don't trigger player jump if clicking on the message content (for expand/collapse)
-      if ((e.target as HTMLElement).closest(".log-content")) return;
-
-      if (mGlob.playerInstance && typeof mGlob.playerInstance.goto === "function") {
-        mGlob.playerInstance.goto(log.timestamp);
+    // Add click handler for the jump button
+    const jumpBtn = logItem.querySelector('.jump-to-log-btn');
+    jumpBtn?.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent triggering the log item's own click listener
+      const timestampToJump = parseInt((e.currentTarget as HTMLElement).dataset.timestamp || '0');
+      if (mGlob.playerInstance && typeof mGlob.playerInstance.goto === 'function' && timestampToJump > 0) {
+        console.log("Jumping player to timestamp:", timestampToJump);
+        mGlob.playerInstance.goto(timestampToJump);
+      } else {
+        console.warn("Could not jump player. Instance:", mGlob.playerInstance, "Timestamp:", timestampToJump);
       }
     });
 
@@ -151,7 +162,7 @@ export interface ConsoleLogEntry {
  */
 export function initConsolePanel(events: any[]): void {
   const consoleEntries = extractConsoleLogs(events);
-  
+
   if (consoleEntries.length === 0) {
     const consoleContainer = document.getElementById('console-container');
     if (consoleContainer) {
@@ -159,7 +170,7 @@ export function initConsolePanel(events: any[]): void {
     }
     return;
   }
-  
+
   displayConsoleEntries(consoleEntries);
   setupConsoleFilters(consoleEntries);
 }
@@ -169,14 +180,14 @@ export function initConsolePanel(events: any[]): void {
  */
 function extractConsoleLogs(events: any[]): ConsoleLogEntry[] {
   const consoleEntries: ConsoleLogEntry[] = [];
-  
+
   events.forEach(event => {
     if (event.type === 3 && event.data && event.data.source !== undefined) {
       // Skip network logs which are handled by the network panel
       if (event.data.level === 'network') {
         return;
       }
-      
+
       try {
         const entry: ConsoleLogEntry = {
           id: `log-${Math.random().toString(36).substr(2, 9)}`,
@@ -186,14 +197,14 @@ function extractConsoleLogs(events: any[]): ConsoleLogEntry[] {
           source: event.data.source,
           payload: event.data.payload || []
         };
-        
+
         consoleEntries.push(entry);
       } catch (e) {
         console.error('Error parsing console log:', e);
       }
     }
   });
-  
+
   return consoleEntries;
 }
 
@@ -204,7 +215,7 @@ function formatConsoleMessage(payload: any[]): string {
   if (!payload || !Array.isArray(payload) || payload.length === 0) {
     return '';
   }
-  
+
   return payload.map(item => {
     if (typeof item === 'object' && item !== null) {
       try {
@@ -262,7 +273,7 @@ function getLevelIcon(level: string): string {
 //   const minutes = date.getMinutes().toString().padStart(2, '0');
 //   const seconds = date.getSeconds().toString().padStart(2, '0');
 //   const milliseconds = date.getMilliseconds().toString().padStart(3, '0');
-  
+
 //   return `${hours}:${minutes}:${seconds}.${milliseconds}`;
 // }
 
@@ -272,16 +283,16 @@ function getLevelIcon(level: string): string {
 function displayConsoleEntries(entries: ConsoleLogEntry[]): void {
   const consoleOutput = document.getElementById('console-output');
   if (!consoleOutput) return;
-  
+
   consoleOutput.innerHTML = '';
-  
+
   entries.forEach(entry => {
     const logElement = document.createElement('div');
     logElement.className = `p-2 border-b border-base-300 ${getLevelClass(entry.level)}`;
-    
+
     // Create expandable log entry
     const isExpandable = entry.message.length > 100 || entry.message.includes('\n');
-    
+
     if (isExpandable) {
       logElement.innerHTML = `
         <div class="flex items-start">
@@ -296,7 +307,7 @@ function displayConsoleEntries(entries: ConsoleLogEntry[]): void {
           </div>
         </div>
       `;
-      
+
       // Add event listener to toggle expand button
       requestAnimationFrame(() => {
         const toggleBtn = logElement.querySelector('.toggle-expand-btn');
@@ -306,7 +317,7 @@ function displayConsoleEntries(entries: ConsoleLogEntry[]): void {
             const fullLog = logElement.querySelector('.log-full');
             const preview = logElement.querySelector('.log-preview');
             const btn = e.target as HTMLElement;
-            
+
             if (fullLog && preview) {
               fullLog.classList.toggle('hidden');
               preview.classList.toggle('hidden');
@@ -328,7 +339,7 @@ function displayConsoleEntries(entries: ConsoleLogEntry[]): void {
         </div>
       `;
     }
-    
+
     consoleOutput.appendChild(logElement);
   });
 }
@@ -339,41 +350,41 @@ function displayConsoleEntries(entries: ConsoleLogEntry[]): void {
 function setupConsoleFilters(entries: ConsoleLogEntry[]): void {
   const consoleFilter = document.getElementById('console-filter') as HTMLInputElement;
   const logLevelSelect = document.getElementById('log-level-select') as HTMLSelectElement;
-  
+
   if (!consoleFilter || !logLevelSelect) return;
-  
+
   // Apply filters function
   const applyFilters = () => {
     const filterText = consoleFilter.value.toLowerCase();
     const filterLevel = logLevelSelect.value;
-    
+
     let filteredEntries = entries;
-    
+
     // Filter by text
     if (filterText) {
-      filteredEntries = filteredEntries.filter(entry => 
+      filteredEntries = filteredEntries.filter(entry =>
         entry.message.toLowerCase().includes(filterText)
       );
     }
-    
+
     // Filter by log level
     if (filterLevel !== 'all') {
-      filteredEntries = filteredEntries.filter(entry => 
+      filteredEntries = filteredEntries.filter(entry =>
         entry.level.toLowerCase() === filterLevel.toLowerCase()
       );
     }
-    
+
     displayConsoleEntries(filteredEntries);
   };
-  
+
   // Set up event listeners
   consoleFilter.addEventListener('input', applyFilters);
   logLevelSelect.addEventListener('change', applyFilters);
-  
+
   // Populate log level select if needed
   if (logLevelSelect.children.length <= 1) {
     const levels = ['all', 'log', 'info', 'warn', 'error', 'debug'];
-    
+
     levels.forEach(level => {
       const option = document.createElement('option');
       option.value = level;
@@ -381,7 +392,7 @@ function setupConsoleFilters(entries: ConsoleLogEntry[]): void {
       logLevelSelect.appendChild(option);
     });
   }
-} 
+}
 
 export function escapeHtml(unsafe: string): string {
   return unsafe

@@ -181,7 +181,15 @@ export function initRecorder() {
       consoleLogsView!.classList.add("hidden");
       networkRequestsView!.classList.add("hidden");
 
-      initPlayer(mGlob.rrwebEvents, replayContainer);
+      // Initialize the player and store the instance globally
+      const player = initPlayer(mGlob.rrwebEvents, replayContainer);
+      if (player) {
+        mGlob.playerInstance = player;
+        console.log("Player instance initialized and stored.");
+      } else {
+        console.error("Failed to initialize player instance.");
+        mGlob.playerInstance = null; // Ensure it's null if init failed
+      }
   });
 }
 

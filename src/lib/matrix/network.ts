@@ -82,12 +82,14 @@ export function updateNetworkRequestsView(): void {
 
     // Format timestamp relative to base
     let timeDisplay = "-";
+    let elapsedMillis = 0;
     if (req.timestamp) {
       const timestamp = new Date(req.timestamp).getTime();
+      elapsedMillis = Math.max(0, timestamp - baseTimestamp);
       timeDisplay = formatTimestamp(timestamp, baseTimestamp);
     }
 
-    // Create row cells
+    // Create row cells with jump button
     row.innerHTML = `
                 <td class="max-w-xs truncate">${fullPath}</td>
                 <td>${method}</td>
@@ -95,11 +97,29 @@ export function updateNetworkRequestsView(): void {
                 <td>${req.type || "unknown"}</td>
                 <td>${formattedSize}</td>
                 <td>${formattedDuration}</td>
-                <td>${timeDisplay}</td>
+                <td class="flex items-center">
+                    <button class="btn btn-xs btn-ghost btn-circle mr-1 jump-to-network-btn" data-timestamp="${elapsedMillis}" title="Jump to this time">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </button>
+                    ${timeDisplay}
+                </td>
             `;
 
     // Add tooltip with full URL
     row.title = req.url;
+
+    // Add click handler for the jump button
+    const jumpBtn = row.querySelector('.jump-to-network-btn');
+    jumpBtn?.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent triggering any potential row click listener
+      const timestampToJump = parseInt((e.currentTarget as HTMLElement).dataset.timestamp || '0');
+      if (mGlob.playerInstance && typeof mGlob.playerInstance.goto === 'function' && timestampToJump >= 0) { // Check >= 0
+        console.log("Jumping player to timestamp:", timestampToJump);
+        mGlob.playerInstance.goto(timestampToJump);
+      } else {
+        console.warn("Could not jump player. Instance:", mGlob.playerInstance, "Timestamp:", timestampToJump);
+      }
+    });
 
     networkTimeline.appendChild(row);
   });

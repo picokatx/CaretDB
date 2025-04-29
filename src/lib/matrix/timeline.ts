@@ -218,20 +218,39 @@ export function generateTimelineView(events: any[]): void {
 
     // Create a brief version of the event details
     const shortDetails = createCompactEventDetails(event);
+    const elapsedMillis = Math.max(0, event.timestamp - baseTimestamp);
 
     // Create the event content
     eventItem.innerHTML = `
       <div class="flex justify-between items-center">
-        <div class="${eventClass} font-semibold">
+        <div class="${eventClass} font-semibold flex-grow">
           ${eventIcon} 
           ${getEventTypeName(event.type)}
           ${event.type === EventType.IncrementalSnapshot ?
         `(${getIncrementalSourceName(event.data.source)})` : ''}
         </div>
-        <div class="text-xs opacity-70">${formatTimestamp(event.timestamp, baseTimestamp)}</div>
+        <div class="text-xs opacity-70 ml-2 shrink-0 flex items-center">
+          <button class="btn btn-xs btn-ghost btn-circle mr-1 jump-to-event-btn" data-timestamp="${elapsedMillis}" title="Jump to this time">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </button>
+          ${formatTimestamp(event.timestamp, baseTimestamp)}
+        </div>
       </div>
       <div class="ml-5 text-sm mt-1">${shortDetails}</div>
     `;
+
+    // Add click handler for the jump button
+    const jumpBtn = eventItem.querySelector('.jump-to-event-btn');
+    jumpBtn?.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent triggering selectEvent
+      const timestampToJump = parseInt((e.currentTarget as HTMLElement).dataset.timestamp || '0');
+      if (mGlob.playerInstance && typeof mGlob.playerInstance.goto === 'function' && timestampToJump >= 0) {
+        console.log("Jumping player to timestamp:", timestampToJump);
+        mGlob.playerInstance.goto(timestampToJump);
+      } else {
+        console.warn("Could not jump player. Instance:", mGlob.playerInstance, "Timestamp:", timestampToJump);
+      }
+    });
 
     eventTimeline.appendChild(eventItem);
   });
