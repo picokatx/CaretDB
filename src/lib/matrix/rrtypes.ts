@@ -47,6 +47,24 @@ export type metaEvent = {
         height: number;
     };
 };
+export type eventWithoutTime =
+    | domContentLoadedEvent
+    | loadedEvent
+    | fullSnapshotEvent
+    | incrementalSnapshotEvent
+    | metaEvent;
+
+export type eventWithTime = eventWithoutTime & {
+    timestamp: number;
+    delay?: number;
+};
+
+export type canvasEventWithTime = eventWithTime & {
+    type: EventType.IncrementalSnapshot;
+    data: canvasMutationData;
+};
+
+
 /*
  * basically our current event ddl but more
  * 
@@ -100,6 +118,24 @@ export type mouseInteractionData = {
     y?: number;
     pointerType?: PointerTypes;
 };
+export enum MouseInteractions {
+    MouseUp,
+    MouseDown,
+    Click,
+    ContextMenu,
+    DblClick,
+    Focus,
+    Blur,
+    TouchStart,
+    TouchMove_Departed, // we will start a separate observer for touch move event
+    TouchEnd,
+    TouchCancel,
+}
+export enum PointerTypes {
+    Mouse,
+    Pen,
+    Touch,
+}
 
 export type scrollData = {
     source: IncrementalSource.Scroll;
@@ -139,8 +175,6 @@ export enum MediaInteractions {
     VolumeChange,
     RateChange,
 }
-
-
 export type styleSheetRuleData = {
     source: IncrementalSource.StyleSheetRule;
     id?: number;
@@ -175,6 +209,11 @@ export type canvasMutationData = {
     type: CanvasContext;
     commands: canvasMutationCommand[]
 };
+export enum CanvasContext {
+    '2D',
+    WebGL,
+    WebGL2,
+}
 export type canvasMutationCommand = {
     property: string;
     args: Array<unknown>;
@@ -236,22 +275,6 @@ export type incrementalData =
     | adoptedStyleSheetData
     | customElementData;
 
-export type eventWithoutTime =
-    | domContentLoadedEvent
-    | loadedEvent
-    | fullSnapshotEvent
-    | incrementalSnapshotEvent
-    | metaEvent;
-
-export type eventWithTime = eventWithoutTime & {
-    timestamp: number;
-    delay?: number;
-};
-
-export type canvasEventWithTime = eventWithTime & {
-    type: EventType.IncrementalSnapshot;
-    data: canvasMutationData;
-};
 
 // https://dom.spec.whatwg.org/#interface-mutationrecord
 export type mutationRecord = Readonly<{
@@ -328,32 +351,6 @@ export type mouseMovePos = {
     id: number;
     debugData: incrementalData;
 };
-
-export enum MouseInteractions {
-    MouseUp,
-    MouseDown,
-    Click,
-    ContextMenu,
-    DblClick,
-    Focus,
-    Blur,
-    TouchStart,
-    TouchMove_Departed, // we will start a separate observer for touch move event
-    TouchEnd,
-    TouchCancel,
-}
-
-export enum PointerTypes {
-    Mouse,
-    Pen,
-    Touch,
-}
-
-export enum CanvasContext {
-    '2D',
-    WebGL,
-    WebGL2,
-}
 
 export type SerializedCanvasArg =
     | {
