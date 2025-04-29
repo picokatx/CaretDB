@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { sql } from "../../../lib/mysql-connect"; // Adjust path as needed
+import { sqlQueries } from "../../../lib/sql_query_locale"; // Import the query map
 import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'crypto';
 import type { RowDataPacket } from 'mysql2'; // Import RowDataPacket
@@ -65,7 +66,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 
     // --- Check for Existing User ---
     const [existingUsersResult] = await sql.query(
-      'SELECT user_id FROM user WHERE (email_name = ? AND email_domain = ?) OR username = ?',
+      sqlQueries.selectUserByEmailOrUsername, // Use key from map
       [emailName, emailDomain, username]
     );
     // Explicitly cast to check length
@@ -85,10 +86,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     const createdAt = new Date(); // Use current timestamp
 
     await sql.query(
-      `INSERT INTO user (
-        user_id, email_domain, email_name, username, password, 
-        created_at, status, role, verified, fail_login, twofa
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+      sqlQueries.insertUser, // Use key from map
       [
         userId, emailDomain, emailName, username, hashedPassword, 
         createdAt, status, role, false, 0, false // Default values

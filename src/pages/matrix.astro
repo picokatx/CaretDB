@@ -4,9 +4,17 @@ import Layout from "../components/Layout.astro";
 import ControlPanel from "../components/matrix/ControlPanel.astro";
 import RecordingPanel from "../components/matrix/RecordingPanel.astro";
 import TimelinePanel from "../components/matrix/TimelinePanel.astro";
+import ReplayPanel from "../components/matrix/ReplayPanel.astro";
+import { getSession } from "auth-astro/server";
 
 import "../styles/rrweb-player.css";
 const systemName = "ClickstreamDB";
+// Get the current user session
+const session = await getSession(Astro.request);
+
+if (!session) {
+  return Astro.redirect('/login');
+}
 ---
 
 <Layout title={`${systemName} - Local Record & Replay`}>
@@ -26,18 +34,9 @@ const systemName = "ClickstreamDB";
 <script>
   import { initRecorder } from "../lib/matrix/recorder";
   import { initTimelineControls } from "../lib/matrix/timeline";
-  import { initFileHandlers } from "../lib/matrix/fileHandler";
 
   document.addEventListener("DOMContentLoaded", () => {
     initTimelineControls();
     initRecorder();
-    initFileHandlers(
-      (url) => {
-        console.log("File uploaded:", url);
-      },
-      (message) => {
-        console.log("Status:", message);
-      }
-    );
   });
 </script>

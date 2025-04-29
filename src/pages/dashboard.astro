@@ -15,15 +15,68 @@ if (!session) {
 const pageTitle = "Dashboard";
 ---
 
-<Layout title={pageTitle} currentPage="dashboard">
+<Layout title={pageTitle}>
   <div class="container mx-auto px-4 py-8">
     <h1 class="text-2xl font-bold mb-4">
       Welcome {session?.user?.name || session?.user?.email || "User"}!
     </h1>
-    
     <FileUploadPanel />
-
-    {/* Add dashboard content here later */}
-
   </div>
+  <!-- Add the toast container here -->
+  <div id="toast-container" class="toast toast-end toast-bottom z-50"></div>
 </Layout> 
+<script>
+  import { initFileHandlers } from "../lib/matrix/fileHandler";
+
+  function showErrorToast(message: string) {
+    const container = document.getElementById('toast-container');
+    if (!container) {
+      console.warn('Toast container not found for error');
+      return;
+    }
+
+    const toastId = `toast-error-${Date.now()}`;
+    const toastElement = document.createElement('div');
+    toastElement.id = toastId;
+    // Use alert-error for styling
+    toastElement.className = 'alert alert-error shadow-lg'; 
+    toastElement.innerHTML = `
+      <div>
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>Error: ${message}</span>
+      </div>
+    `;
+
+    container.appendChild(toastElement);
+
+    // Automatically remove the toast after 5 seconds
+    setTimeout(() => {
+      const elementToRemove = document.getElementById(toastId);
+      if (elementToRemove) {
+        container.removeChild(elementToRemove);
+      }
+    }, 5000);
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    initFileHandlers(
+      // onSuccess callback
+      (url) => {
+        console.log("File uploaded:", url);
+        // Potentially update UI or redirect here
+      },
+      // onStatus callback
+      (message) => {
+        console.log("Status:", message);
+        // Potentially update a status display element here
+      },
+      // onError callback
+      (errorMessage) => {
+        console.error("Upload Error:", errorMessage);
+        showErrorToast(errorMessage);
+      }
+    );
+  });
+</script>

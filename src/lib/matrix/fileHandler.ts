@@ -12,7 +12,11 @@ interface UploadResult {
 /**
  * Initialize the file upload handlers
  */
-export function initFileHandlers(onFileUploaded: (url: string) => void, onStatusUpdate: (message: string) => void) {
+export function initFileHandlers(
+  onFileUploaded: (url: string) => void, 
+  onStatusUpdate: (message: string) => void,
+  onError: (errorMessage: string) => void
+) {
   const fileInput = document.getElementById('html-file-input') as HTMLInputElement;
   const uploadBtn = document.getElementById('upload-html-btn') as HTMLButtonElement;
   const htmlContentInput = document.getElementById('html-content-input') as HTMLTextAreaElement;
@@ -46,7 +50,7 @@ export function initFileHandlers(onFileUploaded: (url: string) => void, onStatus
     // uploadBtn.textContent = 'Uploading...'; // Optional: Change text
 
     try {
-      await uploadHtmlFile(file, onFileUploaded, onStatusUpdate, iframeUrlDisplay);
+      await uploadHtmlFile(file, onFileUploaded, onStatusUpdate, iframeUrlDisplay, onError);
     } finally {
       // Restore button state regardless of success or error
       uploadBtn.disabled = false;
@@ -75,7 +79,7 @@ export function initFileHandlers(onFileUploaded: (url: string) => void, onStatus
     const file = new File([blob], 'pasted-content.html', { type: 'text/html' });
     
     try {
-      await uploadHtmlFile(file, onFileUploaded, onStatusUpdate, iframeUrlDisplay);
+      await uploadHtmlFile(file, onFileUploaded, onStatusUpdate, iframeUrlDisplay, onError);
     } finally {
       // Restore button state regardless of success or error
       loadHtmlBtn.disabled = false;
@@ -100,7 +104,8 @@ async function uploadHtmlFile(
   file: File, 
   onSuccess: (url: string) => void, 
   onStatus: (message: string) => void,
-  urlDisplay: HTMLElement | null
+  urlDisplay: HTMLElement | null,
+  onError: (errorMessage: string) => void
 ) {
   // Create form data for upload
   const formData = new FormData();
@@ -117,8 +122,11 @@ async function uploadHtmlFile(
 
     const result = await response.json() as UploadResult;
     
-    if (!result.success || !result.url) {
-      throw new Error(result.error || 'Upload failed');
+    if (!response.ok || !result.success || !result.url) {
+      const errorMessage = result.error || `Upload failed with status: ${response.status}`;
+      onError(errorMessage);
+      onStatus(`Error - ${errorMessage}`);
+      return;
     }
 
     onStatus('HTML file uploaded successfully!');
@@ -136,7 +144,9 @@ async function uploadHtmlFile(
 
   } catch (error) {
     console.error('Error uploading HTML file:', error);
-    onStatus(`Error - ${error instanceof Error ? error.message : 'Upload failed'}`);
+    const errorMessage = error instanceof Error ? error.message : 'Upload failed due to an unknown error';
+    onError(errorMessage);
+    onStatus(`Error - ${errorMessage}`);
   }
 }
 

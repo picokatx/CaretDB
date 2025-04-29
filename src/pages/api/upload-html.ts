@@ -1,5 +1,7 @@
 import type { APIRoute } from 'astro';
-import { v4 as uuidv4 } from 'uuid';
+import * as crypto from 'node:crypto';
+import { sql } from '../../lib/mysql-connect';
+import { sqlQueries } from '../../lib/sql_query_locale';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -19,9 +21,11 @@ export const POST: APIRoute = async ({ request }) => {
     // Read the file content
     const fileContent = await htmlFile.text();
     
-    // Generate a unique ID for the file
-    const uuid = uuidv4();
-    const fileName = `${uuid}.html`;
+    // Calculate SHA256 hash of the file content
+    const hash = crypto.createHash('sha256').update(fileContent).digest('hex');
+    
+    // Use hash as the filename
+    const fileName = `${hash}.html`;
     
     // Define the path where the file will be saved
     const publicDir = path.resolve(process.cwd(), 'public', 'dom');
@@ -54,10 +58,27 @@ export const POST: APIRoute = async ({ request }) => {
       modifiedContent = fileContent + '\n<script src="/dom/rrweb_loader.js"></script>';
     }
     
-    // Save the modified file
+    // Attempt to insert hash into the database, ignoring duplicates
+    try {
+      await sql.query(sqlQueries.insertWebstateHash, [hash]);
+    } catch (dbError: any) { // code errno sql sqlState sqlMessage message
+      // Handle database errors other than duplicate entry if necessary
+      console.error('Database insert error:', dbError);
+      if (dbError.code === 'ER_DUP_ENTRY') {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Duplicate entry' }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
+      } else {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to update database: ' + dbError.message }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     fs.writeFileSync(filePath, modifiedContent);
     
-    // Return success response with the file URL
     return new Response(
       JSON.stringify({ 
         success: true, 
