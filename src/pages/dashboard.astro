@@ -1,0 +1,29 @@
+---
+import Layout from '../components/Layout.astro';
+import { getSession } from "auth-astro/server";
+import FileUploadPanel from "../components/matrix/FileUploadPanel.astro";
+
+// Get the current user session
+const session = await getSession(Astro.request);
+
+// If no session exists, redirect to the login page
+if (!session) {
+  return Astro.redirect('/login');
+}
+
+// If session exists, proceed to render the page
+const pageTitle = "Dashboard";
+---
+
+<Layout title={pageTitle} currentPage="dashboard">
+  <div class="container mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold mb-4">
+      Welcome {session?.user?.name || session?.user?.email || "User"}!
+    </h1>
+    
+    <FileUploadPanel />
+
+    {/* Add dashboard content here later */}
+
+  </div>
+</Layout> 
