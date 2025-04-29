@@ -3,15 +3,25 @@ import Google from '@auth/core/providers/google';
 import Credentials from '@auth/core/providers/credentials';
 import { defineConfig } from 'auth-astro';
 import { sql } from './src/lib/mysql-connect';
-import type { FieldPacket, QueryResult } from 'mysql2';
+import type { FieldPacket, QueryResult, RowDataPacket } from 'mysql2';
 import type { User } from '@auth/core/types';
+import { CredentialsSignin } from '@auth/core/errors';
+import { createHash } from 'crypto';
+
+// Custom error class for login failures
+class LoginError extends CredentialsSignin {
+  code: string;
+  constructor(code = "CredentialsSignin") {
+    super(); // Call the base class constructor
+    this.code = code; // Set the custom error code
+  }
+}
 
 export default defineConfig({
+  pages: {
+    signIn: '/login',
+  },
   providers: [
-    Google({
-      clientId: import.meta.env.GOOGLE_CLIENT_ID,
-      clientSecret: import.meta.env.GOOGLE_CLIENT_SECRET,
-    }),
     Credentials({
       credentials: {
         email: { label: 'Email', type: 'email' },
@@ -19,25 +29,41 @@ export default defineConfig({
       },
       async authorize(credentials, request) {
 
-        const [result, fields]: [QueryResult, FieldPacket[]] = await sql.query(
+        const [result] = await sql.query(
           'SELECT * FROM user WHERE email_name = ? and email_domain = ?',
           [
             (credentials.email as string).split('@')[0],
             (credentials.email as string).split('@')[1]
           ]
         );
-        if (result.length==1 && result[0].password === credentials.password) {
-          const user_func = async (): Promise<User> => {
-            return {
-              id: result[0].user_id,
-              name: result[0].username,
-              email: result[0].email_name+"@"+result[0].email_domain
-            }
-          };
-          return user_func();
-        } else {
-          return null;
+
+        // Cast result to RowDataPacket array
+        const users = result as RowDataPacket[];
+
+        // Check if user exists
+        if (users.length !== 1) {
+          // Throw specific error code if email not found
+          throw new LoginError("InvalidEmail");
         }
+        
+        // User found, now hash the input password and check against stored hash
+        const inputPasswordHash = createHash('sha256').update(credentials.password as string).digest('hex');
+
+        if (users[0].password !== inputPasswordHash) {
+          // Throw error if password incorrect
+           throw new LoginError("IncorrectPassword");
+        }
+        
+        // If email and password are correct, return user object
+        const user_func = async (): Promise<User> => {
+          return {
+            id: users[0].user_id,
+            name: users[0].username,
+            email: users[0].email_name + "@" + users[0].email_domain
+          }
+        };
+        return user_func();
+        // No need for the explicit 'return null' now
       }
     })
   ],

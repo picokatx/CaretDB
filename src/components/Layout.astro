@@ -12,8 +12,23 @@ interface Props {
 const { title, description = "ClickstreamDB - Web Recording and Replay Tool" } = Astro.props;
 ---
 
-<html lang="en" data-theme="synthwave">
+<html lang="en">
   <head>
+    <script is:inline>
+      // Apply theme from localStorage before page load to prevent FOUC
+      const theme = (() => {
+        if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
+          return localStorage.getItem('theme');
+        }
+        // You could add system preference check here if desired
+        // e.g., window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'synthwave'
+        return 'synthwave'; // Default theme if nothing is set
+      })();
+
+      if (theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+      }
+    </script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content={Astro.generator} />

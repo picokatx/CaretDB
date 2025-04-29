@@ -1,0 +1,120 @@
+---
+import Layout from '../components/Layout.astro';
+
+// Check for error messages passed via query parameters
+const error = Astro.url.searchParams.get("error");
+const message = Astro.url.searchParams.get("message");
+const formData = {
+  username: Astro.url.searchParams.get("username") || '',
+  email: Astro.url.searchParams.get("email") || '',
+};
+--- 
+<Layout title="ClickstreamDB - Register">
+	<style>
+		.register-container {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			min-height: 80vh;
+		}
+	</style>
+
+	<div class="register-container">
+		<div class="card w-96 bg-base-100 shadow-xl">
+			<div class="card-body">
+				<h1 class="card-title text-2xl mb-4">Register</h1>
+
+				{error && <p class="text-error text-sm mb-4">{error}</p>}
+				{message && <p class="text-success text-sm mb-4">{message}</p>}
+
+				<form id="register-form" method="POST" action="/api/auth/register" novalidate>
+
+					<div class="form-control w-full max-w-xs">
+						<label class="label" for="username">
+							<span class="label-text">Username</span>
+						</label>
+						<input type="text" id="username" name="username" required minlength="3" maxlength="30" pattern="^(?=.*[a-zA-Z])[a-z0-9_\-.']{3,30}$" class="input input-bordered w-full max-w-xs" value={formData.username} />
+                        <p class="text-xs text-base-content/70 mt-1">3-30 chars, letters/numbers/./_/-/', must contain letter.</p>
+					</div>
+
+					<div class="form-control w-full max-w-xs mt-2">
+						<label class="label" for="email">
+							<span class="label-text">Email</span>
+						</label>
+						<input type="email" id="email" name="email" required class="input input-bordered w-full max-w-xs" value={formData.email} />
+					</div>
+
+					<div class="form-control w-full max-w-xs mt-2">
+						<label class="label" for="password">
+							<span class="label-text">Password</span>
+						</label>
+						<input type="password" id="password" name="password" required minlength="6" class="input input-bordered w-full max-w-xs" />
+                        <p class="text-xs text-base-content/70 mt-1">Minimum 6 characters.</p>
+					</div>
+
+                    <div class="form-control w-full max-w-xs mt-2">
+						<label class="label" for="confirm_password">
+							<span class="label-text">Confirm Password</span>
+						</label>
+						<input type="password" id="confirm_password" name="confirm_password" required minlength="6" class="input input-bordered w-full max-w-xs" />
+                        <p id="password-match-error" class="text-error text-xs mt-1 hidden">Passwords do not match.</p>
+					</div>
+
+					<div class="form-control mt-6">
+						<button type="submit" class="btn btn-primary">Register</button>
+					</div>
+				</form>
+
+				<div class="text-center text-sm mt-4">
+					Already have an account? <a href="/login" class="link link-primary link-hover">Login</a>
+				</div>
+			</div>
+		</div>
+	</div>
+</Layout>
+
+<script>
+    const form = document.getElementById('register-form') as HTMLFormElement;
+    const password = document.getElementById('password') as HTMLInputElement;
+    const confirmPassword = document.getElementById('confirm_password') as HTMLInputElement;
+    const passwordMatchError = document.getElementById('password-match-error') as HTMLParagraphElement;
+
+    form.addEventListener('submit', (event) => {
+        if (password.value !== confirmPassword.value) {
+            event.preventDefault(); // Stop form submission
+            passwordMatchError.classList.remove('hidden');
+            confirmPassword.focus();
+            confirmPassword.setCustomValidity("Passwords do not match."); // For browser validation UI
+        } else {
+            passwordMatchError.classList.add('hidden');
+            confirmPassword.setCustomValidity(""); // Clear custom validity
+        }
+
+        // Basic check for username pattern (doesn't check reserved names here)
+        const usernameInput = document.getElementById('username') as HTMLInputElement;
+        const usernamePattern = /^(?=.*[a-zA-Z])[a-z0-9_.\-']{3,30}$/;
+        if (!usernamePattern.test(usernameInput.value)) {
+            usernameInput.setCustomValidity("Invalid username format.");
+        } else {
+            usernameInput.setCustomValidity("");
+        }
+
+        // Let browser handle other native validations (required, minlength, type=email)
+        if (!form.checkValidity()) {
+           event.preventDefault(); // Stop if native validation fails
+           // Optionally trigger reportValidity() to show native bubbles
+           form.reportValidity(); // Uncommented to show browser validation errors
+        }
+    });
+
+    // Real-time check for password match
+    confirmPassword.addEventListener('input', () => {
+        if (password.value !== confirmPassword.value) {
+            passwordMatchError.classList.remove('hidden');
+            confirmPassword.setCustomValidity("Passwords do not match.");
+        } else {
+            passwordMatchError.classList.add('hidden');
+            confirmPassword.setCustomValidity("");
+        }
+    });
+</script> 

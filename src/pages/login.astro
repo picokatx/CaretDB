@@ -4,8 +4,22 @@ import { getSession } from "auth-astro/server";
 
 const session = await getSession(Astro.request);
 
-// Simple check if there's an error query param (e.g., from failed login)
-const error = Astro.url.searchParams.get("error");
+// Check for error parameters
+const errorParam = Astro.url.searchParams.get("error");
+const errorCode = Astro.url.searchParams.get("code"); // Get the custom error code
+const message = Astro.url.searchParams.get("message"); // For success messages (e.g., from registration)
+
+// Determine error message based on params
+let displayError = null;
+if (errorParam === 'CredentialsSignin' || errorCode) {
+	if (errorCode === 'InvalidEmail') {
+		displayError = "Invalid email address.";
+	} else if (errorCode === 'IncorrectPassword') {
+		displayError = "Incorrect password.";
+	} else {
+		displayError = "Login failed. Please check your credentials."; // Generic fallback
+	}
+}
 
 // Fetch CSRF token server-side
 let csrfToken = null;
@@ -59,10 +73,14 @@ try {
 				<div class="card-body">
 					<h1 class="card-title text-2xl mb-4">Login</h1>
 
-					{error && <p class="text-error text-sm mb-4">Login failed. Please check your credentials.</p>}
+					{/* Display specific or generic error */} 
+					{displayError && <p class="text-error text-sm mb-4">{displayError}</p>}
+					{/* Display success message from registration */} 
+					{message && !displayError && <p class="text-success text-sm mb-4">{message}</p>}
 
 					<form id="login-form" method="POST" action="/api/auth/callback/credentials">
 						<input type="hidden" name="csrfToken" value={csrfToken ?? ''} />
+						<input type="hidden" name="callbackUrl" value="/matrix" />
 
 						<div class="form-control w-full max-w-xs">
 							<label class="label" for="email">

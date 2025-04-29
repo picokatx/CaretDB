@@ -4,6 +4,16 @@ import { getSession } from "auth-astro/server";
 
 // Get the current user session
 const session = await getSession(Astro.request);
+
+// Define all DaisyUI themes
+const themes = [
+  "light", "dark", "cupcake", "bumblebee", "emerald", "corporate", 
+  "synthwave", "retro", "cyberpunk", "valentine", "halloween", "garden", 
+  "forest", "aqua", "lofi", "pastel", "fantasy", "wireframe", "black", 
+  "luxury", "dracula", "cmyk", "autumn", "business", "acid", "lemonade", 
+  "night", "coffee", "winter", "dim", "nord", "sunset", "default"
+];
+
 ---
 
 <Layout title="ClickstreamDB - Settings">
@@ -25,14 +35,16 @@ const session = await getSession(Astro.request);
         
         <!-- Main content -->
         <div class="md:col-span-2">
-          <div class="card bg-base-100 shadow-xl">
+          <div class="card bg-base-100 shadow-xl mb-8">
             <div class="card-body">
               <h2 class="card-title">User Profile</h2>
               
               <div class="flex items-center gap-4 mb-6">
                 <div class="avatar">
                   <div class="w-24 rounded-full">
-                    <img src="https://daisyui.com/images/stock/photo-1534528741775-53994a69daeb.jpg" alt="User avatar" />
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-full h-full text-base-content/30">
+                      <path fill-rule="evenodd" d="M18.685 19.097A9.723 9.723 0 0 0 21.75 12c0-5.385-4.365-9.75-9.75-9.75S2.25 6.615 2.25 12a9.723 9.723 0 0 0 3.065 7.097A9.716 9.716 0 0 0 12 21.75a9.716 9.716 0 0 0 6.685-2.653Zm-12.54-1.285A7.486 7.486 0 0 1 12 15a7.486 7.486 0 0 1 5.855 2.812A8.224 8.224 0 0 1 12 20.25a8.224 8.224 0 0 1-5.855-2.438ZM15.75 9a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" clip-rule="evenodd" />
+                    </svg>
                   </div>
                 </div>
                 <div>
@@ -60,6 +72,35 @@ const session = await getSession(Astro.request);
               </div>
             </div>
           </div>
+
+          <!-- Preferences Section -->
+          <div id="preferences" class="card bg-base-100 shadow-xl mt-8">
+            <div class="card-body">
+              <h2 class="card-title">Preferences</h2>
+              <p class="mb-4">Choose your preferred theme:</p>
+              
+              <div class="dropdown w-full max-w-xs">
+                <label tabindex="0" role="button" class="btn btn-outline w-full justify-between" id="theme-dropdown-button">
+                  <span id="theme-dropdown-label">Select Theme</span>
+                  <svg width="12px" height="12px" class="inline-block h-2 w-2 fill-current opacity-60" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2048 2048"><path d="M1799 349l242 241-1017 1017L7 590l242-241 775 775 775-775z"></path></svg>
+                </label>
+                <ul tabindex="0" id="theme-list" class="dropdown-content bg-base-200 rounded-box z-[1] p-2 shadow-lg w-full max-h-96 overflow-y-auto mt-1">
+                  {themes.map((theme) => (
+                    <li>
+                      <input
+                        type="radio"
+                        name="theme-dropdown-radio"
+                        class="theme-controller btn btn-sm btn-block btn-ghost justify-start capitalize my-0.5"
+                        aria-label={theme === 'default' ? 'System Default' : theme}
+                        value={theme}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     ) : (
@@ -79,18 +120,59 @@ const session = await getSession(Astro.request);
 <script>
   // Smooth scrolling for anchor links
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-    anchor.addEventListener('click', function(e: MouseEvent) {
+    const anchorElement = anchor as HTMLAnchorElement;
+    anchorElement.addEventListener('click', (e: Event) => {
       e.preventDefault();
-      
-      const targetId = (this as HTMLAnchorElement).getAttribute('href');
+      const targetId = anchorElement.getAttribute('href');
       if (!targetId) return;
-      
       const targetElement = document.querySelector(targetId);
       if (targetElement) {
-        targetElement.scrollIntoView({
-          behavior: 'smooth'
-        });
+        targetElement.scrollIntoView({ behavior: 'smooth' });
       }
     });
   });
+
+  // Theme Selector Logic
+  const themeList = document.getElementById('theme-list');
+  const themeDropdownLabel = document.getElementById('theme-dropdown-label');
+  
+  function applyTheme(theme) {
+    const themeToApply = theme === 'default' ? 'synthwave' : theme; // Define default behavior
+    document.documentElement.setAttribute('data-theme', themeToApply);
+    localStorage.setItem('theme', theme); // Store the actual selection (could be 'default')
+    
+    const labelText = theme === 'default' ? 'System Default' : theme.charAt(0).toUpperCase() + theme.slice(1);
+    if (themeDropdownLabel) {
+      themeDropdownLabel.textContent = labelText;
+    }
+
+    // Uncheck all first (optional, but good practice)
+    // document.querySelectorAll('input[name="theme-dropdown-radio"]').forEach(input => (input as HTMLInputElement).checked = false);
+
+    // Check the correct radio button
+    const radioToCheck = document.querySelector(`input[name="theme-dropdown-radio"][value="${theme}"]`) as HTMLInputElement;
+    if (radioToCheck) {
+      radioToCheck.checked = true;
+    }
+  }
+
+  if (themeList) {
+    themeList.addEventListener('change', (event) => {
+      const target = event.target as HTMLInputElement;
+      if (target.name === 'theme-dropdown-radio' && target.value) {
+        applyTheme(target.value);
+        // Close dropdown after selection
+        if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+        }
+      }
+    });
+  }
+
+  // Initialize theme on load
+  document.addEventListener('DOMContentLoaded', () => {
+    const savedTheme = localStorage.getItem('theme') || 'default'; // Get saved theme or use 'default'
+    applyTheme(savedTheme);
+  });
+
 </script> 
