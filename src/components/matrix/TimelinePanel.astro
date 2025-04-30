@@ -11,6 +11,7 @@
         <button id="timeline-view-btn" class="tab tab-active bg-primary text-primary-content">Timeline</button>
         <button id="console-view-btn" class="tab">Console Logs</button>
         <button id="network-view-btn" class="tab">Network</button>
+        <button id="tags-view-btn" class="tab">Tags</button>
         <button id="raw-view-btn" class="tab">Raw JSON</button>
       </div>
       <button id="json-copy-btn" class="btn btn-sm btn-outline">Copy JSON</button>
@@ -94,6 +95,25 @@
       </div>
     </div>
     
+    <!-- Tags View -->
+    <div id="tags-view" class="hidden">
+      <div class="overflow-x-auto">
+        <table class="table table-zebra table-compact w-full">
+          <thead>
+            <tr>
+              <th>Tag Key</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody id="tags-content">
+            <tr>
+              <td colspan="2" class="text-center py-4">No recording data available yet. Start recording to capture events.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Timeline View -->
     <div id="timeline-view" class="grid grid-cols-1 lg:grid-cols-5 gap-4">
       <!-- Preview panel (2/5 width on large screens) -->

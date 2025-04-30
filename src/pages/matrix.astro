@@ -52,7 +52,6 @@ if (!webstateHash) {
   {webstateHash ? (
     <>
       {/* Display snippet and main panels only if webstateHash exists */}
-      <div id="webstate-snippet-container" class="mb-4"></div>
       <div class="flex flex-col md:flex-row gap-4">
         <RecordingPanel />
         <ReplayPanel />
@@ -91,7 +90,6 @@ if (!webstateHash) {
   document.addEventListener("DOMContentLoaded", () => {
     const urlParams = new URLSearchParams(window.location.search);
     const webstateHash = urlParams.get('webstate');
-    const snippetContainer = document.getElementById('webstate-snippet-container');
     const selector = document.getElementById('webstate-selector') as HTMLSelectElement | null;
 
     if (webstateHash) {
@@ -123,38 +121,6 @@ if (!webstateHash) {
          initTimelineControls();
          initRecorder();
       // }, 100); // Optional small delay
-
-      // Fetch and display webstate snippet
-      if (snippetContainer) {
-        console.log("Fetching snippet from:", htmlUrl);
-
-        fetch(htmlUrl)
-          .then(response => {
-            if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.text();
-          })
-          .then(htmlContent => {
-            const snippet = htmlContent.substring(0, 100);
-            const p = document.createElement('p');
-            p.className = 'text-sm text-base-content/70 border p-2 rounded bg-base-200';
-            p.textContent = `Snippet from ${webstateHash}.html: "${snippet}..."`;
-            snippetContainer.innerHTML = '';
-            snippetContainer.appendChild(p);
-          })
-          .catch(error => {
-            console.error('Error fetching webstate HTML:', error);
-            const p = document.createElement('p');
-            p.className = 'text-sm text-error border border-error p-2 rounded';
-            p.textContent = `Error loading snippet for ${webstateHash}.html: ${error.message}`;
-            snippetContainer.innerHTML = '';
-            snippetContainer.appendChild(p);
-          });
-      } else {
-        console.warn("Snippet container not found.");
-      }
-      // --- End webstate parameter block ---
 
     } else if (selector) {
       // --- This block runs only if webstate parameter is NOT present AND selector exists ---

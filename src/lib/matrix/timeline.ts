@@ -17,6 +17,7 @@ export function initTimelineControls() {
   const rawViewBtn = document.getElementById('raw-view-btn');
   const consoleViewBtn = document.getElementById('console-view-btn');
   const networkViewBtn = document.getElementById('network-view-btn');
+  const tagsViewBtn = document.getElementById('tags-view-btn');
   const jsonCopyBtn = document.getElementById('json-copy-btn');
   const networkSearch = document.getElementById(
     "network-search"
@@ -26,6 +27,7 @@ export function initTimelineControls() {
   const rawJsonView = document.getElementById('raw-json-view') as HTMLDivElement;
   const consoleLogsView = document.getElementById('console-logs-view') as HTMLDivElement;
   const networkRequestsView = document.getElementById('network-requests-view') as HTMLDivElement;
+  const tagsView = document.getElementById('tags-view') as HTMLDivElement;
   const consoleSearch = document.getElementById(
     "console-search"
   ) as HTMLInputElement;
@@ -33,7 +35,7 @@ export function initTimelineControls() {
   const jumpToCurrentBtn = document.getElementById(
     "jump-to-current-timestamp"
   );
-  if (!timelineViewBtn || !rawViewBtn || !consoleViewBtn || !networkViewBtn) {
+  if (!timelineViewBtn || !rawViewBtn || !consoleViewBtn || !networkViewBtn || !tagsViewBtn) {
     console.error('Timeline control elements not found');
     return;
   }
@@ -60,6 +62,7 @@ export function initTimelineControls() {
     rawJsonView!.classList.add("hidden");
     consoleLogsView!.classList.add("hidden");
     networkRequestsView!.classList.add("hidden");
+    tagsView!.classList.add("hidden");
   });
 
   rawViewBtn?.addEventListener("click", () => {
@@ -69,6 +72,7 @@ export function initTimelineControls() {
     timelineView!.classList.add("hidden");
     consoleLogsView!.classList.add("hidden");
     networkRequestsView!.classList.add("hidden");
+    tagsView!.classList.add("hidden");
   });
 
   consoleViewBtn?.addEventListener("click", () => {
@@ -78,6 +82,7 @@ export function initTimelineControls() {
     timelineView!.classList.add("hidden");
     rawJsonView!.classList.add("hidden");
     networkRequestsView!.classList.add("hidden");
+    tagsView!.classList.add("hidden");
     updateConsoleLogsView();
   });
 
@@ -88,8 +93,20 @@ export function initTimelineControls() {
     timelineView!.classList.add("hidden");
     rawJsonView!.classList.add("hidden");
     consoleLogsView!.classList.add("hidden");
+    tagsView!.classList.add("hidden");
     updateNetworkRequestsView();
   });
+
+  tagsViewBtn?.addEventListener("click", () => {
+    mGlob.currentView = "tags";
+    updateTabHighlighting(tagsViewBtn);
+    tagsView!.classList.remove("hidden");
+    timelineView!.classList.add("hidden");
+    rawJsonView!.classList.add("hidden");
+    consoleLogsView!.classList.add("hidden");
+    networkRequestsView!.classList.add("hidden");
+  });
+
   // Filter by log level - enhanced to update the display text
   document.querySelectorAll(".log-level-filter").forEach((levelBtn) => {
     levelBtn.addEventListener("click", (e) => {
@@ -174,8 +191,9 @@ export function updateTabHighlighting(activeTab: HTMLElement): void {
   const consoleViewBtn = document.getElementById('console-view-btn');
   const networkViewBtn = document.getElementById('network-view-btn');
   const rawViewBtn = document.getElementById('raw-view-btn');
+  const tagsViewBtn = document.getElementById('tags-view-btn');
 
-  [timelineViewBtn, consoleViewBtn, networkViewBtn, rawViewBtn].forEach(tab => {
+  [timelineViewBtn, consoleViewBtn, networkViewBtn, rawViewBtn, tagsViewBtn].forEach(tab => {
     if (tab) {
       tab.classList.remove('tab-active', 'bg-primary', 'text-primary-content');
     }

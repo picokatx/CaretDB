@@ -3,7 +3,7 @@ export interface MatrixGlobals {
     consoleLogs: any[];
     networkRequests: any[];
     playerInstance: any;
-    currentView: "timeline" | "raw" | "console" | "network";
+    currentView: "timeline" | "raw" | "console" | "network" | "tags";
     selectedEventIndex: number;
     currentLogLevel: string;
     consoleSearchText: string;

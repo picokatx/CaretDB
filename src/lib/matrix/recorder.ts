@@ -30,13 +30,16 @@ export function initRecorder() {
   const timelineViewBtn = document.getElementById('timeline-view-btn') as HTMLButtonElement;
   const rawViewBtn = document.getElementById('raw-view-btn') as HTMLButtonElement;
   const consoleViewBtn = document.getElementById('console-view-btn') as HTMLButtonElement;
+  const networkViewBtn = document.getElementById('network-view-btn') as HTMLButtonElement;
+  const tagsViewBtn = document.getElementById('tags-view-btn') as HTMLButtonElement;
   const timelineView = document.getElementById('timeline-view') as HTMLDivElement;
   const rawJsonView = document.getElementById('raw-json-view') as HTMLDivElement;
   const consoleLogsView = document.getElementById('console-logs-view') as HTMLDivElement;
   const networkRequestsView = document.getElementById('network-requests-view') as HTMLDivElement;
+  const tagsView = document.getElementById('tags-view') as HTMLDivElement;
 
-  if (!recordFrame || !startBtn || !stopBtn) {
-    console.error('Recording elements not found');
+  if (!recordFrame || !startBtn || !stopBtn || !timelineViewBtn || !rawViewBtn || !consoleViewBtn || !networkViewBtn || !tagsViewBtn || !timelineView || !rawJsonView || !consoleLogsView || !networkRequestsView || !tagsView) {
+    console.error('Recording or view elements not found');
     return;
   }
 
@@ -160,6 +163,7 @@ export function initRecorder() {
     isRecording = false;
     updateStatus('Recording stopped. Preparing replay...');
     stopBtn.disabled = true;
+    startBtn.disabled = false;
 
       // Format the JSON for raw view
       const formattedJson = JSON.stringify(mGlob.rrwebEvents, null, 2);
@@ -174,12 +178,16 @@ export function initRecorder() {
       // Update the network requests view
       updateNetworkRequestsView();
 
+      // Populate the Tags view with static data
+      populateTagsView();
+
       // Set view to timeline using the helper function
       updateTabHighlighting(timelineViewBtn);
       timelineView!.classList.remove("hidden");
       rawJsonView!.classList.add("hidden");
       consoleLogsView!.classList.add("hidden");
       networkRequestsView!.classList.add("hidden");
+      tagsView!.classList.add("hidden");
 
       // Initialize the player and store the instance globally
       const player = initPlayer(mGlob.rrwebEvents, replayContainer);
@@ -306,4 +314,55 @@ export function setupErrorPrevention() {
     }
     return false;
   }, true);
+}
+
+/**
+ * Populates the Tags view tab with static data.
+ * TODO: Replace static data with dynamically fetched data from Sentry/environment.
+ */
+function populateTagsView(): void {
+  const tagsContent = document.getElementById('tags-content');
+  if (!tagsContent) {
+    console.error("Tags content area (#tags-content) not found.");
+    return;
+  }
+
+  // Static tag data (replace with dynamic fetching later)
+  const tagsData = {
+    "browser.name": "Firefox",
+    "browser.version": "137.0",
+    "environment": "production",
+    "os.name": "Windows",
+    "os.version": ">=10",
+    "platform": "javascript",
+    "releases": "unknown", // Or fetch dynamically if possible
+    "replayType": "buffer",
+    "sdk.name": "sentry.javascript.astro",
+    "sdk.replay.blockAllMedia": "true",
+    "sdk.replay.errorSampleRate": "1",
+    "sdk.replay.maskAllInputs": "true",
+    "sdk.replay.maskAllText": "true",
+    "sdk.replay.networkCaptureBodies": "true",
+    "sdk.replay.networkDetailHasUrls": "false",
+    "sdk.replay.networkRequestHasHeaders": "true",
+    "sdk.replay.networkResponseHasHeaders": "true",
+    "sdk.replay.sessionSampleRate": "0.1",
+    "sdk.replay.shouldRecordCanvas": "false",
+    "sdk.replay.useCompression": "false",
+    "sdk.replay.useCompressionOption": "true",
+    "sdk.version": "9.14.0",
+    "user.ip": "116.88.152.58" // Note: IP is sensitive, be cautious
+  };
+
+  let tableHtml = "";
+  for (const [key, value] of Object.entries(tagsData)) {
+    tableHtml += `
+      <tr>
+        <td class="font-mono text-xs break-all">${key}</td>
+        <td class="text-sm break-all">${value}</td>
+      </tr>
+    `;
+  }
+
+  tagsContent.innerHTML = tableHtml;
 } 
