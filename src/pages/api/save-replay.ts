@@ -3,7 +3,7 @@ import { getSession } from "auth-astro/server";
 import { sql } from "../../lib/mysql-connect"; // Adjust path as needed
 import crypto from 'crypto';
 import { EventType } from '../../lib/matrix/rrtypes'; // Assuming rrtypes defines EventType
-import type { eventWithTime, metaEvent as RrwebMetaEvent } from '../../lib/matrix/rrtypes'; // Import specific event types
+import type { eventWithTime, metaEvent as RrwebMetaEvent, incrementalSnapshotEvent, mouseInteractionData, mousemoveData, mousePosition as RrwebMousePosition, mutationData, textMutation, attributeMutation, addedNodeMutation, removedNodeMutation, scrollData } from '../../lib/matrix/rrtypes'; // Import specific event types
 import { IncrementalSource } from '../../lib/matrix/rrtypes'; // Import IncrementalSource
 import { 
     NodeType, 
@@ -16,6 +16,7 @@ import {
     type documentTypeNode,
     type cdataNode
 } from '../../lib/matrix/rrtypes';
+import { MouseInteractions } from '../../lib/matrix/rrtypes'; // Import Enum needed at runtime
 
 // Define the type for our recursive helper function
 type SaveNodeParams = {
@@ -308,9 +309,141 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
             await sql.query(snapshotQuery, [eventId, rootNode.id, initialOffset.top, initialOffset.left]);
         } 
         else if (event.type === EventType.IncrementalSnapshot) {
-            // TODO: Add logic for IncrementalSnapshot events (parsing data.source etc.)
-            // This will involve multiple sub-handlers based on event.data.source
-            // e.g., saving mutation data, mouse move data, etc.
+            // Cast to the base incremental snapshot type to access data.source
+            const incrementalEvent = event as unknown as { data: { source: IncrementalSource } };
+            const source = incrementalEvent.data.source;
+
+            // Map IncrementalSource enum to the DB string ENUM
+            // (Assuming your ENUM values in DB match the IncrementalSource names)
+            let sourceString: string;
+            switch (source) {
+                case IncrementalSource.Mutation:           sourceString = 'Mutation'; break;
+                case IncrementalSource.MouseMove:          sourceString = 'MouseMove'; break;
+                case IncrementalSource.MouseInteraction:   sourceString = 'MouseInteraction'; break;
+                case IncrementalSource.Scroll:             sourceString = 'Scroll'; break;
+                case IncrementalSource.ViewportResize:     sourceString = 'ViewportResize'; break;
+                case IncrementalSource.Input:              sourceString = 'Input'; break;
+                case IncrementalSource.TouchMove:          sourceString = 'TouchMove'; break;
+                case IncrementalSource.MediaInteraction:   sourceString = 'MediaInteraction'; break;
+                case IncrementalSource.StyleSheetRule:     sourceString = 'StyleSheetRule'; break;
+                case IncrementalSource.CanvasMutation:     sourceString = 'CanvasMutation'; break;
+                case IncrementalSource.Font:               sourceString = 'Font'; break;
+                case IncrementalSource.Log:                sourceString = 'Log'; break;
+                case IncrementalSource.Drag:               sourceString = 'Drag'; break;
+                case IncrementalSource.StyleDeclaration:   sourceString = 'StyleDeclaration'; break;
+                case IncrementalSource.Selection:          sourceString = 'Selection'; break;
+                case IncrementalSource.AdoptedStyleSheet:  sourceString = 'AdoptedStyleSheet'; break;
+                case IncrementalSource.CustomElement:      sourceString = 'CustomElement'; break;
+                default:
+                    console.warn(`Unsupported incremental source ${source} encountered. Skipping incremental details.`);
+                    continue; // Skip if source is unknown
+            }
+
+            // Insert into incremental_snapshot_event
+            const incrSnapshotQuery = 'INSERT INTO incremental_snapshot_event (event_id, t) VALUES (?, ?)';
+            await sql.query(incrSnapshotQuery, [eventId, sourceString]);
+
+            // Specific handlers based on sourceString
+            if (sourceString === 'MouseInteraction') {
+                // Assert the type for MouseInteraction data
+                const interactionData = event.data as mouseInteractionData;
+                const interactionTypeNumeric = interactionData.type;
+                const nodeId = interactionData.id;
+                const x = interactionData.x;
+                const y = interactionData.y;
+                const pointerType = interactionData.pointerType; // Assuming pointerType is already string 'Mouse'/'Pen'/'Touch' or number
+
+                // Map numeric interaction type to DB ENUM string
+                let interactionTypeString: string;
+                switch (interactionTypeNumeric) {
+                    case MouseInteractions.MouseUp:           interactionTypeString = 'MouseUp'; break;
+                    case MouseInteractions.MouseDown:         interactionTypeString = 'MouseDown'; break;
+                    case MouseInteractions.Click:             interactionTypeString = 'Click'; break;
+                    case MouseInteractions.ContextMenu:       interactionTypeString = 'ContextMenu'; break;
+                    case MouseInteractions.DblClick:          interactionTypeString = 'DblClick'; break;
+                    case MouseInteractions.Focus:             interactionTypeString = 'Focus'; break;
+                    case MouseInteractions.Blur:              interactionTypeString = 'Blur'; break;
+                    case MouseInteractions.TouchStart:        interactionTypeString = 'TouchStart'; break;
+                    case MouseInteractions.TouchMove_Departed:interactionTypeString = 'TouchMove_Departed'; break;
+                    case MouseInteractions.TouchEnd:          interactionTypeString = 'TouchEnd'; break;
+                    case MouseInteractions.TouchCancel:       interactionTypeString = 'TouchCancel'; break;
+                    default:
+                        console.warn(`Unsupported mouse interaction type ${interactionTypeNumeric} for event ${eventId}. Skipping interaction details.`);
+                        continue; // Skip if interaction type is unknown
+                }
+                
+                // Map pointerType if it's numeric (adjust based on actual rrweb type definition)
+                let pointerTypeString: string | null = null;
+                if (typeof pointerType === 'number') { // Example check - adjust if pointerType is different
+                    // Add mapping logic if needed, e.g.:
+                    // if (pointerType === 0) pointerTypeString = 'Mouse';
+                    // else if (pointerType === 1) pointerTypeString = 'Pen';
+                    // else if (pointerType === 2) pointerTypeString = 'Touch';
+                     pointerTypeString = String(pointerType); // Placeholder: Convert number to string if ENUM expects '0', '1', '2'
+                     // OR map directly if the ENUM uses 'Mouse', 'Pen', 'Touch'
+                     switch(pointerType) {
+                         case 0: pointerTypeString = 'Mouse'; break;
+                         case 1: pointerTypeString = 'Pen'; break;  // Assuming 1 maps to Pen
+                         case 2: pointerTypeString = 'Touch'; break;
+                         default: pointerTypeString = null; // Handle unexpected values
+                     }
+                } else if (typeof pointerType === 'string') {
+                    pointerTypeString = pointerType; // Assume it's already 'Mouse', 'Pen', or 'Touch'
+                } // Handle null/undefined if necessary
+                
+
+                // Insert into mouse_interaction_data
+                const interactionQuery = `
+                    INSERT INTO mouse_interaction_data 
+                        (event_id, interaction_type, node_id, x, y, pointer_type)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                `;
+                await sql.query(interactionQuery, [eventId, interactionTypeString, nodeId, x, y, pointerTypeString]);
+            }
+            // Handle MouseMove and TouchMove (they share the same data structure)
+            else if (sourceString === 'MouseMove' || sourceString === 'TouchMove') {
+                const moveData = event.data as mousemoveData;
+                const positions = moveData.positions;
+
+                // 1. Insert into mousemove_data table (linking to the event)
+                const mouseMoveDataQuery = 'INSERT INTO mousemove_data (event_id) VALUES (?)';
+                await sql.query(mouseMoveDataQuery, [eventId]);
+
+                // 2. Insert each position into mouse_position table
+                const positionInsertPromises = [];
+                for (const pos of positions) {
+                    // Type assertion for clarity, matching rrweb type
+                    const position = pos as RrwebMousePosition; 
+                    const positionQuery = `
+                        INSERT INTO mouse_position 
+                            (event_id, x, y, node_id, time_offset)
+                        VALUES (?, ?, ?, ?, ?)
+                    `;
+                    positionInsertPromises.push(
+                        sql.query(positionQuery, [
+                            eventId,          // Foreign key to mousemove_data
+                            position.x,
+                            position.y,
+                            position.id,      // node_id in the database schema
+                            position.timeOffset
+                        ])
+                    );
+                }
+                // Wait for all position inserts for this event to complete
+                await Promise.all(positionInsertPromises);
+            }
+            // Handle Scroll events
+            else if (sourceString === 'Scroll') {
+                const scroll = event.data as scrollData;
+                const nodeId = scroll.id;
+                const x = scroll.x;
+                const y = scroll.y;
+
+                const scrollQuery = 'INSERT INTO scroll_data (event_id, node_id, x, y) VALUES (?, ?, ?, ?)';
+                await sql.query(scrollQuery, [eventId, nodeId, x, y]);
+            }
+            // TODO: Add handlers for other sources like ViewportResize, Input, etc.
+            // ... and so on for other sources ...
         }
     }
 

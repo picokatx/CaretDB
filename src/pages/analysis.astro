@@ -1,0 +1,18 @@
+---
+import Layout from '../components/Layout.astro';
+import { getSession } from "auth-astro/server";
+
+const session = await getSession(Astro.request);
+
+if (!session) {
+  return Astro.redirect('/login');
+}
+
+const pageTitle = "ClickstreamDB - Analysis";
+---
+
+<Layout title={pageTitle}>
+  <h1 class="text-2xl font-bold mb-4">Analysis Page</h1>
+  <p>This page is under construction. Analysis features will be added here.</p>
+  {/* Placeholder for future analysis components */}
+</Layout> 

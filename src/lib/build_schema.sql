@@ -202,9 +202,14 @@ CREATE TABLE meta_event (
 );
 
 -- IncrementalSnapshot
-CREATE TABLE incremental_data (
-  id      char(36)              PRIMARY KEY,
-  source  ENUM (
+-- DROP TABLE IF EXISTS incremental_data; -- No longer needed
+
+-- Removed incremental_data table definition
+
+CREATE TABLE incremental_snapshot_event (
+  event_id            char(36) PRIMARY KEY REFERENCES event(event_id),
+  -- incremental_data_id char(36) NOT NULL REFERENCES incremental_data(id) -- Removed
+  t  ENUM (  -- Renamed from source and moved here
     'Mutation','MouseMove','MouseInteraction','Scroll','ViewportResize',
     'Input','TouchMove','MediaInteraction','StyleSheetRule',
     'CanvasMutation','Font','Log','Drag','StyleDeclaration','Selection',
@@ -212,81 +217,85 @@ CREATE TABLE incremental_data (
     )  NOT NULL
 );
 
-CREATE TABLE incremental_snapshot_event (
-  event_id            char(36) PRIMARY KEY REFERENCES event(event_id),
-  incremental_data_id char(36) NOT NULL REFERENCES incremental_data(id)
-);
-
 
 -- 5. MUTATION DATA & CHILD TABLES
 CREATE TABLE mutation_data (
-  id               char(36)  PRIMARY KEY REFERENCES incremental_data(id),
+  -- id               char(36)  PRIMARY KEY REFERENCES incremental_data(id), -- Changed PK and FK
+  event_id         char(36)  PRIMARY KEY REFERENCES incremental_snapshot_event(event_id),
   is_attach_iframe BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 -- texts[]
 CREATE TABLE text_mutation (
-  mutation_data_id char(36)    NOT NULL REFERENCES mutation_data(id),
+  -- mutation_data_id char(36)    NOT NULL REFERENCES mutation_data(id), -- Changed FK
+  event_id         char(36)    NOT NULL REFERENCES mutation_data(event_id),
   node_id          INT    NOT NULL,
   value            TEXT,
-  PRIMARY KEY (mutation_data_id, node_id)
+  PRIMARY KEY (event_id, node_id) -- Changed PK
 );
 
 -- attributes[]
 CREATE TABLE attribute_mutation (
-  mutation_data_id char(36)    NOT NULL REFERENCES mutation_data(id),
+  -- mutation_data_id char(36)    NOT NULL REFERENCES mutation_data(id), -- Changed FK
+  event_id         char(36)    NOT NULL REFERENCES mutation_data(event_id),
   node_id          INT    NOT NULL,
-  PRIMARY KEY (mutation_data_id, node_id)
+  PRIMARY KEY (event_id, node_id) -- Changed PK
 );
 
 CREATE TABLE attribute_mutation_entry (
-  mutation_data_id char(36)    NOT NULL,
+  -- mutation_data_id char(36)    NOT NULL, -- Changed target table in FK below
+  event_id         char(36)    NOT NULL,
   node_id          INT    NOT NULL,
   attribute_key    char(32)   NOT NULL,
   string_value     TEXT,
   style_om_value_id INT REFERENCES style_om_value(id),
-  PRIMARY KEY (mutation_data_id, node_id, attribute_key),
-  FOREIGN KEY (mutation_data_id, node_id) REFERENCES attribute_mutation(mutation_data_id, node_id)
+  PRIMARY KEY (event_id, node_id, attribute_key), -- Changed PK
+  FOREIGN KEY (event_id, node_id) REFERENCES attribute_mutation(event_id, node_id) -- Changed FK
 );
 
 -- removes[]
 CREATE TABLE removed_node_mutation (
-  mutation_data_id char(36)    NOT NULL REFERENCES mutation_data(id),
+  -- mutation_data_id char(36)    NOT NULL REFERENCES mutation_data(id), -- Changed FK
+  event_id         char(36)    NOT NULL REFERENCES mutation_data(event_id),
   parent_id        INT    NOT NULL,
   node_id          INT    NOT NULL,
   is_shadow        BOOLEAN NOT NULL DEFAULT FALSE,
-  PRIMARY KEY (mutation_data_id, node_id)
+  PRIMARY KEY (event_id, node_id) -- Changed PK
 );
 
 -- adds[]
 CREATE TABLE added_node_mutation (
-  mutation_data_id char(36)    NOT NULL REFERENCES mutation_data(id),
+  -- mutation_data_id char(36)    NOT NULL REFERENCES mutation_data(id), -- Changed FK
+  event_id         char(36)    NOT NULL REFERENCES mutation_data(event_id),
   parent_id        INT    NOT NULL,
   previous_id      INT,
   next_id          INT,
   node_id          INT    NOT NULL REFERENCES serialized_node(id),
-  PRIMARY KEY (mutation_data_id, parent_id, node_id)
+  PRIMARY KEY (event_id, parent_id, node_id) -- Changed PK
 );
 
 
 -- 6. MOUSEMOVE / TOUCHMOVE / DRAG
 CREATE TABLE mousemove_data (
-  id char(36) PRIMARY KEY REFERENCES incremental_data(id)
+  -- id char(36) PRIMARY KEY REFERENCES incremental_data(id) -- Changed PK and FK
+  event_id char(36) PRIMARY KEY REFERENCES incremental_snapshot_event(event_id)
 );
 
 CREATE TABLE mouse_position (
-  mousemove_data_id char(36) NOT NULL REFERENCES mousemove_data(id),
+  -- mousemove_data_id char(36) NOT NULL REFERENCES mousemove_data(id), -- Changed FK
+  event_id          char(36) NOT NULL REFERENCES mousemove_data(event_id),
   x                 INT NOT NULL,
   y                 INT NOT NULL,
   node_id           INT NOT NULL,
   time_offset       INT NOT NULL,
-  PRIMARY KEY (mousemove_data_id, node_id, time_offset)
+  PRIMARY KEY (event_id, node_id, time_offset) -- Changed PK
 );
 
 
 -- 7. MOUSE INTERACTIONS
 CREATE TABLE mouse_interaction_data (
-  id               char(36)               PRIMARY KEY REFERENCES incremental_data(id),
+  -- id               char(36)               PRIMARY KEY REFERENCES incremental_data(id), -- Changed PK and FK
+  event_id         char(36)               PRIMARY KEY REFERENCES incremental_snapshot_event(event_id),
   interaction_type ENUM (
     'MouseUp','MouseDown','Click','ContextMenu','DblClick',
     'Focus','Blur','TouchStart','TouchMove_Departed','TouchEnd','TouchCancel'
@@ -300,7 +309,8 @@ CREATE TABLE mouse_interaction_data (
 
 -- 8. SCROLL
 CREATE TABLE scroll_data (
-  id      char(36) PRIMARY KEY REFERENCES incremental_data(id),
+  -- id      char(36) PRIMARY KEY REFERENCES incremental_data(id), -- Changed PK and FK
+  event_id char(36) PRIMARY KEY REFERENCES incremental_snapshot_event(event_id),
   node_id INT NOT NULL,
   x       INT NOT NULL,
   y       INT NOT NULL
@@ -309,7 +319,8 @@ CREATE TABLE scroll_data (
 
 -- 9. VIEWPORT RESIZE
 CREATE TABLE viewport_resize_data (
-  id     char(36) PRIMARY KEY REFERENCES incremental_data(id),
+  -- id     char(36) PRIMARY KEY REFERENCES incremental_data(id), -- Changed PK and FK
+  event_id char(36) PRIMARY KEY REFERENCES incremental_snapshot_event(event_id),
   width  INT NOT NULL,
   height INT NOT NULL
 );
@@ -317,7 +328,8 @@ CREATE TABLE viewport_resize_data (
 
 -- 10. INPUT
 CREATE TABLE input_data (
-  id             char(36)     PRIMARY KEY REFERENCES incremental_data(id),
+  -- id             char(36)     PRIMARY KEY REFERENCES incremental_data(id), -- Changed PK and FK
+  event_id       char(36)     PRIMARY KEY REFERENCES incremental_snapshot_event(event_id),
   node_id        INT     NOT NULL,
   text           TEXT    NOT NULL,
   is_checked     BOOLEAN NOT NULL,
@@ -327,7 +339,8 @@ CREATE TABLE input_data (
 
 -- 11. MEDIA INTERACTIONS
 CREATE TABLE media_interaction_data (
-  id               char(36)    PRIMARY KEY REFERENCES incremental_data(id),
+  -- id               char(36)    PRIMARY KEY REFERENCES incremental_data(id), -- Changed PK and FK
+  event_id         char(36)    PRIMARY KEY REFERENCES incremental_snapshot_event(event_id),
   interaction_type  ENUM(
     'Play','Pause','Seeked','VolumeChange','RateChange'
     ) NOT NULL,
@@ -342,15 +355,17 @@ CREATE TABLE media_interaction_data (
 
 -- 15. FONT
 CREATE TABLE font_data (
-  id          char(36)  PRIMARY KEY REFERENCES incremental_data(id),
+  -- id          char(36)  PRIMARY KEY REFERENCES incremental_data(id), -- Changed PK and FK
+  event_id    char(36)  PRIMARY KEY REFERENCES incremental_snapshot_event(event_id),
   family      TEXT NOT NULL,
   font_source TEXT NOT NULL,
   buffer      BOOLEAN NOT NULL
 );
 
 CREATE TABLE font_descriptor (
-  id           SERIAL PRIMARY KEY,
-  font_data_id char(36)    NOT NULL REFERENCES font_data(id),
+  id               SERIAL PRIMARY KEY,
+  -- font_data_id char(36)    NOT NULL REFERENCES font_data(id), -- Changed FK
+  event_id         char(36)    NOT NULL REFERENCES font_data(event_id),
   descriptor_key   TEXT  NOT NULL,
   descriptor_value TEXT  NOT NULL
 );
@@ -358,12 +373,14 @@ CREATE TABLE font_descriptor (
 
 -- 16. SELECTION
 CREATE TABLE selection_data (
-  id char(36) PRIMARY KEY REFERENCES incremental_data(id)
+  -- id char(36) PRIMARY KEY REFERENCES incremental_data(id) -- Changed PK and FK
+  event_id char(36) PRIMARY KEY REFERENCES incremental_snapshot_event(event_id)
 );
 
 CREATE TABLE selection_range (
   id               SERIAL PRIMARY KEY,
-  selection_data_id char(36)   NOT NULL REFERENCES selection_data(id),
+  -- selection_data_id char(36)   NOT NULL REFERENCES selection_data(id), -- Changed FK
+  event_id         char(36)   NOT NULL REFERENCES selection_data(event_id),
   start            INT    NOT NULL,
   start_offset     INT    NOT NULL,
   end              INT    NOT NULL,
