@@ -153,8 +153,8 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
         }
 
         // Base Event Insertion
-        const baseEventQuery = 'INSERT INTO event (event_id, type, timestamp, delay) VALUES (?, ?, ?, ?)';
-        eventInsertPromises.push(sql.query(baseEventQuery, [eventId, eventTypeString, eventTimestamp, event.delay]));
+        const baseEventQuery = 'INSERT INTO event (event_id, replay_id, type, timestamp, delay) VALUES (?, ?, ?, ?, ?)';
+        eventInsertPromises.push(sql.query(baseEventQuery, [eventId, replayId, eventTypeString, eventTimestamp, event.delay]));
 
         // Meta Event Specific Insertion
         if (event.type === EventType.Meta) {

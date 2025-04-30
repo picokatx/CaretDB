@@ -178,9 +178,11 @@ CREATE TABLE style_om_value_entry (
 -- 4. EVENTS
 CREATE TABLE event (
   event_id   char(36)       PRIMARY KEY,
+  replay_id  char(36)       NOT NULL, -- Added replay_id
   type       ENUM('FullSnapshot','IncrementalSnapshot','Meta')   NOT NULL,
   timestamp  timestamp       NOT NULL,
-  delay      INT
+  delay      INT,
+  constraint fk_event_replay foreign key (replay_id) references replay(replay_id) -- Added FK
 );
 
 -- FullSnapshot
