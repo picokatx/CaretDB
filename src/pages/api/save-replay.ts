@@ -556,8 +556,83 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                 const resizeQuery = 'INSERT INTO viewport_resize_data (event_id, width, height) VALUES (?, ?, ?)';
                 await sql.query(resizeQuery, [eventId, width, height]);
             }
-            // TODO: Add handlers for other sources like StyleSheetRule, Log, Drag etc.
-            // ... and so on for other sources ...
+            // Handle Font events
+            else if (sourceString === 'Font') {
+                // ... existing Font handler code ...
+            }
+            // Handle Mutation events <--- *** NEW BLOCK START ***
+            else if (sourceString === 'Mutation') {
+                const mutation = event.data as mutationData;
+
+                // 1. Insert base mutation record
+                const mutationDataQuery = 'INSERT INTO mutation_data (event_id, is_attach_iframe) VALUES (?, ?)';
+                await sql.query(mutationDataQuery, [eventId, mutation.isAttachIframe ?? false]);
+
+                const mutationPromises = [];
+
+                // 2. Handle text mutations (changes to existing text nodes)
+                if (mutation.texts?.length) {
+                    for (const textChange of mutation.texts) {
+                        const textQuery = 'INSERT INTO text_mutation (event_id, node_id, value) VALUES (?, ?, ?)';
+                        mutationPromises.push(sql.query(textQuery, [eventId, textChange.id, textChange.value]));
+                    }
+                }
+
+                // 3. Handle attribute mutations (changes to existing nodes' attributes)
+                if (mutation.attributes?.length) {
+                    for (const attrChange of mutation.attributes) {
+                        const nodeAttributes = attrChange.attributes;
+                        const nodeId = attrChange.id;
+                        
+                        // Insert/Ensure the base attribute mutation record exists for this node in this event
+                        const attrBaseQuery = 'INSERT INTO attribute_mutation (event_id, node_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE node_id=VALUES(node_id);';
+                        mutationPromises.push(sql.query(attrBaseQuery, [eventId, nodeId]));
+                        
+                        // Insert each specific attribute change into attribute_mutation_entry
+                        for (const [key, value] of Object.entries(nodeAttributes)) {
+                            // TODO: Handle StyleOMValue properly if 'value' is an object.
+                            // This would involve inserting into style_om_value tables and referencing the ID here.
+                            if (typeof value === 'string' || value === null) {
+                                const entryQuery = 'INSERT INTO attribute_mutation_entry (event_id, node_id, attribute_key, string_value) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE string_value=VALUES(string_value);';
+                                mutationPromises.push(sql.query(entryQuery, [eventId, nodeId, key, value]));
+                            } else {
+                                console.warn(`[Save Replay] Skipping non-string/null attribute mutation for key ${key} on node ${nodeId} in event ${eventId}. Value:`, value);
+                            }
+                        }
+                    }
+                }
+
+                // 4. Handle node removals
+                if (mutation.removes?.length) {
+                    for (const removal of mutation.removes) {
+                        const removeQuery = 'INSERT INTO removed_node_mutation (event_id, parent_id, node_id, is_shadow) VALUES (?, ?, ?, ?)';
+                        mutationPromises.push(sql.query(removeQuery, [eventId, removal.parentId, removal.id, removal.isShadow ?? false]));
+                    }
+                }
+
+                // 5. Handle node additions
+                if (mutation.adds?.length) {
+                    for (const addition of mutation.adds) {
+                        const nodeToAdd = addition.node;
+                        // IMPORTANT: Save the node structure *before* recording the addition link
+                        await saveSerializedNode({ node: nodeToAdd, replayId });
+                        
+                        // Now record the addition linkage
+                        const addQuery = 'INSERT INTO added_node_mutation (event_id, parent_id, next_id, node_id) VALUES (?, ?, ?, ?)';
+                        // Add the promise for the linkage insert to the list
+                        mutationPromises.push(sql.query(addQuery, [
+                            eventId, 
+                            addition.parentId, 
+                            addition.nextId ?? null,     
+                            nodeToAdd.id
+                        ]));
+                    }
+                }
+
+                // Wait for all collected mutation sub-operation promises to complete
+                await Promise.all(mutationPromises);
+            }
+             // *** NEW BLOCK END ***
         }
     }
 

@@ -268,10 +268,9 @@ CREATE TABLE added_node_mutation (
   -- mutation_data_id char(36)    NOT NULL REFERENCES mutation_data(id), -- Changed FK
   event_id         char(36)    NOT NULL REFERENCES mutation_data(event_id),
   parent_id        INT    NOT NULL,
-  previous_id      INT,
   next_id          INT,
   node_id          INT    NOT NULL REFERENCES serialized_node(id),
-  PRIMARY KEY (event_id, parent_id, node_id) -- Changed PK
+  PRIMARY KEY (event_id, parent_id, node_id) -- Primary key remains the same
 );
 
 
