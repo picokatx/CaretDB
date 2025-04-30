@@ -4,5 +4,6 @@ export const sql = await mysql.createConnection({
   host: 'localhost',
   user: 'root',
   password: 'admin',
-  database: 'caretdb'
+  database: 'caretdb',
+  multipleStatements: true
 });

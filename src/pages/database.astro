@@ -113,6 +113,7 @@ const testColDefs: ColDef[] = [
         <div class="form-control w-full">
           <textarea id="sql-input" class="textarea textarea-bordered textarea-sm w-full" rows="4" placeholder="Enter SQL query here...">SELECT * FROM user</textarea>
           <button id="run-query-button" class="btn btn-sm btn-primary mt-2">Run Query</button>
+          <button id="build-schema-button" class="btn btn-sm btn-secondary mt-2">Build/Rebuild Schema</button>
         </div>
 
         <div class="divider my-1"></div>
@@ -271,6 +272,43 @@ const testColDefs: ColDef[] = [
     });
   } else {
     console.error('Could not find controls or result display element.');
+  }
+
+  // Get build schema button and add listener
+  const buildSchemaButton = document.getElementById('build-schema-button');
+
+  if (buildSchemaButton && resultDisplay) {
+    buildSchemaButton.addEventListener('click', () => {
+      console.log('[buildSchema] Button clicked. Sending request to /api/build_schema');
+      resultDisplay.textContent = 'Initiating schema build...';
+      buildSchemaButton.setAttribute('disabled', 'true'); // Disable button during request
+
+      fetch("/api/build_schema", {
+        method: "POST",
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+          // No body needed for this request based on current API structure
+        }
+      }).then(async (resp) => {
+          const data = await resp.json();
+          if (!resp.ok) {
+            // Throw an error with the message from the API response if possible
+            throw new Error(data.error || `HTTP error! status: ${resp.status}`);
+          }
+          return data;
+      }).then((data) => {
+          console.log('[buildSchema] Fetch successful:', data);
+          resultDisplay.textContent = `Schema Build Successful: ${data.message || JSON.stringify(data)}`;
+      }).catch(error => {
+          console.error('[buildSchema] Fetch error:', error);
+          resultDisplay.textContent = `Schema Build Failed: ${error.message}`;
+      }).finally(() => {
+          buildSchemaButton.removeAttribute('disabled'); // Re-enable button
+      });
+    });
+  } else {
+     console.error('Could not find build-schema-button or result-display element.');
   }
 
   // --- Server-Side Data Functions (Moved from AgGridAstro) ---

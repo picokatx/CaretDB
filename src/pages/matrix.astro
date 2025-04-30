@@ -21,6 +21,7 @@ if (!session) {
   <h1 class="text-2xl font-bold mb-4">
     RRWeb Local Record & Replay (Iframe Managed)
   </h1>
+  <div id="webstate-snippet-container" class="mb-4"></div>
   <div class="flex flex-col md:flex-row gap-4">
     <RecordingPanel />
     <ReplayPanel />
@@ -38,5 +39,37 @@ if (!session) {
   document.addEventListener("DOMContentLoaded", () => {
     initTimelineControls();
     initRecorder();
+
+    // --- Fetch and display webstate snippet ---
+    const urlParams = new URLSearchParams(window.location.search);
+    const webstateHash = urlParams.get('webstate');
+    const snippetContainer = document.getElementById('webstate-snippet-container');
+
+    if (webstateHash && snippetContainer) {
+      const htmlUrl = `/dom/${webstateHash}.html`;
+      
+      fetch(htmlUrl)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.text();
+        })
+        .then(htmlContent => {
+          const snippet = htmlContent.substring(0, 100);
+          const p = document.createElement('p');
+          p.className = 'text-sm text-gray-600 border p-2 rounded bg-base-200';
+          p.textContent = `Snippet from ${webstateHash}.html: "${snippet}..."`;
+          snippetContainer.appendChild(p);
+        })
+        .catch(error => {
+          console.error('Error fetching webstate HTML:', error);
+          const p = document.createElement('p');
+          p.className = 'text-sm text-error border border-error p-2 rounded';
+          p.textContent = `Error loading snippet for ${webstateHash}.html: ${error.message}`;
+          snippetContainer.appendChild(p);
+        });
+    }
+    // --- End webstate snippet ---
   });
 </script>
