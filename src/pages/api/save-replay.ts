@@ -3,8 +3,27 @@ import { getSession } from "auth-astro/server";
 import { sql } from "../../lib/mysql-connect"; // Adjust path as needed
 import crypto from 'crypto';
 import { EventType } from '../../lib/matrix/rrtypes'; // Assuming rrtypes defines EventType
-import type { eventWithTime, metaEvent as RrwebMetaEvent, incrementalSnapshotEvent, mouseInteractionData, mousemoveData, mousePosition as RrwebMousePosition, mutationData, textMutation, attributeMutation, addedNodeMutation, removedNodeMutation, scrollData } from '../../lib/matrix/rrtypes'; // Import specific event types
-import { IncrementalSource } from '../../lib/matrix/rrtypes'; // Import IncrementalSource
+import type { 
+    eventWithTime, 
+    metaEvent as RrwebMetaEvent, 
+    incrementalSnapshotEvent, 
+    mouseInteractionData, 
+    mousemoveData, 
+    mousePosition as RrwebMousePosition,
+    mutationData,       
+    textMutation,
+    attributeMutation,
+    addedNodeMutation,
+    removedNodeMutation,
+    scrollData,
+    selectionData, 
+    SelectionRange as RrwebSelectionRange,
+    inputData,
+    mediaInteractionData,
+    fontData,
+    viewportResizeData // Added
+} from '../../lib/matrix/rrtypes'; // Import specific event types
+import { IncrementalSource, MediaInteractions } from '../../lib/matrix/rrtypes'; // Added MediaInteractions
 import { 
     NodeType, 
     type fullSnapshotEvent as RrwebFullSnapshotEvent, 
@@ -401,7 +420,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                 await sql.query(interactionQuery, [eventId, interactionTypeString, nodeId, x, y, pointerTypeString]);
             }
             // Handle MouseMove and TouchMove (they share the same data structure)
-            else if (sourceString === 'MouseMove' || sourceString === 'TouchMove') {
+            else if (sourceString === 'MouseMove' || sourceString === 'TouchMove' || sourceString === 'Drag') {
                 const moveData = event.data as mousemoveData;
                 const positions = moveData.positions;
 
@@ -442,7 +461,102 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                 const scrollQuery = 'INSERT INTO scroll_data (event_id, node_id, x, y) VALUES (?, ?, ?, ?)';
                 await sql.query(scrollQuery, [eventId, nodeId, x, y]);
             }
-            // TODO: Add handlers for other sources like ViewportResize, Input, etc.
+            // Handle Selection events
+            else if (sourceString === 'Selection') {
+                const selection = event.data as selectionData;
+                const ranges = selection.ranges;
+
+                // 1. Insert into selection_data table
+                const selectionDataQuery = 'INSERT INTO selection_data (event_id) VALUES (?)';
+                await sql.query(selectionDataQuery, [eventId]);
+
+                // 2. Insert each range into selection_range table
+                const rangeInsertPromises = [];
+                if (ranges?.length) {
+                    for (const r of ranges) {
+                        // Type assertion for clarity
+                        const range = r as RrwebSelectionRange;
+                        const rangeQuery = `
+                            INSERT INTO selection_range 
+                                (event_id, start, start_offset, end, end_offset)
+                            VALUES (?, ?, ?, ?, ?)
+                        `;
+                        rangeInsertPromises.push(
+                            sql.query(rangeQuery, [
+                                eventId,         // Foreign key to selection_data
+                                range.start,
+                                range.startOffset,
+                                range.end,
+                                range.endOffset
+                            ])
+                        );
+                    }
+                    // Wait for all range inserts for this event to complete
+                    await Promise.all(rangeInsertPromises);
+                }
+            }
+            // Handle Input events
+            else if (sourceString === 'Input') {
+                const input = event.data as inputData;
+                const nodeId = input.id;
+                const text = input.text;
+                const isChecked = input.isChecked;
+                // rrweb v2 doesn't seem to have userTriggered, but schema does. Defaulting to false.
+                const userTriggered = (input as any).userTriggered ?? false; 
+
+                const inputQuery = 'INSERT INTO input_data (event_id, node_id, text, is_checked, user_triggered) VALUES (?, ?, ?, ?, ?)';
+                await sql.query(inputQuery, [eventId, nodeId, text, isChecked, userTriggered]);
+            }
+            // Handle MediaInteraction events
+            else if (sourceString === 'MediaInteraction') {
+                const mediaData = event.data as mediaInteractionData;
+                const interactionTypeNumeric = mediaData.type;
+                const nodeId = mediaData.id;
+                const currentTime = mediaData.currentTime; // Might be undefined
+                const volume = mediaData.volume;           // Might be undefined
+                const muted = mediaData.muted;             // Might be undefined
+                const loop = mediaData.loop;               // Might be undefined
+                const playbackRate = mediaData.playbackRate;   // Might be undefined
+
+                // Map numeric interaction type to DB ENUM string
+                let interactionTypeString: string;
+                switch (interactionTypeNumeric) {
+                    case MediaInteractions.Play:         interactionTypeString = 'Play'; break;
+                    case MediaInteractions.Pause:        interactionTypeString = 'Pause'; break;
+                    case MediaInteractions.Seeked:       interactionTypeString = 'Seeked'; break;
+                    case MediaInteractions.VolumeChange: interactionTypeString = 'VolumeChange'; break;
+                    case MediaInteractions.RateChange:   interactionTypeString = 'RateChange'; break;
+                    default:
+                        console.warn(`Unsupported media interaction type ${interactionTypeNumeric} for event ${eventId}. Skipping interaction details.`);
+                        continue;
+                }
+
+                const mediaQuery = `
+                    INSERT INTO media_interaction_data 
+                        (event_id, interaction_type, node_id, time, volume, muted, isloop, playback_rate)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `;
+                await sql.query(mediaQuery, [
+                    eventId, 
+                    interactionTypeString, 
+                    nodeId, 
+                    currentTime, // DB schema uses 'time', pass currentTime here
+                    volume, 
+                    muted, 
+                    loop,        // DB schema uses 'isloop', pass loop here
+                    playbackRate
+                ]);
+            }
+            // Handle ViewportResize events
+            else if (sourceString === 'ViewportResize') {
+                const resizeData = event.data as viewportResizeData;
+                const width = resizeData.width;
+                const height = resizeData.height;
+
+                const resizeQuery = 'INSERT INTO viewport_resize_data (event_id, width, height) VALUES (?, ?, ?)';
+                await sql.query(resizeQuery, [eventId, width, height]);
+            }
+            // TODO: Add handlers for other sources like StyleSheetRule, Log, Drag etc.
             // ... and so on for other sources ...
         }
     }

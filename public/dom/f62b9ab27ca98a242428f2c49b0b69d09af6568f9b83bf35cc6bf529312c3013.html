@@ -5,8 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sample HTML for Testing</title>
     <style>
+        /* Add @font-face rule */
+        @font-face {
+            font-family: 'Roboto';
+            font-style: normal;
+            font-weight: 400;
+            src: url(https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxKKTU1Kg.woff2) format('woff2');
+            /* Add other formats or unicode-range if needed */
+        }
+
         body {
-            font-family: Arial, sans-serif;
+            /* Apply the font */
+            font-family: 'Roboto', Arial, sans-serif;
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
@@ -67,6 +77,15 @@
         <button id="addElementBtn">Add Element</button>
         <button id="changeColorBtn">Change Colors</button>
         <div id="elementsContainer" style="margin-top: 10px; min-height: 100px;"></div>
+    </div>
+
+    <div class="container">
+        <h2>HTML5 Video Player</h2>
+        <video id="testVideo" width="640" height="360" controls>
+            <!-- Using a common Creative Commons test video -->
+            <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
     </div>
     
     <script>
