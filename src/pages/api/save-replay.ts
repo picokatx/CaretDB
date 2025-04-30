@@ -5,6 +5,138 @@ import crypto from 'crypto';
 import { EventType } from '../../lib/matrix/rrtypes'; // Assuming rrtypes defines EventType
 import type { eventWithTime, metaEvent as RrwebMetaEvent } from '../../lib/matrix/rrtypes'; // Import specific event types
 import { IncrementalSource } from '../../lib/matrix/rrtypes'; // Import IncrementalSource
+import { 
+    NodeType, 
+    type fullSnapshotEvent as RrwebFullSnapshotEvent, 
+    type serializedNodeWithId, 
+    type elementNode, 
+    type textNode, 
+    type commentNode, 
+    type documentNode,
+    type documentTypeNode,
+    type cdataNode
+} from '../../lib/matrix/rrtypes';
+
+// Define the type for our recursive helper function
+type SaveNodeParams = {
+    node: serializedNodeWithId;
+    replayId: string; // Pass replayId for potential context/logging
+    // Note: Using the global 'sql' connection assumes single transaction context
+};
+
+/**
+ * Recursively saves a serialized DOM node and its children/attributes to the database.
+ * Assumes a transaction has already been started on the 'sql' connection.
+ */
+async function saveSerializedNode({ node, replayId }: SaveNodeParams): Promise<void> {
+    
+    const nodeType = node.type; // Get type before switch
+    const nodeId = node.id; // Get id before switch
+
+    // 1. Map NodeType enum to DB string
+    let nodeTypeString: string;
+    switch (nodeType) { // Use the stored type
+        case NodeType.Document:       nodeTypeString = 'Document'; break;
+        case NodeType.DocumentType:   nodeTypeString = 'DocumentType'; break;
+        case NodeType.Element:        nodeTypeString = 'Element'; break;
+        case NodeType.Text:           nodeTypeString = 'Text'; break;
+        case NodeType.CDATA:          nodeTypeString = 'CDATA'; break;
+        case NodeType.Comment:        nodeTypeString = 'Comment'; break;
+        default: 
+            console.warn(`[saveSerializedNode] Unsupported node type ${nodeType} for node ID ${nodeId}. Skipping.`);
+            return; // Skip unsupported types
+    }
+
+    // 2. Prepare base node data
+    const baseNodeQuery = `
+        INSERT INTO serialized_node (
+            id, type, root_id, is_shadow_host, is_shadow, 
+            compat_mode, name, public_id, system_id, 
+            tag, is_svg, need_block, is_custom, 
+            text_content
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE type=VALUES(type); -- Handle potential re-insertion if needed, though rrweb IDs should be unique per snapshot
+    `;
+    const baseNodeParams = [
+        node.id,
+        nodeTypeString,
+        node.rootId ?? null, // Use rootId if present
+        node.isShadowHost ?? false,
+        node.isShadow ?? false,
+        // Document/DocumentType specific
+        (node as documentNode).compatMode ?? null,
+        (node as documentTypeNode).name ?? null, 
+        (node as documentTypeNode).publicId ?? null,
+        (node as documentTypeNode).systemId ?? null,
+        // Element specific
+        (node as elementNode).tagName ?? null,
+        (node as elementNode).isSVG ?? false,
+        (node as elementNode).needBlock ?? false,
+        (node as elementNode).isCustom ?? false,
+        // Text/Comment/CDATA specific
+        (node as textNode | commentNode | cdataNode).textContent ?? null
+    ];
+
+    await sql.query(baseNodeQuery, baseNodeParams);
+
+    // 3. Handle Attributes (if Element)
+    if (node.type === NodeType.Element) {
+        const elementData = node as elementNode; // Type assertion
+        const attributes = elementData.attributes || {};
+        const attributeInsertPromises = [];
+
+        for (const [key, value] of Object.entries(attributes)) {
+            // Skip internal rrweb attributes like _cssText if necessary
+            if (key === '_cssText') continue; 
+
+            const attrQuery = `
+                INSERT INTO serialized_node_attribute (
+                    node_id, attribute_key, string_value, number_value, is_true, is_null
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE string_value=VALUES(string_value), number_value=VALUES(number_value), is_true=VALUES(is_true), is_null=VALUES(is_null);
+            `;
+            let stringValue: string | null = null;
+            let numberValue: number | null = null;
+            let isTrue = false;
+            let isNull = false;
+
+            if (value === null) {
+                isNull = true;
+            } else if (typeof value === 'boolean') {
+                isTrue = value;
+            } else if (typeof value === 'number') {
+                numberValue = value;
+            } else {
+                stringValue = String(value); // Default to string
+            }
+            
+            attributeInsertPromises.push(sql.query(attrQuery, [
+                node.id,
+                key,
+                stringValue,
+                numberValue,
+                isTrue,
+                isNull
+            ]));
+        }
+        await Promise.all(attributeInsertPromises); // Insert all attributes for this node
+    }
+
+    // 4. Handle Children (Recursive Call & Linking)
+    const childNodes = (node as documentNode | elementNode).childNodes;
+    if (childNodes && Array.isArray(childNodes)) {
+        const childLinkPromises = [];
+        for (const childNode of childNodes) {
+            // Recursively save the child node first
+            await saveSerializedNode({ node: childNode, replayId }); 
+            
+            // Then link parent to child
+            const linkQuery = 'INSERT INTO serialized_node_child (parent_id, child_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE child_id=VALUES(child_id);';
+            childLinkPromises.push(sql.query(linkQuery, [node.id, childNode.id]));
+        }
+        await Promise.all(childLinkPromises); // Link all children for this node
+    }
+}
 
 export const POST: APIRoute = async ({ request, clientAddress }) => {
   const session = await getSession(request);
@@ -129,7 +261,6 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     await sql.query(replayQuery, replayParams);
 
     // --- Database Insertion (Phase 2a: Events - Meta) ---
-    const eventInsertPromises = [];
     for (const event of events) {
         const eventId = crypto.randomUUID();
         const eventTimestamp = new Date(event.timestamp).toISOString().slice(0, 19).replace('T', ' ');
@@ -154,21 +285,34 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
 
         // Base Event Insertion
         const baseEventQuery = 'INSERT INTO event (event_id, replay_id, type, timestamp, delay) VALUES (?, ?, ?, ?, ?)';
-        eventInsertPromises.push(sql.query(baseEventQuery, [eventId, replayId, eventTypeString, eventTimestamp, event.delay]));
+        // We will await this base insert before proceeding with specific types
+        // This ensures the event record exists before detail records reference it.
+        await sql.query(baseEventQuery, [eventId, replayId, eventTypeString, eventTimestamp, event.delay]);
 
-        // Meta Event Specific Insertion
+        // Specific Event Type Handling
         if (event.type === EventType.Meta) {
             const metaData = event.data as RrwebMetaEvent['data'];
             const metaQuery = 'INSERT INTO meta_event (event_id, href, width, height) VALUES (?, ?, ?, ?)';
-            eventInsertPromises.push(sql.query(metaQuery, [eventId, metaData.href, metaData.width, metaData.height]));
+            await sql.query(metaQuery, [eventId, metaData.href, metaData.width, metaData.height]);
         }
-        
-        // TODO: Add logic for FullSnapshot events
-        // TODO: Add logic for IncrementalSnapshot events (parsing data.source etc.)
-    }
+        else if (event.type === EventType.FullSnapshot) {
+            const snapshotData = event.data as RrwebFullSnapshotEvent['data'];
+            const rootNode = snapshotData.node;
+            const initialOffset = snapshotData.initialOffset;
 
-    // Wait for all event insertions
-    await Promise.all(eventInsertPromises);
+            // Recursively save the node tree
+            await saveSerializedNode({ node: rootNode, replayId });
+
+            // Insert into full_snapshot_event table
+            const snapshotQuery = 'INSERT INTO full_snapshot_event (event_id, node_id, initial_offset_top, initial_offset_left) VALUES (?, ?, ?, ?)';
+            await sql.query(snapshotQuery, [eventId, rootNode.id, initialOffset.top, initialOffset.left]);
+        } 
+        else if (event.type === EventType.IncrementalSnapshot) {
+            // TODO: Add logic for IncrementalSnapshot events (parsing data.source etc.)
+            // This will involve multiple sub-handlers based on event.data.source
+            // e.g., saving mutation data, mouse move data, etc.
+        }
+    }
 
     // --- Commit Transaction ---
     await sql.commit();
