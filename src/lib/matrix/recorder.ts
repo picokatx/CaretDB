@@ -5,16 +5,13 @@ import { generateTimelineView } from "./timeline";
 import { updateConsoleLogsView } from "./console";
 import { updateNetworkRequestsView } from "./network";
 import { updateTabHighlighting } from "./timeline";
-/**
- * Recorder controller for managing recording sessions
- */
+import { showToast } from "./toast";
 
 // Interface for the iframe window
 export interface IframeWindowWithRecorder extends Window {
   startRecordingInIframe?: () => void;
   stopRecordingInIframe?: () => void;
 }
-
 /**
  * Initialize the recording controller
  */
@@ -23,6 +20,7 @@ export function initRecorder() {
   const recordFrame = document.getElementById('record-frame') as HTMLIFrameElement;
   const startBtn = document.getElementById('start-record-btn') as HTMLButtonElement;
   const stopBtn = document.getElementById('stop-replay-btn') as HTMLButtonElement;
+  const saveBtn = document.getElementById('save-record-btn') as HTMLButtonElement;
   const statusEl = document.getElementById('status-display') as HTMLDivElement;
   const replayContainer = document.getElementById('replay-container') as HTMLDivElement;
   const eventTimeline = document.getElementById('event-timeline') as HTMLDivElement;
@@ -38,8 +36,8 @@ export function initRecorder() {
   const networkRequestsView = document.getElementById('network-requests-view') as HTMLDivElement;
   const tagsView = document.getElementById('tags-view') as HTMLDivElement;
 
-  if (!recordFrame || !startBtn || !stopBtn || !timelineViewBtn || !rawViewBtn || !consoleViewBtn || !networkViewBtn || !tagsViewBtn || !timelineView || !rawJsonView || !consoleLogsView || !networkRequestsView || !tagsView) {
-    console.error('Recording or view elements not found');
+  if (!recordFrame || !startBtn || !stopBtn || !saveBtn || !timelineViewBtn || !rawViewBtn || !consoleViewBtn || !networkViewBtn || !tagsViewBtn || !timelineView || !rawJsonView || !consoleLogsView || !networkRequestsView || !tagsView) {
+    console.error('Recording, control, or view elements not found');
     return;
   }
 
@@ -128,6 +126,7 @@ export function initRecorder() {
       updateStatus('Recording... (in iframe)');
       startBtn.disabled = true;
       stopBtn.disabled = false;
+      saveBtn.disabled = true;
       // Clear previous replay
       if (mGlob.playerInstance) {
         // For rrweb-player we need to remove it from DOM
@@ -164,6 +163,7 @@ export function initRecorder() {
     updateStatus('Recording stopped. Preparing replay...');
     stopBtn.disabled = true;
     startBtn.disabled = false;
+    saveBtn.disabled = mGlob.rrwebEvents.length === 0;
 
       // Format the JSON for raw view
       const formattedJson = JSON.stringify(mGlob.rrwebEvents, null, 2);
@@ -198,6 +198,55 @@ export function initRecorder() {
         console.error("Failed to initialize player instance.");
         mGlob.playerInstance = null; // Ensure it's null if init failed
       }
+  });
+
+  // Save recording button click handler
+  saveBtn.addEventListener('click', async () => {
+    if (mGlob.rrwebEvents.length === 0) {
+      showToast("No recording data to save.", "warning");
+      return;
+    }
+
+    // Disable button and show loading state
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving...";
+    const originalStatus = document.getElementById('status')?.textContent || "Status: Saving...";
+    if (document.getElementById('status')) document.getElementById('status')!.textContent = "Status: Saving to database...";
+
+    try {
+      const clientInfo = (window as any).clientInfo || {};
+      const payload = {
+        events: mGlob.rrwebEvents,
+        clientInfo: clientInfo
+      };
+
+      const response = await fetch('/api/save-replay', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || `HTTP error! status: ${response.status}`);
+      }
+
+      showToast(`Recording saved successfully! Replay ID: ${result.replayId}`, "success");
+      // Optionally disable save again after success, or allow re-saving?
+      // saveBtn.disabled = true; 
+      saveBtn.textContent = "Save Recording"; 
+
+    } catch (error: any) {
+      console.error("Error saving recording:", error);
+      showToast(`Error saving recording: ${error.message}`, "error");
+      saveBtn.disabled = false; // Re-enable on error to allow retry
+      saveBtn.textContent = "Save Recording"; 
+    } finally {
+       if (document.getElementById('status')) document.getElementById('status')!.textContent = originalStatus; // Restore status display
+    }
   });
 }
 
@@ -327,42 +376,39 @@ function populateTagsView(): void {
     return;
   }
 
-  // Static tag data (replace with dynamic fetching later)
-  const tagsData = {
-    "browser.name": "Firefox",
-    "browser.version": "137.0",
-    "environment": "production",
-    "os.name": "Windows",
-    "os.version": ">=10",
-    "platform": "javascript",
-    "releases": "unknown", // Or fetch dynamically if possible
-    "replayType": "buffer",
-    "sdk.name": "sentry.javascript.astro",
-    "sdk.replay.blockAllMedia": "true",
-    "sdk.replay.errorSampleRate": "1",
-    "sdk.replay.maskAllInputs": "true",
-    "sdk.replay.maskAllText": "true",
-    "sdk.replay.networkCaptureBodies": "true",
-    "sdk.replay.networkDetailHasUrls": "false",
-    "sdk.replay.networkRequestHasHeaders": "true",
-    "sdk.replay.networkResponseHasHeaders": "true",
-    "sdk.replay.sessionSampleRate": "0.1",
-    "sdk.replay.shouldRecordCanvas": "false",
-    "sdk.replay.useCompression": "false",
-    "sdk.replay.useCompressionOption": "true",
-    "sdk.version": "9.14.0",
-    "user.ip": "116.88.152.58" // Note: IP is sensitive, be cautious
-  };
+  // Dynamically populate tags from window.navigator
+  const tagsData: { [key: string]: string | number | boolean | undefined } = {};
+
+  // Standard properties returning primitives or simple lists
+  try {
+    tagsData['navigator.cookieEnabled'] = navigator.cookieEnabled;
+    tagsData['navigator.deviceMemory'] = (navigator as any).deviceMemory; // Secure context, might be undefined
+    tagsData['navigator.hardwareConcurrency'] = navigator.hardwareConcurrency;
+    tagsData['navigator.language'] = navigator.language;
+    tagsData['navigator.languages'] = navigator.languages ? navigator.languages.join(', ') : undefined; // Join array
+    tagsData['navigator.maxTouchPoints'] = navigator.maxTouchPoints;
+    tagsData['navigator.onLine'] = navigator.onLine;
+    tagsData['navigator.userAgent'] = navigator.userAgent;
+    tagsData['navigator.webdriver'] = navigator.webdriver;
+  } catch (error) {
+    console.error("Error accessing navigator properties:", error);
+  }
 
   let tableHtml = "";
   for (const [key, value] of Object.entries(tagsData)) {
+    // Display undefined values explicitly as 'undefined'
+    const displayValue = value === undefined ? 'undefined' : String(value);
     tableHtml += `
       <tr>
         <td class="font-mono text-xs break-all">${key}</td>
-        <td class="text-sm break-all">${value}</td>
+        <td class="text-sm break-all">${displayValue}</td>
       </tr>
     `;
   }
 
-  tagsContent.innerHTML = tableHtml;
+  if (Object.keys(tagsData).length === 0) {
+      tagsContent.innerHTML = '<tr><td colspan="2" class="text-center py-4">Could not retrieve navigator properties.</td></tr>';
+  } else {
+      tagsContent.innerHTML = tableHtml;
+  }
 } 

@@ -25,7 +25,7 @@ export default defineConfig({
     Credentials({
       credentials: {
         email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' },
+        password: { label: 'Password', type: 'password' }
       },
       async authorize(credentials, request) {
 
@@ -55,16 +55,34 @@ export default defineConfig({
         }
         
         // If email and password are correct, return user object
-        const user_func = async (): Promise<User> => {
-          return {
-            id: users[0].user_id,
-            name: users[0].username,
-            email: users[0].email_name + "@" + users[0].email_domain
-          }
+        // Important: Ensure the returned object includes the id!
+        return {
+          id: users[0].user_id,
+          name: users[0].username,
+          email: users[0].email_name + "@" + users[0].email_domain
         };
-        return user_func();
-        // No need for the explicit 'return null' now
       }
     })
   ],
+  // Add callbacks to include user ID in the session
+  callbacks: {
+    // Include user.id on token
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id; // Add user id from authorize to the token
+      }
+      return token;
+    },
+    // Include user.id on session
+    async session({ session, token }) {
+      if (token?.id && session?.user) {
+        session.user.id = token.id as string; // Add id from token to session user
+      }
+      return session;
+    },
+  },
+  // Explicitly set strategy (optional but good practice)
+  session: {
+    strategy: "jwt",
+  },
 });

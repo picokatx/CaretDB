@@ -1,14 +1,12 @@
-drop database if exists caretdb;
-create database caretdb;
-use caretdb;
+%%sql
 
 create table user (
     user_id char(32) primary key, -- 1bd31a8ef60e416ba3edd9fc9f8ee4ed
     email_domain varchar(255) check (
-        email_domain regexp '^[a-zA-Z0-9\\.\\!\\#\\$\\%\\&\\*\\+\\/\\=\\?\\^\\_\\`\\{\\|\\}\\~\\-]+$'
+        email_domain regexp '^[a-zA-Z0-9\.\!\#\$\%\&\*\+\/\=\?\^\_\`\{\|\}\~\-]+$'
     ), -- https://en.wikipedia.org/wiki/Email_address#Domain
     email_name varchar(64) check (
-        email_name regexp "^[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(\\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*(\\+[a-zA-Z0-9-]+)?$"
+        email_name regexp "^[a-zA-Z0-9!#$%&\'*+/=?^_`{|}~-]+(\\.[a-zA-Z0-9!#$%&\'*+/=?^_`{|}~-]+)*(\\+[a-zA-Z0-9-]+)?$"
     ), -- https://en.wikipedia.org/wiki/Email_address#Local-part
     username varchar(64) check (
         username regexp "^(?=.*[a-zA-Z])[a-z0-9_\\-\\.']{3,30}$" and
@@ -36,86 +34,6 @@ create table user (
     twofa boolean not null default false
 );
 
-create table webstate (
-    html_hash char(64) primary key check (
-        html_hash regexp '^[a-f0-9]{64}$'
-    ),
-    user_id char(32) not null, -- Added user_id
-    constraint fk_webstate_user foreign key (user_id) references user(user_id) -- Added FK
-);
-
-create table replay (
-    replay_id char(36) primary key, -- 123e4567-e89b-12d3-a456-426614174000
-    html_hash char(64) not null, -- Added html_hash
-    start_time timestamp not null, -- 2024-03-29 10:00:00
-    end_time timestamp not null, -- 2024-03-30 10:00:00
-    product varchar(24) check (
-        product in ('Chrome', 'Mozilla', 'AppleWebKit', 'Safari', 'Edge')
-    ), -- Chrome Mozilla AppleWebKit
-    product_version varchar(24) check (
-        product_version regexp '^[0-9]+(\\.[0-9]+)*$'
-    ), -- 91.0.4472.124  5.0  537.36 
-    comment varchar(255),  -- this recording is about ... 
-    device_type varchar(24) check (
-        device_type in ('Desktop', 'Mobile', 'Tablet', 'Unknown') -- Added Tablet based on API logic
-    ), -- x
-    os_type varchar(24) check (
-        os_type in ('Windows NT', 'Macintosh', 'Linux', 'iOS', 'Android')
-    ), -- Macintosh; Intel Mac OS X; U; en
-    os_version varchar(16) check (
-        os_version regexp '^[0-9]+(_[0-9]+)*(\\.?[0-9]+)*$'
-    ), -- 13_5_1 10.0 https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/User-Agent#chrome_ua_string
-    -- user_id char(32) not null, -- Removed user_id
-    network_id varchar(15) check (
-        network_id regexp '^[0-9]{1,3}(\\.[0-9]{1,3}){3}$'
-    ), -- 183.30.196.133 422.225.101.242
-    host_id varchar(4096) check (
-        host_id regexp '^[a-zA-Z0-9-]+(\\.[a-zA-Z0-9-]+)+$'
-    ), -- fonts.googleapis.com huggingface.co
-    d_viewport_height int, -- 1 1320 1680
-    d_viewport_width int, -- 1 1920 2560
-    constraint correct_times check (
-        start_time <= end_time
-    ),
-    constraint chk_viewport_height check (
-        d_viewport_height > 0
-    ),
-    constraint chk_viewport_width check (
-        d_viewport_width > 0
-    ),
-    constraint fk_replay_webstate foreign key (html_hash) references webstate(html_hash) -- Added FK
-    -- constraint fk_replay_user foreign key (user_id) references user(user_id) -- Removed FK
-);
--- #######################################################################
--- This is superceded by different types of elements in rrweb
--- #######################################################################
--- create table element (
---     uid char(32) primary key check (
---         uid regexp '^[a-f0-9]{32}$'
---     ),
---     html_hash char(64),
---     tag varchar(24),
---     xpath varchar(255), -- path/to/element
---     text varchar(4096), -- some text inside the element
---     xpos int check (xpos >= 0),
---     ypos int check (ypos >= 0),
---     height int check (height > 0),
---     width int check (width > 0),
---     z_index int default 0,
---     foreign key (html_hash) references webstate(html_hash)
--- );
--- -- also used in rrweb but follow definition used there
--- create table element_attributes (
---     uid char(32),
---     html_hash char(64),
---     attribute varchar(100),
---     primary key (uid, html_hash, attribute),
---     foreign key (uid) references element(uid),
---     foreign key (html_hash) references webstate(html_hash)
--- );
-
-
--- combined relation because it would be a pain to retrieve nodes otherwise.
 -- 1. SERIALIZED NODES
 CREATE TABLE serialized_node (
   id               INT                PRIMARY KEY,
@@ -367,39 +285,3 @@ CREATE TABLE selection_range (
   end              INT    NOT NULL,
   end_offset       INT    NOT NULL
 );
-
-
-
-
-
-
-
-
-
-
-
--- we also need to store network and console shoot. should have multitasked that ah whatever
-create table cookie (
-    name varchar(256),
-    html_hash char(64),
-    path varchar(256) check (
-        path regexp '^/.*' and
-        length(path) <= 256
-    ), -- minify if exceed 256
-    secure boolean not null default false,
-    http_only boolean not null default false,
-    size int check (size between 1 and 4096),
-    expiry timestamp,
-    domain varchar(4096) check (
-        domain regexp '^[a-zA-Z0-9-]+(\\.[a-zA-Z0-9-]+)+$'
-    ),
-    value varchar(4096),
-    same_site varchar(20) check (
-        same_site in ('Strict', 'Lax', 'None')
-    ),
-    last_accessed timestamp,
-    primary key (name, html_hash),
-    foreign key (html_hash) references webstate(html_hash)
-); -- https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis
-
-INSERT INTO `user` VALUES ('001ecf8afc9649c58b5e94b570cd8356','nushigh.edu.sg','h1910153','theo','3a4b52fc88795615c55066100afbba60bea938b976fd40f13def78369a209f50','2024-02-05 07:30:25','2024-05-29 02:45:55','enabled','theo','weibin','1','1832555445','user',1,0,1);

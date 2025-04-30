@@ -7,7 +7,7 @@ import TimelinePanel from "../components/matrix/TimelinePanel.astro";
 import ReplayPanel from "../components/matrix/ReplayPanel.astro";
 import { getSession } from "auth-astro/server";
 import { sql } from "./../lib/mysql-connect"; // Adjusted path, assuming it's relative from pages
-
+import { UAParser } from 'ua-parser-js';
 import "../styles/rrweb-player.css";
 const systemName = "ClickstreamDB";
 
@@ -39,12 +39,11 @@ if (!webstateHash) {
     // Handle error appropriately, maybe show a message
   }
 }
+
 ---
 
 <Layout title={`${systemName} - Local Record & Replay`}>
-  <p>
-    {rows}
-  </p>
+  <!-- Inject clientInfo for client-side scripts -->
   <h1 class="text-2xl font-bold mb-4">
     RRWeb Local Record & Replay {webstateHash ? `(${webstateHash.substring(0,8)}...)` : '(Select Webstate)'}
   </h1>
@@ -60,6 +59,7 @@ if (!webstateHash) {
       <TimelinePanel />
       {/* Add the toast container here */}
       <div id="toast-container" class="toast toast-end toast-bottom z-50"></div>
+      <div id="client-info"></div>
     </>
   ) : (
     <>
