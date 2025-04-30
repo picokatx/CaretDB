@@ -1,6 +1,7 @@
 drop database if exists caretdb;
 create database caretdb;
 use caretdb;
+
 create table user (
     user_id char(32) primary key, -- 1bd31a8ef60e416ba3edd9fc9f8ee4ed
     email_domain varchar(255) check (
@@ -133,7 +134,6 @@ create table cookie (
 create table user_event (
     replay_id char(36),
     timestamp timestamp,
-    event_id char(36),
     status varchar(16) check (
         status in ('active', 'complete', 'error')
     ),
@@ -141,37 +141,16 @@ create table user_event (
     html_hash char(64),
     viewport_width int check (viewport_width > 0),
     viewport_height int check (viewport_height > 0),
-    primary key (event_id),
+    primary key (replay_id, timestamp),
     foreign key (replay_id) references replay(replay_id),
     foreign key (html_hash) references webstate(html_hash)
 );
 
-create table mutation_event(
-    event_id char(36),
+create table element_event (
+    replay_id char(36),
     timestamp timestamp,
-    isAttachIframe boolean default true
-    primary key (event_id)
-);
-
-CREATE TABLE text_mutation (
-    event_id char(36)
-    mutation_data_id INTEGER REFERENCES mutation_data(id),
-);
-
-CREATE TABLE attribute_mutation (
-    id SERIAL PRIMARY KEY,
-    mutation_data_id INTEGER REFERENCES mutation_data(id),
-);
-
-CREATE TABLE removed_node_mutation (
-    id SERIAL PRIMARY KEY,
-    mutation_data_id INTEGER REFERENCES mutation_data(id),
-);
-
-CREATE TABLE added_node_mutation (
-    id SERIAL PRIMARY KEY,
-    mutation_data_id INTEGER REFERENCES mutation_data(id),
-    -- fields of addedNodeMutation here
+    primary key (replay_id, timestamp),
+    foreign key (replay_id, timestamp) references user_event(replay_id, timestamp)
 );
 
 create table move_event (
@@ -240,275 +219,5 @@ create table event_participating_elements (
     foreign key (html_hash) references webstate(html_hash)
 );
 
-CREATE TYPE event_type AS ENUM (
-  'FullSnapshot','IncrementalSnapshot','Meta'
-);
 
-CREATE TYPE incremental_source AS ENUM (
-  'Mutation','MouseMove','MouseInteraction','Scroll','ViewportResize',
-  'Input','TouchMove','MediaInteraction','StyleSheetRule',
-  'CanvasMutation','Font','Log','Drag','StyleDeclaration','Selection',
-  'AdoptedStyleSheet','CustomElement'
-);
-
-CREATE TYPE mouse_interactions AS ENUM (
-  'MouseUp','MouseDown','Click','ContextMenu','DblClick',
-  'Focus','Blur','TouchStart','TouchMove_Departed','TouchEnd','TouchCancel'
-);
-
-CREATE TYPE pointer_type AS ENUM ('Mouse','Pen','Touch');
-
-CREATE TYPE media_interactions AS ENUM (
-  'Play','Pause','Seeked','VolumeChange','RateChange'
-);
-
-CREATE TYPE node_type AS ENUM (
-  'Document','DocumentType','Element','Text','CDATA','Comment'
-);
-
-
--- 2. SERIALIZED NODES
-----------------------
-CREATE TABLE serialized_node (
-  id               INT                PRIMARY KEY,
-  type             node_type          NOT NULL,
-  root_id          INT,                             -- optional root
-  is_shadow_host   BOOLEAN            NOT NULL DEFAULT FALSE,
-  is_shadow        BOOLEAN            NOT NULL DEFAULT FALSE,
-
-  -- document‐specific
-  compat_mode      TEXT,
-  name             TEXT,
-  public_id        TEXT,
-  system_id        TEXT,
-
-  -- element‐specific
-  tag              varchar(24),
-  is_svg           BOOLEAN            NOT NULL DEFAULT FALSE,
-  need_block       BOOLEAN            NOT NULL DEFAULT FALSE,
-  is_custom        BOOLEAN            NOT NULL DEFAULT FALSE,
-
-  -- text/cdata/comment
-  text_content     TEXT
-);
-
--- 2a. element child nodes (document+element)
-CREATE TABLE serialized_node_child (
-  parent_id INT NOT NULL REFERENCES serialized_node(id),
-  child_id  INT NOT NULL REFERENCES serialized_node(id),
-  PRIMARY KEY (parent_id, child_id)
-);
-
--- 2b. element attributes (string|number|true|null)
-CREATE TABLE serialized_node_attribute (
-  node_id      INT     NOT NULL REFERENCES serialized_node(id),
-  attribute_key TEXT   NOT NULL,
-  string_value TEXT,
-  number_value NUMERIC,
-  is_true      BOOLEAN NOT NULL DEFAULT FALSE,
-  is_null      BOOLEAN NOT NULL DEFAULT FALSE,
-  PRIMARY KEY (node_id, attribute_key)
-);
-
-
--- 3. STYLE-OM VALUES (for any styleOMValue usage)
----------------------------------------------------
-CREATE TABLE style_om_value (
-  id SERIAL PRIMARY KEY
-);
-CREATE TABLE style_om_value_entry (
-  id                 SERIAL PRIMARY KEY,
-  style_om_value_id  INT    NOT NULL REFERENCES style_om_value(id),
-  property           TEXT   NOT NULL,
-  value_string       TEXT,
-  priority           TEXT,
-);
-
-
--- 4. EVENTS
-------------
-CREATE TABLE event (
-  event_id   char(36)       PRIMARY KEY,
-  type       event_type   NOT NULL,
-  timestamp  timestamp       NOT NULL,
-  delay      INT
-);
-
--- FullSnapshot
-CREATE TABLE full_snapshot_event (
-  event_id            char(36) PRIMARY KEY REFERENCES event(event_id),
-  node_id             INT NOT NULL REFERENCES serialized_node(id),
-  initial_offset_top  INT NOT NULL,
-  initial_offset_left INT NOT NULL
-);
-
--- Meta
-CREATE TABLE meta_event (
-  event_id char(36) PRIMARY KEY REFERENCES event(event_id),
-  href      TEXT   NOT NULL,
-  width     INT    NOT NULL,
-  height    INT    NOT NULL
-);
-
--- IncrementalSnapshot
-CREATE TABLE incremental_data (
-  id      char(36)              PRIMARY KEY,
-  source  incremental_source  NOT NULL
-);
-
-CREATE TABLE incremental_snapshot_event (
-  event_id            char(36) PRIMARY KEY REFERENCES event(event_id),
-  incremental_data_id INT NOT NULL REFERENCES incremental_data(id)
-);
-
-
--- 5. MUTATION DATA & CHILD TABLES
------------------------------------
-CREATE TABLE mutation_data (
-  id               char(36)  PRIMARY KEY REFERENCES incremental_data(id),
-  is_attach_iframe BOOLEAN NOT NULL DEFAULT FALSE
-);
-
--- texts[]
-CREATE TABLE text_mutation (
-  mutation_data_id char(36)    NOT NULL REFERENCES mutation_data(id),
-  node_id          INT    NOT NULL,
-  value            TEXT,
-  PRIMARY KEY (mutation_data_id, node_id)
-);
-
--- attributes[]
-CREATE TABLE attribute_mutation (
-  mutation_data_id char(36)    NOT NULL REFERENCES mutation_data(id),
-  node_id          INT    NOT NULL,
-  PRIMARY KEY (mutation_data_id, node_id)
-);
-CREATE TABLE attribute_mutation_entry (
-  mutation_data_id char(36)    NOT NULL REFERENCES attribute_mutation(mutation_data_id),
-  node_id          INT    NOT NULL,
-  attribute_key    TEXT   NOT NULL,
-  string_value     TEXT,
-  style_om_value_id INT REFERENCES style_om_value(id),
-  PRIMARY KEY (mutation_data_id, node_id, attribute_key)
-);
-
--- removes[]
-CREATE TABLE removed_node_mutation (
-  mutation_data_id char(36)    NOT NULL REFERENCES mutation_data(id),
-  parent_id        INT    NOT NULL,
-  node_id          INT    NOT NULL,
-  is_shadow        BOOLEAN NOT NULL DEFAULT FALSE,
-  PRIMARY KEY (mutation_data_id, node_id)
-);
-
--- adds[]
-CREATE TABLE added_node_mutation (
-  mutation_data_id char(36)    NOT NULL REFERENCES mutation_data(id),
-  parent_id        INT    NOT NULL,
-  previous_id      INT,
-  next_id          INT,
-  node_id          INT    NOT NULL REFERENCES serialized_node(id),
-  PRIMARY KEY (mutation_data_id, parent_id, node_id)
-);
-
-
--- 6. MOUSEMOVE / TOUCHMOVE / DRAG
------------------------------------
-CREATE TABLE mousemove_data (
-  char(36) INT PRIMARY KEY REFERENCES incremental_data(id)
-);
-CREATE TABLE mouse_position (
-  mousemove_data_id char(36) NOT NULL REFERENCES mousemove_data(id),
-  x                 INT NOT NULL,
-  y                 INT NOT NULL,
-  node_id           INT NOT NULL,
-  time_offset       INT NOT NULL,
-  PRIMARY KEY (mousemove_data_id, node_id, time_offset)
-);
-
-
--- 7. MOUSE INTERACTIONS
--------------------------
-CREATE TABLE mouse_interaction_data (
-  id               char(36)               PRIMARY KEY REFERENCES incremental_data(id),
-  interaction_type mouse_interactions NOT NULL,
-  node_id          INT               NOT NULL,
-  x                INT,
-  y                INT,
-  pointer_type     pointer_type
-);
-
-
--- 8. SCROLL
--------------
-CREATE TABLE scroll_data (
-  id      char(36) PRIMARY KEY REFERENCES incremental_data(id),
-  node_id INT NOT NULL,
-  x       INT NOT NULL,
-  y       INT NOT NULL
-);
-
-
--- 9. VIEWPORT RESIZE
-----------------------
-CREATE TABLE viewport_resize_data (
-  id     char(36) PRIMARY KEY REFERENCES incremental_data(id),
-  width  INT NOT NULL,
-  height INT NOT NULL
-);
-
-
--- 10. INPUT
--------------
-CREATE TABLE input_data (
-  id             char(36)     PRIMARY KEY REFERENCES incremental_data(id),
-  node_id        INT     NOT NULL,
-  text           TEXT    NOT NULL,
-  is_checked     BOOLEAN NOT NULL,
-  user_triggered BOOLEAN NOT NULL DEFAULT FALSE
-);
-
-
--- 11. MEDIA INTERACTIONS
---------------------------
-CREATE TABLE media_interaction_data (
-  id               char(36)                PRIMARY KEY REFERENCES incremental_data(id),
-  interaction_type media_interactions NOT NULL,
-  node_id          INT                NOT NULL,
-  current_time     NUMERIC,
-  volume           NUMERIC,
-  muted            BOOLEAN,
-  loop             BOOLEAN,
-  playback_rate    NUMERIC
-);
-
-
--- 15. FONT
-------------
-CREATE TABLE font_data (
-  id          char(36)  PRIMARY KEY REFERENCES incremental_data(id),
-  family      TEXT NOT NULL,
-  font_source TEXT NOT NULL,
-  buffer      BOOLEAN NOT NULL
-);
-CREATE TABLE font_descriptor (
-  id           SERIAL PRIMARY KEY,
-  font_data_id char(36)    NOT NULL REFERENCES font_data(id),
-  descriptor_key   TEXT  NOT NULL,
-  descriptor_value TEXT  NOT NULL
-);
-
-
--- 16. SELECTION
------------------
-CREATE TABLE selection_data (
-  id char(36) PRIMARY KEY REFERENCES incremental_data(id)
-);
-CREATE TABLE selection_range (
-  id               SERIAL PRIMARY KEY,
-  selection_data_id char(36)   NOT NULL REFERENCES selection_data(id),
-  start            INT    NOT NULL,
-  start_offset     INT    NOT NULL,
-  end              INT    NOT NULL,
-  end_offset       INT    NOT NULL
-);
+INSERT INTO `user` VALUES ('001ecf8afc9649c58b5e94b570cd8356','nushigh.edu.sg','h1910153','theo','3a4b52fc88795615c55066100afbba60bea938b976fd40f13def78369a209f50','2024-02-05 07:30:25','2024-05-29 02:45:55','enabled','theo','weibin','1','1832555445','user',1,0,1);

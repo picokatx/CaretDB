@@ -6,30 +6,82 @@ import RecordingPanel from "../components/matrix/RecordingPanel.astro";
 import TimelinePanel from "../components/matrix/TimelinePanel.astro";
 import ReplayPanel from "../components/matrix/ReplayPanel.astro";
 import { getSession } from "auth-astro/server";
+import { sql } from "./../lib/mysql-connect"; // Adjusted path, assuming it's relative from pages
 
 import "../styles/rrweb-player.css";
 const systemName = "ClickstreamDB";
+
 // Get the current user session
 const session = await getSession(Astro.request);
 
 if (!session) {
   return Astro.redirect('/login');
 }
+
+// Check for webstate parameter and fetch hashes if needed
+const urlParams = new URL(Astro.request.url).searchParams;
+const webstateHash = urlParams.get('webstate');
+let webstateHashes: string[] = [];
+let fetchError: string | null = null;
+let rows: any[] = [];
+let _: any;
+if (!webstateHash) {
+  // Fetch hashes from DB only if no webstate parameter is provided
+  try {
+    const query = 'SELECT html_hash FROM webstate;'; // Simple query
+    // Assuming sql.query returns [rows, fields] and rows is an array of objects
+    [rows, _] = await sql.query(query);
+    // Explicitly type 'row' in the map function
+    webstateHashes = rows.map((row: { html_hash: string }) => row.html_hash);
+  } catch (error: any) {
+    console.error("Error fetching webstate hashes:", error);
+    fetchError = "Failed to load webstate list from database.";
+    // Handle error appropriately, maybe show a message
+  }
+}
 ---
 
 <Layout title={`${systemName} - Local Record & Replay`}>
+  <p>
+    {rows}
+  </p>
   <h1 class="text-2xl font-bold mb-4">
-    RRWeb Local Record & Replay (Iframe Managed)
+    RRWeb Local Record & Replay {webstateHash ? `(${webstateHash.substring(0,8)}...)` : '(Select Webstate)'}
   </h1>
-  <div id="webstate-snippet-container" class="mb-4"></div>
-  <div class="flex flex-col md:flex-row gap-4">
-    <RecordingPanel />
-    <ReplayPanel />
-  </div>
-  <ControlPanel />
-  <TimelinePanel />
-  <!-- Add the toast container here -->
-  <div id="toast-container" class="toast toast-end toast-bottom z-50"></div>
+
+  {webstateHash ? (
+    <>
+      {/* Display snippet and main panels only if webstateHash exists */}
+      <div id="webstate-snippet-container" class="mb-4"></div>
+      <div class="flex flex-col md:flex-row gap-4">
+        <RecordingPanel />
+        <ReplayPanel />
+      </div>
+      <ControlPanel />
+      <TimelinePanel />
+      {/* Add the toast container here */}
+      <div id="toast-container" class="toast toast-end toast-bottom z-50"></div>
+    </>
+  ) : (
+    <>
+      {/* Display selection UI only if webstateHash does NOT exist */}
+      <div class="p-4 border rounded bg-base-200 mb-4">
+        <h2 class="text-xl font-semibold mb-2">Select a Webstate to Analyze</h2>
+        {fetchError ? (
+          <p class="text-error">{fetchError}</p>
+        ) : webstateHashes.length > 0 ? (
+          <select id="webstate-selector" class="select select-bordered w-full max-w-xs">
+            <option disabled selected>Choose a webstate hash...</option>
+            {webstateHashes.map(hash => (
+              <option value={hash}>{hash}</option>
+            ))}
+          </select>
+        ) : (
+          <p class="text-warning">No webstates found in the database.</p>
+        )}
+      </div>
+    </>
+  )}
 </Layout>
 
 <script>
@@ -37,39 +89,91 @@ if (!session) {
   import { initTimelineControls } from "../lib/matrix/timeline";
 
   document.addEventListener("DOMContentLoaded", () => {
-    initTimelineControls();
-    initRecorder();
-
-    // --- Fetch and display webstate snippet ---
     const urlParams = new URLSearchParams(window.location.search);
     const webstateHash = urlParams.get('webstate');
     const snippetContainer = document.getElementById('webstate-snippet-container');
+    const selector = document.getElementById('webstate-selector') as HTMLSelectElement | null;
 
-    if (webstateHash && snippetContainer) {
+    if (webstateHash) {
+      // --- This block runs only if webstate parameter exists ---
+      console.log("Webstate parameter found:", webstateHash);
+
+      // ** Start: Load selected HTML into RecordingPanel iframe **
+      const recordFrame = document.getElementById('record-frame') as HTMLIFrameElement | null;
+      const iframeUrlDisplay = document.getElementById('iframe-url-display');
       const htmlUrl = `/dom/${webstateHash}.html`;
-      
-      fetch(htmlUrl)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          return response.text();
-        })
-        .then(htmlContent => {
-          const snippet = htmlContent.substring(0, 100);
-          const p = document.createElement('p');
-          p.className = 'text-sm text-gray-600 border p-2 rounded bg-base-200';
-          p.textContent = `Snippet from ${webstateHash}.html: "${snippet}..."`;
-          snippetContainer.appendChild(p);
-        })
-        .catch(error => {
-          console.error('Error fetching webstate HTML:', error);
-          const p = document.createElement('p');
-          p.className = 'text-sm text-error border border-error p-2 rounded';
-          p.textContent = `Error loading snippet for ${webstateHash}.html: ${error.message}`;
-          snippetContainer.appendChild(p);
-        });
+
+      if (recordFrame) {
+        console.log("Setting recording iframe src to:", htmlUrl);
+        recordFrame.src = htmlUrl;
+      } else {
+        console.error("Recording iframe (record-frame) not found!");
+      }
+
+      if (iframeUrlDisplay) {
+        iframeUrlDisplay.textContent = htmlUrl;
+      } else {
+        console.warn("Iframe URL display element (iframe-url-display) not found.");
+      }
+      // ** End: Load selected HTML into RecordingPanel iframe **
+
+      // Initialize recorder and timeline (ensure iframe content is loaded first, though src change might be enough)
+      // A small delay might be safer if init depends on iframe content being fully ready
+      // setTimeout(() => {
+         initTimelineControls();
+         initRecorder();
+      // }, 100); // Optional small delay
+
+      // Fetch and display webstate snippet
+      if (snippetContainer) {
+        console.log("Fetching snippet from:", htmlUrl);
+
+        fetch(htmlUrl)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.text();
+          })
+          .then(htmlContent => {
+            const snippet = htmlContent.substring(0, 100);
+            const p = document.createElement('p');
+            p.className = 'text-sm text-base-content/70 border p-2 rounded bg-base-200';
+            p.textContent = `Snippet from ${webstateHash}.html: "${snippet}..."`;
+            snippetContainer.innerHTML = '';
+            snippetContainer.appendChild(p);
+          })
+          .catch(error => {
+            console.error('Error fetching webstate HTML:', error);
+            const p = document.createElement('p');
+            p.className = 'text-sm text-error border border-error p-2 rounded';
+            p.textContent = `Error loading snippet for ${webstateHash}.html: ${error.message}`;
+            snippetContainer.innerHTML = '';
+            snippetContainer.appendChild(p);
+          });
+      } else {
+        console.warn("Snippet container not found.");
+      }
+      // --- End webstate parameter block ---
+
+    } else if (selector) {
+      // --- This block runs only if webstate parameter is NOT present AND selector exists ---
+      console.log("No webstate parameter found, initializing selector.");
+
+      selector.addEventListener('change', (event) => {
+        // Use type assertion for event.target
+        const selectedHash = (event.target as HTMLSelectElement).value;
+        if (selectedHash) {
+          console.log("Webstate selected:", selectedHash);
+          // Redirect to the page with the selected hash as parameter
+          window.location.href = `/matrix?webstate=${encodeURIComponent(selectedHash)}`;
+        }
+      });
+      // --- End selector block ---
+    } else {
+        // Fallback case: No webstate param and no selector found (shouldn't usually happen)
+        console.log("No webstate parameter and no selector found.");
     }
-    // --- End webstate snippet ---
+
   });
 </script>

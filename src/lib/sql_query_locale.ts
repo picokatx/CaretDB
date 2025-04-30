@@ -1,7 +1,6 @@
 import * as fs from 'node:fs';
+import buildSchemaSqlContent from './build_schema.sql?raw'; // Use Vite's raw import
 
-// Read the SQL file content synchronously
-const buildSchemaSqlContent = fs.readFileSync('src/lib/build_schema.sql', 'utf-8');
 
 export const sqlQueries = {
   // webstate queries
