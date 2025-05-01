@@ -80,7 +80,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     const hashedPassword = createHash('sha256').update(password).digest('hex');
 
     // --- Create User ---
-    const userId = uuidv4().replace(/-/g, ''); // Generate UUID and remove hyphens for CHAR(32)
+    // const userId = uuidv4().replace(/-/g, ''); // Removed: user_id is no longer used/generated
     const status = 'enabled';
     const role = 'user'; // Default role
     const createdAt = new Date(); // Use current timestamp
@@ -88,7 +88,8 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     await sql.query(
       sqlQueries.insertUser, // Use key from map
       [
-        userId, emailDomain, emailName, username, hashedPassword, 
+        // userId, // Removed userId from parameters
+        emailDomain, emailName, username, hashedPassword, 
         createdAt, status, role, false, 0, false // Default values
       ]
     );

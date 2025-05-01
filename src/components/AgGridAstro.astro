@@ -1,8 +1,11 @@
 ---
 // src/components/AgGridAstro.astro
 // Use Enterprise imports
-import type { GridOptions, ColDef } from 'ag-grid-enterprise';
+import type { GridOptions, ColDef, SizeColumnsToFitGridStrategy, SizeColumnsToFitProvidedWidthStrategy, SizeColumnsToContentStrategy } from 'ag-grid-enterprise';
 // Note: Actual AG Grid *instance* logic MUST run client-side
+
+// Define the autoSizeStrategy union type explicitly
+type AutoSizeStrategy = SizeColumnsToFitGridStrategy | SizeColumnsToFitProvidedWidthStrategy | SizeColumnsToContentStrategy;
 
 interface Props {
   gridOptions?: GridOptions;
@@ -12,6 +15,13 @@ interface Props {
   style?: string; // e.g., "height: 500px; width: 100%;"
   class?: string; // Additional container classes
   gridId?: string;
+  // Added props from SpyNetDataDisplay.vue
+  defaultColDef?: any;
+  cellSelection?: boolean;
+  pagination?: boolean;
+  paginationPageSize?: number;
+  paginationPageSizeSelector?: boolean | number[];
+  autoSizeStrategy?: AutoSizeStrategy;
 }
 
 const {
@@ -22,12 +32,25 @@ const {
   style = "height: 500px; width: 100%;", // Default style
   class: userClassName, // Renamed to avoid conflict with class keyword
   gridId = `astro-ag-grid-${crypto.randomUUID()}`, // Generate unique ID if needed
+  defaultColDef,
+  cellSelection,
+  pagination,
+  paginationPageSize,
+  paginationPageSizeSelector,
+  autoSizeStrategy,
 }: Props = Astro.props;
 
-// Combine base options from gridOptions prop
-const baseGridOptions: GridOptions = { 
-  rowModelType: 'serverSide',
-  ...gridOptions 
+// Combine base options from gridOptions prop and direct props
+const finalGridOptions: GridOptions = {
+  rowModelType: 'serverSide', // Default, can be overridden by gridOptions
+  ...gridOptions, // Spread options passed via gridOptions prop first
+  // Now add direct props, potentially overriding gridOptions values if set
+  ...(defaultColDef && { defaultColDef }),
+  ...(cellSelection !== undefined && { suppressCellFocus: !cellSelection }), // cellSelection is true -> suppressCellFocus is false
+  ...(pagination !== undefined && { pagination }),
+  ...(paginationPageSize !== undefined && { paginationPageSize }),
+  ...(paginationPageSizeSelector !== undefined && { paginationPageSizeSelector }),
+  ...(autoSizeStrategy && { autoSizeStrategy }),
 };
 
 // Construct the class string explicitly, ensuring it's always a string
@@ -55,7 +78,7 @@ if (typeof userClassName === 'string' && userClassName.trim() !== '') {
 <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.3.2/dist/ag-grid-enterprise.min.js"></script>
 
 <!-- Script to initialize the grid using the CDN's global agGrid object -->
-<script define:vars={{ gridId, baseGridOptions }}>
+<script define:vars={{ gridId, finalGridOptions }}>
   /**
    * @typedef {import('ag-grid-enterprise').GridApi} GridApi
    * @typedef {import('ag-grid-enterprise').GridOptions} GridOptions
@@ -80,7 +103,7 @@ if (typeof userClassName === 'string' && userClassName.trim() !== '') {
       if (gridDiv) {
         console.log(`AG Grid Astro (CDN) - Initializing grid: ${gridId}`);
         /** @type {GridOptions} */
-        const finalOptions = { ...baseGridOptions }; 
+        const finalOptions = { ...finalGridOptions }; 
 
         // Use the global agGrid object from the CDN
         gridApiInstance = agGrid.createGrid(gridDiv, finalOptions);

@@ -217,6 +217,7 @@ export function initRecorder() {
       const clientInfo = (window as any).clientInfo || {};
       const payload = {
         events: mGlob.rrwebEvents,
+        consoleLogs: mGlob.consoleLogs,
         clientInfo: clientInfo
       };
 
@@ -246,7 +247,7 @@ export function initRecorder() {
       saveBtn.textContent = "Save Recording"; 
     } finally {
        if (document.getElementById('status')) document.getElementById('status')!.textContent = originalStatus; // Restore status display
-    }
+      }
   });
 }
 

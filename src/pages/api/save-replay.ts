@@ -167,11 +167,13 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   
   let body: any;
   let events: eventWithTime[] = []; // Add type
+  let consoleLogs: any[] = []; // <-- Add consoleLogs array
   let htmlHash: string | null = null;
 
   try {
     body = await request.json();
     events = body.events; // Assign typed events
+    consoleLogs = body.consoleLogs || []; // <-- Assign consoleLogs, default to empty array
     const { clientInfo: clientInfoFromReq } = body;
 
     if (!events || !Array.isArray(events) || events.length === 0) {
@@ -210,16 +212,6 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
         await sql.rollback(); // Rollback transaction
         return new Response(JSON.stringify({ message: "Could not determine webstate hash from recording data" }), { status: 400 });
     }
-
-    // --- Ensure Webstate Exists (using user_id from session) ---
-    // Check if webstate exists for this user
-    // const [webstateRows]: [any[], any] = await sql.query('SELECT html_hash FROM webstate WHERE html_hash = ? AND user_id = ?', [htmlHash, userId]);
-    // if (webstateRows.length === 0) {
-    //     // If not, insert it (assuming user has permission - might need more checks)
-    //     console.log(`Inserting new webstate ${htmlHash} for user ${userId}`);
-    //     await sql.query('INSERT INTO webstate (html_hash, user_id) VALUES (?, ?)', [htmlHash, userId]);
-    // } 
-    // else: webstate already exists for this user, proceed.
 
     // --- Client Info Extraction (as before) ---
     const browserName = clientInfoFromReq?.browser?.name || null;
@@ -634,6 +626,51 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
             }
              // *** NEW BLOCK END ***
         }
+    }
+
+    // --- Database Insertion (Phase 2b: Console Logs) ---
+    if (consoleLogs.length > 0) {
+      // Calculate start timestamp for delay calculation
+      const startTimestamp = events[0]?.timestamp; // Use first rrweb event timestamp as base
+
+      if (startTimestamp) {
+        const consoleLogInsertPromises = [];
+        for (const log of consoleLogs) {
+            const logId = crypto.randomUUID();
+            const logTimestamp = new Date(log.timestamp).toISOString().slice(0, 19).replace('T', ' ');
+            const delay = log.timestamp - startTimestamp;
+            const level = log.level; 
+            const payload = JSON.stringify(log.args || []); // Stringify the args array for JSON column
+            // const trace = log.trace || null; // Assuming trace might be sent later
+
+            // Basic validation for level
+            const validLevels = ['log', 'warn', 'error', 'info', 'debug'];
+            if (!validLevels.includes(level)) {
+                console.warn(`[Save Replay] Skipping console log with invalid level: ${level}`);
+                continue;
+            }
+
+            const logQuery = `
+              INSERT INTO console_log 
+                (log_id, replay_id, level, payload, delay, timestamp, trace)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+            `;
+            consoleLogInsertPromises.push(
+                sql.query(logQuery, [
+                    logId, 
+                    replayId, 
+                    level, 
+                    payload, 
+                    delay > 0 ? delay : 0, // Ensure delay isn't negative
+                    logTimestamp,
+                    null // Placeholder for trace for now
+                ])
+            );
+        }
+        await Promise.all(consoleLogInsertPromises);
+      } else {
+          console.warn("[Save Replay] Cannot calculate console log delays: No rrweb events found.");
+      }
     }
 
     // --- Commit Transaction ---

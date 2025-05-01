@@ -55,11 +55,12 @@ export default defineConfig({
         }
         
         // If email and password are correct, return user object
-        // Important: Ensure the returned object includes the id!
+        // Use the full email as the stable unique ID for the session.
+        const userEmail = users[0].email_name + "@" + users[0].email_domain;
         return {
-          id: users[0].user_id,
-          name: users[0].username,
-          email: users[0].email_name + "@" + users[0].email_domain
+          id: userEmail,
+          name: users[0].username, // Keep username as name
+          email: userEmail
         };
       }
     })
@@ -69,14 +70,14 @@ export default defineConfig({
     // Include user.id on token
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id; // Add user id from authorize to the token
+        token.id = user.id; // Add user id (now email) from authorize to the token
       }
       return token;
     },
     // Include user.id on session
     async session({ session, token }) {
       if (token?.id && session?.user) {
-        session.user.id = token.id as string; // Add id from token to session user
+        session.user.id = token.id as string; // Add id (email) from token to session user
       }
       return session;
     },

@@ -1,6 +1,167 @@
 import { matrixGlobals as mGlob } from "./globals";
 import { formatTimestamp } from "./player";
 import { getFullPath, formatBytes } from "./console";
+
+// --- NEW Helper Function to Determine Request Type ---
+function determineRequestType(request: any): string {
+    // 1. Check Content-Type header (case-insensitive)
+    const contentTypeHeader = request.responseHeaders ? 
+        Object.keys(request.responseHeaders).find(key => key.toLowerCase() === 'content-type') : undefined;
+    const contentType = contentTypeHeader ? request.responseHeaders[contentTypeHeader].toLowerCase() : null;
+
+    if (contentType) {
+        if (contentType.includes('html')) return 'html';
+        if (contentType.includes('css')) return 'css';
+        if (contentType.includes('javascript')) return 'js';
+        if (contentType.includes('json')) return 'json';
+        if (contentType.includes('image')) return 'image';
+        if (contentType.includes('font')) return 'font';
+        if (contentType.includes('xml')) return 'xml';
+        if (contentType.includes('text/plain')) return 'text';
+        // Add more specific types if needed
+    }
+
+    // 2. Check URL extension
+    if (request.url) {
+        try {
+            const url = new URL(request.url);
+            const path = url.pathname;
+            const extension = path.split('.').pop()?.toLowerCase();
+
+            if (extension) {
+                switch (extension) {
+                    case 'html':
+                    case 'htm': return 'html';
+                    case 'css': return 'css';
+                    case 'js':
+                    case 'mjs': return 'js';
+                    case 'json': return 'json';
+                    case 'png':
+                    case 'jpg':
+                    case 'jpeg':
+                    case 'gif':
+                    case 'svg':
+                    case 'webp':
+                    case 'ico': return 'image';
+                    case 'woff':
+                    case 'woff2':
+                    case 'ttf':
+                    case 'otf':
+                    case 'eot': return 'font';
+                    case 'xml': return 'xml';
+                    case 'txt': return 'text';
+                    // Add more extensions if needed
+                }
+            }
+        } catch (e) {
+            console.warn(`Could not parse URL for extension: ${request.url}`, e);
+        }
+    }
+    
+    // 3. Check initiatorType as a fallback (less specific)
+    if (request.initiatorType) {
+       // Basic mapping, could be expanded
+       if (['fetch', 'xhr'].includes(request.initiatorType)) return 'fetch/xhr';
+       if (['img', 'image'].includes(request.initiatorType)) return 'image';
+       if (['script'].includes(request.initiatorType)) return 'script'; 
+       if (['css', 'link'].includes(request.initiatorType)) return 'css'; // 'link' often implies css
+       return request.initiatorType; // Return raw initiatorType if specific mapping unknown
+    }
+
+    // 4. Fallback
+    return 'N/A'; 
+}
+
+// Helper function to display details in the modal
+function displayNetworkRequestDetails(request: any): void {
+  const modal = document.getElementById('network-detail-modal') as HTMLDialogElement;
+  if (!modal) return;
+
+  // --- Populate General Info ---
+  (modal.querySelector('#modal-net-url') as HTMLElement).textContent = request.url || 'N/A';
+  (modal.querySelector('#modal-net-method') as HTMLElement).textContent = request.method || 'N/A';
+  (modal.querySelector('#modal-net-status') as HTMLElement).innerHTML = request.status ? String(request.status) : '--'; // Use innerHTML for potential status styling later
+  (modal.querySelector('#modal-net-type') as HTMLElement).textContent = request.type || 'N/A';
+  (modal.querySelector('#modal-net-duration') as HTMLElement).textContent = request.duration !== undefined ? `${request.duration.toFixed(2)} ms` : 'N/A';
+  (modal.querySelector('#modal-net-size') as HTMLElement).textContent = request.size !== undefined ? formatBytes(request.size) : 'N/A';
+  (modal.querySelector('#modal-net-timestamp') as HTMLElement).textContent = request.timestamp ? new Date(request.timestamp).toLocaleTimeString() : 'N/A';
+  
+  // Update status color specifically if needed (example)
+   const statusEl = modal.querySelector('#modal-net-status') as HTMLElement;
+   if (statusEl) {
+       statusEl.className = ''; // Reset class
+       if (request.status >= 500) statusEl.classList.add("text-error", "font-bold");
+       else if (request.status >= 400) statusEl.classList.add("text-error");
+       else if (request.status >= 300) statusEl.classList.add("text-warning");
+       else if (request.status >= 200) statusEl.classList.add("text-success");
+   }
+
+  // --- Populate Headers --- 
+  const reqHeadersEl = modal.querySelector('#modal-net-req-headers') as HTMLElement;
+  const resHeadersEl = modal.querySelector('#modal-net-res-headers') as HTMLElement;
+  const jsonContentEl = modal.querySelector('#modal-net-json') as HTMLPreElement;
+  const noHeadersMsg = 'Headers not captured for this request type or not available.';
+
+  reqHeadersEl.textContent = request.requestHeaders && Object.keys(request.requestHeaders).length > 0 
+    ? Object.entries(request.requestHeaders).map(([key, value]) => `${key}: ${value}`).join('\n') 
+    : noHeadersMsg;
+
+  resHeadersEl.textContent = request.responseHeaders && Object.keys(request.responseHeaders).length > 0
+    ? Object.entries(request.responseHeaders).map(([key, value]) => `${key}: ${value}`).join('\n')
+    : noHeadersMsg;
+
+  // --- Populate JSON --- 
+  try {
+      jsonContentEl.textContent = JSON.stringify(request, null, 2); // Pretty print JSON
+  } catch (e) {
+      console.error("Error stringifying network request:", e);
+      jsonContentEl.textContent = "Error displaying JSON data.";
+  }
+
+  // --- Reset Tabs --- 
+  const tabs = modal.querySelectorAll('.tabs .tab');
+  tabs.forEach(tab => tab.classList.remove('tab-active'));
+  (tabs[0] as HTMLElement).classList.add('tab-active'); // Default to request headers tab
+  reqHeadersEl.classList.remove('hidden');
+  resHeadersEl.classList.add('hidden');
+  jsonContentEl.classList.add('hidden'); // Hide JSON initially
+
+  // --- Show Modal --- 
+  modal.showModal();
+}
+
+// Function to handle tab switching within the modal
+function setupModalTabs(): void {
+    const modal = document.getElementById('network-detail-modal');
+    if (!modal) return;
+
+    const tabs = modal.querySelectorAll('.tabs .tab');
+    const reqHeadersEl = modal.querySelector('#modal-net-req-headers') as HTMLElement;
+    const resHeadersEl = modal.querySelector('#modal-net-res-headers') as HTMLElement;
+    const jsonContentEl = modal.querySelector('#modal-net-json') as HTMLPreElement;
+    // Add selectors for body divs later if implemented
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            // Deactivate all tabs
+            tabs.forEach(t => t.classList.remove('tab-active'));
+            // Activate clicked tab
+            tab.classList.add('tab-active');
+
+            // Show corresponding content
+            const tabType = (tab as HTMLElement).dataset.tab;
+            reqHeadersEl.classList.toggle('hidden', tabType !== 'req-headers');
+            resHeadersEl.classList.toggle('hidden', tabType !== 'res-headers');
+            jsonContentEl.classList.toggle('hidden', tabType !== 'json');
+            // Add logic for body tabs later
+        });
+    });
+}
+
+// Call setup for tabs once when the script loads (or after modal is added to DOM)
+// Since it's part of the Astro component, it should exist when script runs
+setupModalTabs();
+
 /**
  * Network controller for displaying network requests
  */
@@ -18,13 +179,12 @@ export function updateNetworkRequestsView(): void {
     if (!mGlob.networkSearchText) return true;
 
     // Search in URL, path, and now also in type
-    return (
-      req.url.toLowerCase().includes(mGlob.networkSearchText.toLowerCase()) ||
-      (req.path &&
-        req.path.toLowerCase().includes(mGlob.networkSearchText.toLowerCase())) ||
-      (req.type &&
-        req.type.toLowerCase().includes(mGlob.networkSearchText.toLowerCase()))
-    );
+    // Make sure req properties exist before calling toLowerCase
+    const urlMatch = req.url?.toLowerCase().includes(mGlob.networkSearchText.toLowerCase());
+    const pathMatch = req.path?.toLowerCase().includes(mGlob.networkSearchText.toLowerCase());
+    const typeMatch = req.type?.toLowerCase().includes(mGlob.networkSearchText.toLowerCase());
+    
+    return urlMatch || pathMatch || typeMatch;
   });
 
   // Clear previous content
@@ -32,7 +192,7 @@ export function updateNetworkRequestsView(): void {
 
   if (filteredRequests.length === 0) {
     networkTimeline.innerHTML =
-      '<tr><td colspan="7" class="text-center py-4">No network requests recorded</td></tr>';
+      '<tr><td colspan="7" class="text-center py-4">No network requests recorded or matching filter</td></tr>'; // Updated message
     return;
   }
 
@@ -40,14 +200,14 @@ export function updateNetworkRequestsView(): void {
   const baseTimestamp =
     mGlob.rrwebEvents.length > 0
       ? mGlob.rrwebEvents[0].timestamp
-      : filteredRequests.length > 0
+      : filteredRequests.length > 0 && filteredRequests[0].timestamp
         ? new Date(filteredRequests[0].timestamp).getTime()
-        : 0;
+        : Date.now(); // Fallback to current time if no timestamps available
 
   // Create network request items
   filteredRequests.forEach((req) => {
     const row = document.createElement("tr");
-    row.className = "hover";
+    row.className = "hover cursor-pointer"; // Added hover and cursor-pointer
 
     // Format the size - ensure it's a number
     const size =
@@ -66,35 +226,43 @@ export function updateNetworkRequestsView(): void {
 
     // Get request method
     const method = req.method || req.initiatorType || "other";
+    
+    // --- Determine Request Type using helper ---
+    const determinedType = determineRequestType(req);
 
     // Format status code with color
-    let statusHtml = "N/A";
-    console.log("req.statusCode", req.statusCode, req);
-    if (req.statusCode) {
+    let statusHtml = '--'; // Default
+    if (req.status !== undefined && req.status !== 0) { // Check for valid status
       let statusClass = "";
-      if (req.statusCode >= 500) statusClass = "text-error font-bold";
-      else if (req.statusCode >= 400) statusClass = "text-error";
-      else if (req.statusCode >= 300) statusClass = "text-warning";
-      else if (req.statusCode >= 200) statusClass = "text-success";
-
-      statusHtml = `<span class="${statusClass}">${req.statusCode}</span>`;
+      if (req.status >= 500) statusClass = "text-error font-bold";
+      else if (req.status >= 400) statusClass = "text-error";
+      else if (req.status >= 300) statusClass = "text-warning";
+      else if (req.status >= 200) statusClass = "text-success";
+      statusHtml = `<span class="${statusClass}">${req.status}</span>`;
+    } else if (req.error) {
+        statusHtml = `<span class="text-error font-bold" title="${req.error}">Error</span>`; // Show "Error" if status is 0 and error exists
     }
 
     // Format timestamp relative to base
     let timeDisplay = "-";
     let elapsedMillis = 0;
     if (req.timestamp) {
-      const timestamp = new Date(req.timestamp).getTime();
-      elapsedMillis = Math.max(0, timestamp - baseTimestamp);
-      timeDisplay = formatTimestamp(timestamp, baseTimestamp);
+      try {
+          const timestamp = new Date(req.timestamp).getTime();
+          elapsedMillis = Math.max(0, timestamp - baseTimestamp);
+          timeDisplay = formatTimestamp(timestamp, baseTimestamp);
+      } catch (e) {
+          console.error("Error parsing network request timestamp:", req.timestamp, e);
+          timeDisplay = "Invalid Date";
+      }
     }
 
     // Create row cells with jump button
     row.innerHTML = `
-                <td class="max-w-xs truncate">${fullPath}</td>
+                <td class="max-w-xs truncate">${fullPath || 'N/A'}</td>
                 <td>${method}</td>
                 <td>${statusHtml}</td>
-                <td>${req.type || "unknown"}</td>
+                <td>${determinedType}</td>
                 <td>${formattedSize}</td>
                 <td>${formattedDuration}</td>
                 <td class="flex items-center">
@@ -106,12 +274,12 @@ export function updateNetworkRequestsView(): void {
             `;
 
     // Add tooltip with full URL
-    row.title = req.url;
+    row.title = req.url || 'No URL';
 
     // Add click handler for the jump button
     const jumpBtn = row.querySelector('.jump-to-network-btn');
     jumpBtn?.addEventListener('click', (e) => {
-      e.stopPropagation(); // Prevent triggering any potential row click listener
+      e.stopPropagation(); // Prevent triggering the row click listener
       const timestampToJump = parseInt((e.currentTarget as HTMLElement).dataset.timestamp || '0');
       if (mGlob.playerInstance && typeof mGlob.playerInstance.goto === 'function' && timestampToJump >= 0) { // Check >= 0
         console.log("Jumping player to timestamp:", timestampToJump);
@@ -119,6 +287,11 @@ export function updateNetworkRequestsView(): void {
       } else {
         console.warn("Could not jump player. Instance:", mGlob.playerInstance, "Timestamp:", timestampToJump);
       }
+    });
+
+    // Add click listener for the entire row to show details
+    row.addEventListener('click', () => {
+        displayNetworkRequestDetails(req);
     });
 
     networkTimeline.appendChild(row);

@@ -3,11 +3,11 @@ create database caretdb;
 use caretdb;
 
 create table user (
-    user_id char(32) primary key, -- 1bd31a8ef60e416ba3edd9fc9f8ee4ed
-    email_domain varchar(255) check (
-        email_domain regexp '^[a-zA-Z0-9\\.\\!\\#\\$\\%\\&\\*\\+\\/\\=\\?\\^\\_\\`\\{\\|\\}\\~\\-]+$'
+    -- user_id char(32) primary key, -- Removed
+    email_domain varchar(255) not null check (
+        email_domain regexp '^[a-zA-Z0-9\\.\\!\\#\\$\\%\\&\\*\\+\\/\\=\\\?\\^\\_\\`\\{\\|\\}\\\~\\-]+$'
     ), -- https://en.wikipedia.org/wiki/Email_address#Domain
-    email_name varchar(64) check (
+    email_name varchar(64) not null check (
         email_name regexp "^[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(\\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*(\\+[a-zA-Z0-9-]+)?$"
     ), -- https://en.wikipedia.org/wiki/Email_address#Local-part
     username varchar(64) check (
@@ -33,15 +33,18 @@ create table user (
     fail_login int not null default 0 check (
         fail_login >= 0
     ),
-    twofa boolean not null default false
+    twofa boolean not null default false,
+    primary key (email_name, email_domain), -- Primary key
+    unique key uk_user_email (email_domain, email_name) -- Added unique key for FK constraint
 );
 
 create table webstate (
     html_hash char(64) primary key check (
         html_hash regexp '^[a-f0-9]{64}$'
     ),
-    user_id char(32) not null, -- Added user_id
-    constraint fk_webstate_user foreign key (user_id) references user(user_id) -- Added FK
+    email_domain varchar(255),
+    email_name varchar(64),
+    constraint fk_webstate_user foreign key (email_domain, email_name) references user(email_domain, email_name) -- Added FK
 );
 
 create table replay (
@@ -386,15 +389,17 @@ CREATE TABLE selection_range (
   end_offset       INT    NOT NULL
 );
 
-
-
-
-
-
-
-
-
-
+-- 17. CONSOLE LOGS (NEW TABLE)
+CREATE TABLE console_log (
+  log_id     CHAR(36) PRIMARY KEY,          -- UUID for the log entry
+  replay_id  CHAR(36) NOT NULL,             -- FK to the replay session
+  level      ENUM('log', 'warn', 'error', 'info', 'debug') NOT NULL, -- Console level
+  payload    JSON NOT NULL,                 -- Arguments passed to console function (JSON array)
+  delay      INT NOT NULL,                  -- Milliseconds delay from recording start
+  timestamp  TIMESTAMP NOT NULL,            -- Absolute timestamp
+  trace      TEXT NULL,                     -- Optional stack trace for errors
+  CONSTRAINT fk_console_log_replay FOREIGN KEY (replay_id) REFERENCES replay(replay_id)
+);
 
 -- we also need to store network and console shoot. should have multitasked that ah whatever
 create table cookie (
@@ -420,4 +425,5 @@ create table cookie (
     foreign key (html_hash) references webstate(html_hash)
 ); -- https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis
 
-INSERT INTO `user` VALUES ('001ecf8afc9649c58b5e94b570cd8356','nushigh.edu.sg','h1910153','theo','3a4b52fc88795615c55066100afbba60bea938b976fd40f13def78369a209f50','2024-02-05 07:30:25','2024-05-29 02:45:55','enabled','theo','weibin','1','1832555445','user',1,0,1);
+INSERT INTO `user` (email_domain, email_name, username, password, created_at, last_login, status, first_name, middle_name, last_name, phone_num, role, verified, fail_login, twofa)
+VALUES ('nushigh.edu.sg','h1910153','theo','3a4b52fc88795615c55066100afbba60bea938b976fd40f13def78369a209f50','2024-02-05 07:30:25','2024-05-29 02:45:55','enabled','theo','weibin','1','1832555445','user',1,0,1);

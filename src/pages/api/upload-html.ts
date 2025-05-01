@@ -36,31 +36,52 @@ export const POST: APIRoute = async ({ request }) => {
       fs.mkdirSync(publicDir, { recursive: true });
     }
     
-    // Inject the rrweb_loader.js script before the closing body tag
-    let modifiedContent = fileContent;
-    
-    // Check if the file has a body tag
-    if (fileContent.includes('</body>')) {
-      modifiedContent = fileContent.replace(
-        '</body>', 
-        '<script src="/dom/rrweb_loader.js"></script></body>'
-      );
-    } 
-    // If no body tag, try to inject before closing html tag
-    else if (fileContent.includes('</html>')) {
-      modifiedContent = fileContent.replace(
-        '</html>', 
-        '<script src="/dom/rrweb_loader.js"></script></html>'
-      );
+    // Define the script tags to inject
+    const cdnScriptTag = '<script src="https://cdn.jsdelivr.net/npm/rrweb@latest/dist/rrweb.min.js"></script>';
+    const loaderScriptTag = '<script src="/dom/rrweb_loader.js"></script>';
+
+    let tempModifiedContent = fileContent;
+
+    // --- Inject CDN Script into <head> --- 
+    const headEndTag = '</head>';
+    const headStartTag = '<head>';
+    if (tempModifiedContent.includes(headEndTag)) {
+      tempModifiedContent = tempModifiedContent.replace(headEndTag, `  ${cdnScriptTag}\n${headEndTag}`);
+    } else if (tempModifiedContent.includes(headStartTag)) {
+       // Inject after the opening tag if closing tag not found
+       tempModifiedContent = tempModifiedContent.replace(headStartTag, `${headStartTag}\n  ${cdnScriptTag}`);
+    } else {
+        // Prepend if no head tag found (fallback)
+        tempModifiedContent = cdnScriptTag + '\n' + tempModifiedContent;
     }
-    // If neither is found, append at the end
-    else {
-      modifiedContent = fileContent + '\n<script src="/dom/rrweb_loader.js"></script>';
+
+    // --- Inject rrweb_loader.js before </body> or </html> (using the content modified above) ---
+    let finalModifiedContent = tempModifiedContent; // Start with content that includes CDN script
+    const bodyEndTag = '</body>';
+    const htmlEndTag = '</html>';
+
+    if (finalModifiedContent.includes(bodyEndTag)) {
+      finalModifiedContent = finalModifiedContent.replace(bodyEndTag, `  ${loaderScriptTag}\n${bodyEndTag}`);
+    } else if (finalModifiedContent.includes(htmlEndTag)) {
+      finalModifiedContent = finalModifiedContent.replace(htmlEndTag, `  ${loaderScriptTag}\n${htmlEndTag}`);
+    } else {
+      // Append if neither closing tag is found
+      finalModifiedContent += '\n' + loaderScriptTag;
     }
     
     // Attempt to insert hash into the database, ignoring duplicates
     try {
-      await sql.query(sqlQueries.insertWebstateHash, [hash]);
+        // The INSERT query needs to include the user email fields now
+        // TODO: Get user email from session
+        // For now, this insert will likely fail or insert NULLs if not handled
+        // It needs the email_domain and email_name of the logged-in user.
+        // This requires getting the session within the API route.
+        
+        // TEMPORARY: Placeholder - this needs the actual user email
+        const email_domain_placeholder = 'example.com'; // Replace with actual session data
+        const email_name_placeholder = 'user';       // Replace with actual session data
+
+        await sql.query(sqlQueries.insertWebstateHash, [hash, email_domain_placeholder, email_name_placeholder]);
     } catch (dbError: any) { // code errno sql sqlState sqlMessage message
       // Handle database errors other than duplicate entry if necessary
       console.error('Database insert error:', dbError);
@@ -77,7 +98,7 @@ export const POST: APIRoute = async ({ request }) => {
       }
     }
 
-    fs.writeFileSync(filePath, modifiedContent);
+    fs.writeFileSync(filePath, finalModifiedContent);
     
     return new Response(
       JSON.stringify({ 

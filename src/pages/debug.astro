@@ -1,0 +1,137 @@
+---
+import Layout from "../components/Layout.astro";
+import Topbar from "../components/Topbar.astro"; // Included via Layout usually, but explicit here for clarity
+import { getSession } from "auth-astro/server";
+
+const session = await getSession(Astro.request);
+
+// Redirect if not logged in
+if (!session) {
+  return Astro.redirect("/login");
+}
+
+const pageTitle = "ClickstreamDB - Debug Tools";
+---
+
+<Layout title={pageTitle}>
+  <h1 class="text-2xl font-bold mb-4">Debug Tools</h1>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <!-- Card for Database Schema Rebuild -->
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <h2 class="card-title">Database Management</h2>
+        <p>
+          Rebuild the database schema based on the latest `build_schema.sql`
+          file. This will drop and recreate all tables.
+        </p>
+        <div class="form-control mt-4">
+          <button id="build-schema-button" class="btn btn-warning"
+            >Build/Rebuild Schema</button
+          >
+        </div>
+        <div class="border border-base-300 rounded-md p-2 mt-4">
+          <h3 class="font-semibold text-sm mb-1">Schema Build Result</h3>
+          <div class="overflow-x-auto bg-base-200 rounded p-1 min-h-16">
+            <pre
+              id="schema-result-display"
+              class="text-xs whitespace-pre-wrap break-all">Awaiting action...</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Placeholder Card for Sentry Debug -->
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <h2 class="card-title">Sentry Debug</h2>
+        <p>Trigger a test Sentry event.</p>
+
+        {/* Main content goes inside the Layout component */}
+        <button id="error-button" class="btn btn-primary"
+          >Throw test error</button
+        >
+        <script>
+          import * as Sentry from "@sentry/astro";
+          document
+            .querySelector("#error-button")
+            ?.addEventListener("click", () => {
+              console.log("Sent Sentry error");
+              Sentry.captureException(
+                new Error("Button Click Error Test - Captured Manually")
+              );
+              Sentry.captureFeedback({
+                name: "Button Click Error Test",
+                email: "test@example.com",
+                message: "This is a test error from client-side script",
+              });
+            });
+        </script>
+      </div>
+    </div>
+
+    <!-- Card for Session Display -->
+    <div class="card bg-base-100 shadow-xl md:col-span-2"> <!-- Spans full width on medium screens -->
+      <div class="card-body">
+        <h2 class="card-title">Current Session Object</h2>
+        <div class="overflow-x-auto bg-base-200 rounded p-2">
+          <pre class="text-xs whitespace-pre-wrap break-all">
+            {JSON.stringify(session, null, 2)}
+          </pre>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</Layout>
+
+<script>
+  // Get controls and displays
+  const buildSchemaButton = document.getElementById("build-schema-button");
+  const schemaResultDisplay = document.getElementById("schema-result-display");
+  // const sentryButton = document.getElementById('sentry-debug-button'); // Placeholder
+  // const sentryResultDisplay = document.getElementById('sentry-result-display'); // Placeholder
+
+  // Add listener for Build Schema button
+  if (buildSchemaButton && schemaResultDisplay) {
+    buildSchemaButton.addEventListener("click", () => {
+      console.log(
+        "[buildSchema - Debug Page] Button clicked. Sending request to /api/build_schema"
+      );
+      schemaResultDisplay.textContent = "Initiating schema build...";
+      buildSchemaButton.setAttribute("disabled", "true"); // Disable button during request
+
+      fetch("/api/build_schema", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+      })
+        .then(async (resp) => {
+          const data = await resp.json();
+          if (!resp.ok) {
+            throw new Error(data.error || `HTTP error! status: ${resp.status}`);
+          }
+          return data;
+        })
+        .then((data) => {
+          console.log("[buildSchema - Debug Page] Fetch successful:", data);
+          schemaResultDisplay.textContent = `Schema Build Successful: ${data.message || JSON.stringify(data)}`;
+        })
+        .catch((error) => {
+          console.error("[buildSchema - Debug Page] Fetch error:", error);
+          schemaResultDisplay.textContent = `Schema Build Failed: ${error.message}`;
+        })
+        .finally(() => {
+          buildSchemaButton.removeAttribute("disabled"); // Re-enable button
+        });
+    });
+  } else {
+    console.error(
+      "Could not find build-schema-button or schema-result-display element on debug page."
+    );
+  }
+
+  // TODO: Add event listener logic for sentry-debug-button once available
+</script>

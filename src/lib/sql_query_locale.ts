@@ -7,11 +7,11 @@ export const sqlQueries = {
   insertWebstateHash: 'INSERT INTO webstate (html_hash) VALUES (?)',
 
   // user queries
-  selectUserByEmailOrUsername: 'SELECT user_id FROM user WHERE (email_name = ? AND email_domain = ?) OR username = ?',
+  selectUserByEmailOrUsername: 'SELECT 1 FROM user WHERE (email_name = ? AND email_domain = ?) OR username = ? LIMIT 1',
   insertUser: `INSERT INTO user (
-    user_id, email_domain, email_name, username, password, 
+    email_domain, email_name, username, password, 
     created_at, status, role, verified, fail_login, twofa
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   // Load the build schema query from the SQL file
   buildSchemaQuery: buildSchemaSqlContent,
 }; 

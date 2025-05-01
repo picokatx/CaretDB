@@ -113,7 +113,7 @@
         </table>
       </div>
     </div>
-
+    
     <!-- Timeline View -->
     <div id="timeline-view" class="grid grid-cols-1 lg:grid-cols-5 gap-4">
       <!-- Preview panel (2/5 width on large screens) -->
@@ -139,4 +139,57 @@
       </div>
     </div>
   </div>
+
+  <!-- Network Detail Modal -->
+  <dialog id="network-detail-modal" class="modal">
+    <div class="modal-box w-11/12 max-w-5xl">
+      <form method="dialog">
+        <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+      </form>
+      <h3 class="font-bold text-lg mb-4">Network Request Details</h3>
+      
+      {/* General Info Section */} 
+      <div class="mb-4 border-b pb-2">
+          <p class="text-sm"><span class="font-semibold">URL:</span> <code id="modal-net-url" class="break-all"></code></p>
+          <div class="grid grid-cols-3 gap-x-4 text-sm mt-1">
+              <p><span class="font-semibold">Method:</span> <span id="modal-net-method"></span></p>
+              <p><span class="font-semibold">Status:</span> <span id="modal-net-status"></span></p>
+              <p><span class="font-semibold">Type:</span> <span id="modal-net-type"></span></p>
+              <p><span class="font-semibold">Duration:</span> <span id="modal-net-duration"></span></p>
+              <p><span class="font-semibold">Size:</span> <span id="modal-net-size"></span></p>
+              <p><span class="font-semibold">Timestamp:</span> <span id="modal-net-timestamp"></span></p>
+          </div>
+      </div>
+
+      {/* Tabs for Headers/Body - Placeholder for now */} 
+      <div class="tabs tabs-lifted">
+        <button class="tab tab-active" data-tab="req-headers">Request Headers</button>
+        <button class="tab" data-tab="res-headers">Response Headers</button>
+        <button class="tab" data-tab="json">JSON</button>
+        {/* <button class="tab" data-tab="req-body">Request Body</button> */}
+        {/* <button class="tab" data-tab="res-body">Response Body</button> */} 
+      </div>
+
+      <div class="bg-base-200 p-2 rounded-b-box min-h-32 max-h-96 overflow-auto">
+          {/* Request Headers Content */} 
+          <div id="modal-net-req-headers" class="whitespace-pre-wrap break-all text-xs font-mono">Headers not captured for this request type or not available.</div>
+          {/* Response Headers Content (Hidden initially) */} 
+          <div id="modal-net-res-headers" class="hidden whitespace-pre-wrap break-all text-xs font-mono">Headers not captured for this request type or not available.</div>
+          {/* JSON Content (Hidden initially) */} 
+          <pre id="modal-net-json" class="hidden text-xs font-mono whitespace-pre-wrap break-all"></pre>
+          {/* TODO: Add divs for request/response body if captured later */} 
+      </div>
+
+      <div class="modal-action mt-4">
+        <form method="dialog">
+          <button class="btn">Close</button>
+        </form>
+      </div>
+    </div>
+     {/* Click outside to close */} 
+    <form method="dialog" class="modal-backdrop">
+      <button>close</button>
+    </form>
+  </dialog>
+
 </div> 

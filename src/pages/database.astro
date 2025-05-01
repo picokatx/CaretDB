@@ -113,7 +113,6 @@ const testColDefs: ColDef[] = [
         <div class="form-control w-full">
           <textarea id="sql-input" class="textarea textarea-bordered textarea-sm w-full" rows="4" placeholder="Enter SQL query here...">SELECT * FROM user</textarea>
           <button id="run-query-button" class="btn btn-sm btn-primary mt-2">Run Query</button>
-          <button id="build-schema-button" class="btn btn-sm btn-secondary mt-2">Build/Rebuild Schema</button>
         </div>
 
         <div class="divider my-1"></div>
@@ -174,6 +173,12 @@ const testColDefs: ColDef[] = [
                rowData={testRowData}
                theme="ag-theme-alpine"
                style="height: 600px; width: 100%;"
+               defaultColDef={ { editable: true, filter: true } }
+               cellSelection={true}
+               pagination={true}
+               paginationPageSize={50}
+               paginationPageSizeSelector={ [10, 25, 50, 100] }
+               autoSizeStrategy={ { type: 'fitCellContents' } }
              />
            </div>
        </div>
@@ -189,6 +194,7 @@ const testColDefs: ColDef[] = [
    * @typedef {import('ag-grid-enterprise').IServerSideDatasource} IServerSideDatasource
    * @typedef {import('ag-grid-enterprise').IServerSideGetRowsParams} IServerSideGetRowsParams
    * @typedef {import('ag-grid-enterprise').LoadSuccessParams} LoadSuccessParams
+   * @typedef {import('ag-grid-enterprise').GetRowIdParams} GetRowIdParams
    */
 
   const gridWrapper = document.getElementById('ag-grid-wrapper');
@@ -198,10 +204,10 @@ const testColDefs: ColDef[] = [
    * Holds the AG Grid API instance once the grid is ready.
    * @type {GridApi | null}
    */
-  let gridApi = null;
+  let gridApi: import('ag-grid-enterprise').GridApi | null = null;
 
   /** @param {string} query */
-  function runQuery(query) {
+  function runQuery(query: string) {
     console.log(`[runQuery] START - Fetching: ${query}`);
     // Update result display immediately
     if(resultDisplay) resultDisplay.textContent = `Fetching query: ${query}...`;
@@ -274,53 +280,18 @@ const testColDefs: ColDef[] = [
     console.error('Could not find controls or result display element.');
   }
 
-  // Get build schema button and add listener
-  const buildSchemaButton = document.getElementById('build-schema-button');
 
-  if (buildSchemaButton && resultDisplay) {
-    buildSchemaButton.addEventListener('click', () => {
-      console.log('[buildSchema] Button clicked. Sending request to /api/build_schema');
-      resultDisplay.textContent = 'Initiating schema build...';
-      buildSchemaButton.setAttribute('disabled', 'true'); // Disable button during request
-
-      fetch("/api/build_schema", {
-        method: "POST",
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-          // No body needed for this request based on current API structure
-        }
-      }).then(async (resp) => {
-          const data = await resp.json();
-          if (!resp.ok) {
-            // Throw an error with the message from the API response if possible
-            throw new Error(data.error || `HTTP error! status: ${resp.status}`);
-          }
-          return data;
-      }).then((data) => {
-          console.log('[buildSchema] Fetch successful:', data);
-          resultDisplay.textContent = `Schema Build Successful: ${data.message || JSON.stringify(data)}`;
-      }).catch(error => {
-          console.error('[buildSchema] Fetch error:', error);
-          resultDisplay.textContent = `Schema Build Failed: ${error.message}`;
-      }).finally(() => {
-          buildSchemaButton.removeAttribute('disabled'); // Re-enable button
-      });
-    });
-  } else {
-     console.error('Could not find build-schema-button or result-display element.');
-  }
 
   // --- Server-Side Data Functions (Moved from AgGridAstro) ---
   /**
    * @param {any[]} data 
    * @returns {IServerSideDatasource}
    */
-  function createServerSideDatasource(data) {
+  function createServerSideDatasource(data: any[]): import('ag-grid-enterprise').IServerSideDatasource {
     console.log(`[createServerSideDatasource] Creating datasource for data:`, data);
     return {
       /** @param {IServerSideGetRowsParams} params */
-      getRows: (params) => {
+      getRows: (params: import('ag-grid-enterprise').IServerSideGetRowsParams) => {
         console.log(`[Datasource] - rows requested by grid: `, params.request);
         const response = {
           success: true,
@@ -331,7 +302,7 @@ const testColDefs: ColDef[] = [
         setTimeout(() => {
           if (response.success) {
             /** @type {LoadSuccessParams} */
-            const successParams = { rowData: response.rows, rowCount: response.rowCount };
+            const successParams: import('ag-grid-enterprise').LoadSuccessParams = { rowData: response.rows, rowCount: response.rowCount };
             console.log(`[Datasource] Calling params.success with:`, successParams);
             params.success(successParams);
           } else {
@@ -347,27 +318,31 @@ const testColDefs: ColDef[] = [
    * @param {any[]} data 
    * @returns {ColDef[]}
    */
-  function createColDefs(data) {
+  function createColDefs(data: any[]): ColDef[] {
     console.log(`[createColDefs] Creating columns for data:`, data);
     if (!data || data.length === 0) return [];
     return Object.keys(data[0]).map(k => ({ field: k, filter: true, floatingFilter: true }));
   }
 
   // Listener for agGridReady to get the API instance
-  gridWrapper.addEventListener('agGridReady', (event: Event) => {
-    console.log('Received agGridReady event');
-    
-    // Cast event to CustomEvent to access detail
-    const customEvent = event as CustomEvent;
-    if (customEvent.detail && customEvent.detail.api) {
-      gridApi = customEvent.detail.api;
-      console.log('Grid API stored. Running initial query.');
-      // Run initial query AFTER grid is ready and API is stored
-      runQuery("SELECT * FROM user");
-    } else if (gridApi) {
-      console.warn('agGridReady event received, but API already stored?');
-    } else {
-      console.error('agGridReady event did not contain expected API details.');
-    }
-  });
+  if (gridWrapper) {
+    gridWrapper.addEventListener('agGridReady', (event: Event) => {
+      console.log('Received agGridReady event');
+      
+      // Cast event to CustomEvent to access detail
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && customEvent.detail.api) {
+        gridApi = customEvent.detail.api;
+        console.log('Grid API stored. Running initial query.');
+        // Run initial query AFTER grid is ready and API is stored
+        runQuery("SELECT * FROM user");
+      } else if (gridApi) {
+        console.warn('agGridReady event received, but API already stored?');
+      } else {
+        console.error('agGridReady event did not contain expected API details.');
+      }
+    });
+  } else {
+      console.error("Could not find the ag-grid-wrapper element.");
+  }
 </script>
