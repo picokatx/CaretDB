@@ -41,7 +41,7 @@ export const POST: APIRoute = async ({ request }) => {
     const loaderScriptTag = '<script src="/dom/rrweb_loader.js"></script>';
 
     let tempModifiedContent = fileContent;
-
+    
     // --- Inject CDN Script into <head> --- 
     const headEndTag = '</head>';
     const headStartTag = '<head>';

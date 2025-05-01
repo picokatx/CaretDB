@@ -229,8 +229,8 @@
                             // Enrich the existing pending request
                             matchedRequest.perfData = {
                                 duration: entry.duration,
-                                startTime: entry.startTime,
-                                responseEnd: entry.responseEnd,
+                            startTime: entry.startTime,
+                            responseEnd: entry.responseEnd,
                                 size: entry.transferSize || entry.decodedBodySize || 0,
                                 initiatorType: entry.initiatorType
                             };
@@ -436,7 +436,7 @@
                 try { response.headers.forEach((v, k) => { request.responseHeaders[k.toLowerCase()] = v; }); } catch (e) {}
                 request.timestamp = new Date().toISOString();
                 request.type = detectContentType(request.url, request.responseHeaders, 'fetch');
-
+                    
                 const clonedResponse = response.clone();
 
                 // Attempt to get size, fallback to Content-Length or 0
@@ -453,7 +453,7 @@
                                 request.size = text ? text.length : 0;
                                 request.fetchDataComplete = true;
                                 trySendCompleteRequest(requestId);
-                            } 
+                            }
                         }).catch(err => {
                              if (pendingNetworkRequests.has(requestId)) {
                                 console.warn(`Fetch size estimation failed for ${request.url}`, err);
@@ -466,8 +466,8 @@
                  } else { // Size already known from PerfObserver
                      request.fetchDataComplete = true;
                      trySendCompleteRequest(requestId);
-                 }
-                 
+                            }
+                            
                 return response; // Return original response
 
             }).catch(error => {

@@ -57,7 +57,7 @@ export default defineConfig({
         // If email and password are correct, return user object
         // Use the full email as the stable unique ID for the session.
         const userEmail = users[0].email_name + "@" + users[0].email_domain;
-        return {
+          return {
           id: userEmail,
           name: users[0].username, // Keep username as name
           email: userEmail
