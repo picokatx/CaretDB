@@ -8,30 +8,29 @@ if (!session) {
   return Astro.redirect('/login');
 }
 
-const pageTitle = "ClickstreamDB - Interaction Analysis";
+const pageTitle = "ClickstreamDB - Page Click Summary";
+const API_URL = `${Astro.url.origin}/api/query_mysql`; 
 
-// Fetch distinct html_hash values that have aggregated data
-// Querying click summary, but any summary table would work
+// Fetch distinct html_hash values from the new summary table
 let availablePages: { html_hash: string }[] = [];
 let initialError: string | null = null;
 try {
-    const query = "SELECT DISTINCT html_hash FROM page_click_heatmap_summary ORDER BY html_hash;";
-    // Use Astro.url.origin to make the fetch URL work in dev and production
-    const apiUrl = `${Astro.url.origin}/api/query_mysql`; 
-    const response = await fetch(apiUrl, {
+    // Query the new page_summary table
+    const query = "SELECT html_hash FROM page_summary ORDER BY html_hash;";
+    const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query })
     });
     if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(`API Error (${response.status}): ${errorData.error || 'Failed to fetch pages'}`);
+        throw new Error(`API Error (${response.status}): ${errorData.error?.message || errorData.error || 'Failed to fetch pages'}`);
     }
     const data = await response.json();
     if (data.success && Array.isArray(data.rows)) {
         availablePages = data.rows;
     } else {
-        throw new Error(data.error || 'Invalid data format from API');
+        throw new Error(data.error?.message || data.error || 'Invalid data format from API');
     }
 } catch (error: any) {
     console.error("Error fetching available pages:", error);
@@ -41,9 +40,9 @@ try {
 ---
 
 <Layout title={pageTitle}>
-  <h1 class="text-2xl font-bold mb-6">Interaction Analysis</h1>
+  <h1 class="text-2xl font-bold mb-6">Page Click Summary</h1>
 
-  { initialError && <div class="alert alert-error shadow-lg mb-4"><span>Error: {initialError}</span></div> }
+  { initialError && <div class="alert alert-error shadow-lg mb-4"><span>Error loading page list: {initialError}</span></div> }
 
   <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
     <!-- Controls -->
@@ -55,7 +54,7 @@ try {
         <select id="page-select" class="select select-bordered w-full" disabled={availablePages.length === 0}>
           <option disabled selected={availablePages.length === 0}>Select a page</option>
           {availablePages.map(page => (
-            <option value={page.html_hash}>{page.html_hash}</option>
+            <option value={page.html_hash}>{page.html_hash.substring(0, 12)}...</option> // Shorten hash for display
           ))}
         </select>
         { availablePages.length === 0 && !initialError && 
@@ -64,305 +63,271 @@ try {
           </label> 
         }
       </div>
-
-      <div role="tablist" class="tabs tabs-boxed" id="view-tabs">
-        <a role="tab" class="tab tab-active" data-view="click">Click Heatmap</a>
-        <a role="tab" class="tab" data-view="movement">Movement Heatmap</a>
-        <a role="tab" class="tab" data-view="scroll">Scroll Depth</a>
+      
+      <!-- Aggregation Button and Status -->
+      <div class="form-control w-full mt-4 pt-4 border-t border-base-300">
+        <label class="label">
+            <span class="label-text">Manual Aggregation</span>
+        </label>
+        <button id="run-aggregation-btn" class="btn btn-secondary w-full">Run Data Aggregation</button>
+        <div id="aggregation-status" class="text-sm mt-2 min-h-[5em] p-2 bg-base-200 rounded overflow-auto"> 
+          Click the button to aggregate click data for analysis.
+        </div>
       </div>
+      
     </div>
 
-    <!-- Visualization & Metrics -->
+    <!-- Data Display Area -->
     <div class="md:col-span-3">
-      <div id="visualization-area" 
-           class="bg-base-200 rounded-box border border-base-300 min-h-[400px] md:min-h-[600px] mb-4 flex items-center justify-center relative overflow-hidden">
-        <span id="viz-placeholder" class="text-base-content/50">Select a page to view analysis.</span>
-        {/* Heatmap canvas will be added here by JS */}
-      </div>
-
-      <div id="metrics-area" class="stats shadow w-full">
-        <div class="stat">
-          <div class="stat-title">Metric</div>
-          <div id="metric-value-1" class="stat-value">--</div>
-          <div id="metric-desc-1" class="stat-desc">N/A</div>
-        </div>
-        <div class="stat">
-          <div class="stat-title">Metric</div>
-          <div id="metric-value-2" class="stat-value">--</div>
-          <div id="metric-desc-2" class="stat-desc">N/A</div>
-        </div>
-        <div class="stat">
-          <div class="stat-title">Metric</div>
-          <div id="metric-value-3" class="stat-value">--</div>
-          <div id="metric-desc-3" class="stat-desc">N/A</div>
-        </div>
+      <div id="data-display-area" 
+           class="bg-base-200 rounded-box border border-base-300 p-4 min-h-[150px]">
+        <span id="data-placeholder" class="text-base-content/50">Select a page to view total clicks.</span>
+        <!-- Table will be added here by JS -->
       </div>
     </div>
   </div>
 
-  <script define:vars={{ initialError }}>
-    import h337 from 'heatmap.js'; // Use default import
-
-    // Access initialError passed from server
-    const serverInitialError = initialError;
-
+  <script define:vars={{ API_URL, initialError }}>
+    // No heatmap.js needed anymore
+    
     const pageSelect = document.getElementById('page-select');
-    const viewTabs = document.getElementById('view-tabs');
-    const visualizationArea = document.getElementById('visualization-area');
-    const vizPlaceholder = document.getElementById('viz-placeholder');
-    const metricsArea = document.getElementById('metrics-area');
+    const dataDisplayArea = document.getElementById('data-display-area');
+    const dataPlaceholder = document.getElementById('data-placeholder');
+    const runAggregationBtn = document.getElementById('run-aggregation-btn');
+    const aggregationStatus = document.getElementById('aggregation-status');
 
-    let currentView = 'click'; // Default view
     let currentHtmlHash = null;
-    let heatmapInstance = null; // Store heatmap instance
-    const BIN_SIZE = 10; // Must match the bin size used in the stored procedure
-
-    function clearVisualization() {
-        if (!visualizationArea || !vizPlaceholder) return; // Add null checks
-        visualizationArea.innerHTML = ''; // Clear previous content/canvas
-        visualizationArea.appendChild(vizPlaceholder); // Add placeholder back
-        vizPlaceholder.textContent = 'Loading data...';
-        vizPlaceholder.style.display = 'block'; // Ensure visible
-        heatmapInstance = null; // Reset instance
+    
+    function clearDataDisplay() {
+        if (!dataDisplayArea || !dataPlaceholder) return;
+        dataDisplayArea.innerHTML = ''; // Clear previous content/table
+        dataDisplayArea.appendChild(dataPlaceholder); // Add placeholder back
+        dataPlaceholder.textContent = 'Loading data...';
+        dataPlaceholder.style.display = 'block'; // Ensure visible
     }
 
-    function clearMetrics() {
-        if (!metricsArea) return; // Add null check
-        const metrics = metricsArea.querySelectorAll('.stat');
-        metrics.forEach((stat) => {
-            const valueEl = stat.querySelector('.stat-value');
-            const descEl = stat.querySelector('.stat-desc');
-            if (valueEl) valueEl.textContent = '--';
-            if (descEl) descEl.textContent = 'N/A';
-        });
-    }
+    async function fetchAnalysisData(htmlHash) {
+        console.log(`[Debug] fetchAnalysisData called for hash: ${htmlHash}`); // Debug log
+        clearDataDisplay();
 
-    async function fetchAnalysisData(htmlHash, viewType) {
-        console.log(`Fetching data for hash: ${htmlHash}, view: ${viewType}`);
-        clearVisualization();
-        clearMetrics();
+        if (!dataPlaceholder) return;
 
-        if (!vizPlaceholder) return;
-
-        let query = '';
-        let tableName = '';
-
-        switch (viewType) {
-            case 'click':
-                tableName = 'page_click_heatmap_summary';
-                query = `SELECT bin_x, bin_y, click_count AS count FROM ${tableName} WHERE html_hash = '${htmlHash}'`;
-                break;
-            case 'movement':
-                tableName = 'page_movement_heatmap_summary';
-                query = `SELECT bin_x, bin_y, position_count AS count FROM ${tableName} WHERE html_hash = '${htmlHash}'`;
-                break;
-            case 'scroll':
-                tableName = 'page_scroll_depth_summary';
-                query = `SELECT max_scroll_y FROM ${tableName} WHERE html_hash = '${htmlHash}'`;
-                break;
-            default:
-                console.error('Invalid view type');
-                vizPlaceholder.textContent = 'Invalid view type selected.';
-                return;
-        }
+        const query = `SELECT html_hash, total_clicks, last_updated FROM page_summary WHERE html_hash = '${htmlHash}';`;
+        console.log(`[Debug] Executing query: ${query}`); // Debug log
 
         try {
-            const response = await fetch('/api/query_mysql', {
+            const response = await fetch(API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query })
             });
-
+            
+            console.log(`[Debug] API Response Status: ${response.status}`); // Debug log
+            const responseText = await response.text(); // Get raw text first
+            console.log(`[Debug] API Response Text: ${responseText}`); // Debug log
+            
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`API Error (${response.status}): ${errorData.error || 'Failed to fetch analysis data'}`);
+                let errorData;
+                try { errorData = JSON.parse(responseText); } catch (e) { errorData = { error: responseText }; }
+                throw new Error(`API Error (${response.status}): ${errorData.error?.message || errorData.error || 'Failed to fetch summary data'}`);
             }
 
-            const result = await response.json();
+            const result = JSON.parse(responseText); // Parse after checking ok status
+            console.log(`[Debug] Parsed API Result:`, result); // Debug log
 
             if (result.success && Array.isArray(result.rows)) {
                 if (result.rows.length === 0) {
-                   vizPlaceholder.textContent = `No aggregated data found for this page and view type.`;
-                   vizPlaceholder.style.display = 'block'; // Ensure placeholder is visible
+                   console.log(`[Debug] No data found for hash ${htmlHash}. Displaying placeholder.`); // Debug log
+                   dataPlaceholder.textContent = `No summary data found for this page. Run aggregation if needed.`;
+                   dataPlaceholder.style.display = 'block'; 
                 } else {
-                   vizPlaceholder.style.display = 'none'; // Hide placeholder
-                   renderVisualization(result.rows, viewType);
-                   updateMetrics(result.rows, viewType);
+                   console.log(`[Debug] Data found for hash ${htmlHash}. Calling renderData.`); // Debug log
+                   dataPlaceholder.style.display = 'none'; // Hide placeholder
+                   renderData(result.rows[0]); // Render the first (only) row
                 }
             } else {
-                throw new Error(result.error || 'Invalid data format from API');
+                throw new Error(result.error?.message || result.error || 'Invalid data format from API');
             }
-        } catch (error) { // Use generic error type for JS
-            console.error("Error fetching analysis data:", error);
-            vizPlaceholder.style.display = 'block';
-            vizPlaceholder.textContent = `Error loading data: ${error.message}`;
+        } catch (error) { 
+            console.error("[Debug] Error in fetchAnalysisData:", error); // Debug log
+            dataPlaceholder.style.display = 'block';
+            dataPlaceholder.textContent = `Error loading data: ${error.message}`;
         }
     }
 
-    function renderVisualization(data, viewType) {
-       if (!visualizationArea) return; // Add null check
+    function renderData(data) {
+       if (!dataDisplayArea) return;
 
-       if (viewType === 'click' || viewType === 'movement') {
-           // Render Heatmap
-           visualizationArea.innerHTML = ''; // Clear placeholder
+       dataDisplayArea.innerHTML = ''; // Clear placeholder
 
-           const heatmapContainer = document.createElement('div');
-           heatmapContainer.style.position = 'absolute';
-           heatmapContainer.style.top = '0';
-           heatmapContainer.style.left = '0';
-           heatmapContainer.style.width = '1024px';
-           heatmapContainer.style.height = '768px';
-           visualizationArea.appendChild(heatmapContainer);
+       const table = document.createElement('table');
+       table.className = 'table w-full';
+       
+       const thead = table.createTHead();
+       thead.innerHTML = `<tr><th>Metric</th><th>Value</th></tr>`;
+       
+       const tbody = table.createTBody();
+       tbody.innerHTML = `
+         <tr>
+           <td>Page Hash</td>
+           <td class="font-mono text-xs">${data.html_hash}</td>
+         </tr>
+         <tr>
+           <td>Total Clicks Recorded</td>
+           <td class="font-bold text-lg">${(parseInt(data.total_clicks) || 0).toLocaleString()}</td>
+         </tr>
+         <tr>
+           <td>Last Aggregated</td>
+           <td>${new Date(data.last_updated).toLocaleString()}</td>
+         </tr>
+       `;
 
-           heatmapInstance = h337.create({
-               container: heatmapContainer,
-               radius: 20,
-               maxOpacity: .6,
-               minOpacity: 0,
-               blur: .75
-           });
-
-           let maxValue = 0;
-           const points = data.map(row => {
-               const count = parseInt(row.count) || 0;
-               if(count > maxValue) maxValue = count;
-               return {
-                   x: (parseInt(row.bin_x) || 0) * BIN_SIZE + (BIN_SIZE / 2),
-                   y: (parseInt(row.bin_y) || 0) * BIN_SIZE + (BIN_SIZE / 2),
-                   value: count
-               };
-           }).filter(p => p.value > 0);
-
-           heatmapInstance.setData({
-               max: maxValue > 0 ? maxValue : 1,
-               data: points
-           });
-           console.log(`Rendered heatmap with ${points.length} points, max value: ${maxValue}`);
-
-       } else if (viewType === 'scroll') {
-           visualizationArea.innerHTML = ''; // Clear placeholder
-           const msgElement = document.createElement('p');
-           msgElement.textContent = 'Scroll depth data loaded. See metrics below. Visual overlay TBD.';
-           msgElement.className = 'text-center p-4 text-base-content/70';
-           visualizationArea.appendChild(msgElement);
-       }
+       dataDisplayArea.appendChild(table);
     }
 
-    function updateMetrics(data, viewType) {
-       if (!metricsArea) return; // Add null check
-       const metrics = metricsArea.querySelectorAll('.stat');
-       const val1 = metrics[0]?.querySelector('.stat-value');
-       const desc1 = metrics[0]?.querySelector('.stat-desc');
-       const val2 = metrics[1]?.querySelector('.stat-value');
-       const desc2 = metrics[1]?.querySelector('.stat-desc');
-       const val3 = metrics[2]?.querySelector('.stat-value');
-       const desc3 = metrics[2]?.querySelector('.stat-desc');
+    // --- Aggregation Logic (Mostly unchanged, calls the simplified procedure) ---
+    function updateAggregationStatus(message, isError = false) {
+        console.log(`[Debug] updateAggregationStatus called with message: ${message}`); // Log entry
+        if (aggregationStatus) {
+            const line = document.createElement('div');
+            line.textContent = message;
+            if (isError) {
+                line.classList.add('text-error');
+            }
+            // Prepend new messages and limit log lines if needed
+            aggregationStatus.insertBefore(line, aggregationStatus.firstChild);
+            // Keep only last N lines (e.g., 50)
+            // while (aggregationStatus.children.length > 50) { 
+            //    aggregationStatus.removeChild(aggregationStatus.lastChild); 
+            // }
+        } else {
+            console.error("[Debug] aggregationStatus element is null inside updateAggregationStatus!"); // Log if null
+        }
+    }
 
-       if (!val1 || !desc1 || !val2 || !desc2 || !val3 || !desc3) {
-            console.warn("Metrics elements not found");
+    async function runAggregation() {
+        console.log("runAggregation function called");
+        
+        console.log("[Debug] Checking button and status elements...");
+        if (!runAggregationBtn || !aggregationStatus) {
+             console.error("[Debug] runAggregationBtn or aggregationStatus is null! Aborting.");
+             return;
+        } 
+        console.log("[Debug] Elements check passed.");
+
+        console.log("[Debug] Setting button disabled...");
+        runAggregationBtn.disabled = true;
+        console.log("[Debug] Adding loading class...");
+        runAggregationBtn.classList.add('loading');
+        console.log("[Debug] Clearing aggregation status HTML...");
+        aggregationStatus.innerHTML = ''; // Clear previous status
+        console.log("[Debug] Calling updateAggregationStatus('Starting aggregation...')...");
+        updateAggregationStatus('Starting aggregation...');
+        console.log("[Debug] Returned from updateAggregationStatus. Proceeding to try block...");
+
+        let replays = [];
+        try {
+            updateAggregationStatus('Fetching replays...');
+            console.log("[Debug] Preparing to fetch replays..."); 
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: 'SELECT replay_id, html_hash FROM replay;' })
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.error?.message || result.error || 'Failed to fetch replays');
+            }
+            replays = result.rows;
+            updateAggregationStatus(`Found ${replays.length} replays to process.`);
+        } catch (error) {
+            updateAggregationStatus(`Error fetching replays: ${error.message}`, true);
+            console.error("[Debug] Error occurred while fetching replays:", error); 
+            runAggregationBtn.disabled = false;
+            runAggregationBtn.classList.remove('loading');
             return;
-       }
-       // ... rest of metric calculation and setting textContent (using checks like if (val1) val1.textContent = ...)
-        if (viewType === 'click' || viewType === 'movement') {
-            const totalInteractions = data.reduce((sum, row) => sum + (parseInt(row.count) || 0), 0);
-            const activeBins = data.filter(row => (parseInt(row.count) || 0) > 0).length;
-            const maxCount = data.reduce((max, row) => Math.max(max, (parseInt(row.count) || 0)), 0);
-
-            const typeLabel = viewType === 'click' ? 'Clicks' : 'Positions';
-            if(val1) val1.textContent = totalInteractions.toLocaleString();
-            if(desc1) desc1.textContent = `Total ${typeLabel} Recorded`;
-            if(val2) val2.textContent = activeBins.toLocaleString();
-            if(desc2) desc2.textContent = 'Active Bins';
-            if(val3) val3.textContent = maxCount.toLocaleString();
-            if(desc3) desc3.textContent = `Max ${typeLabel} in one Bin`;
-
-        } else if (viewType === 'scroll') {
-            const scrollDepths = data.map(row => parseInt(row.max_scroll_y) || 0).filter(y => y >= 0);
-            if (scrollDepths.length === 0) {
-                if(val1) val1.textContent = '0'; 
-                if(desc1) desc1.textContent = 'Sessions with Scroll Data';
-                if(val2) val2.textContent = 'N/A'; 
-                if(desc2) desc2.textContent = 'Average Max Scroll (px)';
-                if(val3) val3.textContent = 'N/A'; 
-                if(desc3) desc3.textContent = 'Median Max Scroll (px)';
-                return;
-            }
-
-            const totalSessions = scrollDepths.length;
-            const avgScroll = scrollDepths.reduce((sum, y) => sum + y, 0) / totalSessions;
-            
-            scrollDepths.sort((a, b) => a - b);
-            let medianScroll;
-            const mid = Math.floor(totalSessions / 2);
-            if (totalSessions % 2 === 0) {
-                medianScroll = (scrollDepths[mid - 1] + scrollDepths[mid]) / 2;
-            } else {
-                medianScroll = scrollDepths[mid];
-            }
-
-            if(val1) val1.textContent = totalSessions.toLocaleString();
-            if(desc1) desc1.textContent = 'Sessions with Scroll Data';
-            if(val2) val2.textContent = Math.round(avgScroll).toLocaleString() + ' px';
-            if(desc2) desc2.textContent = 'Average Max Scroll Depth';
-            if(val3) val3.textContent = Math.round(medianScroll).toLocaleString() + ' px';
-            if(desc3) desc3.textContent = 'Median Max Scroll Depth';
         }
+
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (const replay of replays) {
+            const { replay_id, html_hash } = replay;
+            if (!replay_id || !html_hash) {
+                updateAggregationStatus(`Skipping invalid replay data: ${JSON.stringify(replay)}`, true);
+                errorCount++;
+                continue;
+            }
+            // Basic escaping - Prefer parameterized queries if API is adapted
+            const escapedReplayId = replay_id.replace(/\'/g, "''");
+            const escapedHtmlHash = html_hash.replace(/\'/g, "''");
+            // Calls the *same* procedure name, which now has simpler logic
+            const callQuery = `CALL update_analysis_summaries('${escapedReplayId}', '${escapedHtmlHash}');`;
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: callQuery })
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    const errorMsg = result.error?.message || JSON.stringify(result.error) || 'Unknown error executing procedure';
+                    updateAggregationStatus(`Error for replay ${replay_id.substring(0,8)}...: ${errorMsg}`, true);
+                    errorCount++;
+                } else {
+                    successCount++;
+                    // Update status less frequently on success to avoid flooding
+                    if (successCount % 10 === 0 || successCount === replays.length) {
+                         updateAggregationStatus(`${successCount} / ${replays.length} processed...`);
+                    }
+                }
+            } catch (error) {
+                updateAggregationStatus(`Fetch error for replay ${replay_id.substring(0,8)}...: ${error.message}`, true);
+                errorCount++;
+            }
+             // await new Promise(resolve => setTimeout(resolve, 10)); // Optional small delay
+        }
+
+        updateAggregationStatus(`Aggregation finished. Success: ${successCount}, Errors: ${errorCount}`);
+        runAggregationBtn.disabled = false;
+        runAggregationBtn.classList.remove('loading');
+        updateAggregationStatus('Consider refreshing the page or re-selecting a page to see updated data.');
     }
 
     // --- Event Listeners ---
     if (pageSelect) {
         pageSelect.addEventListener('change', () => {
-            currentHtmlHash = pageSelect.value;
-            // Check if a valid page is selected (value is not empty/default)
+            // Get the full hash from the option's value attribute
+            const selectedOption = pageSelect.options[pageSelect.selectedIndex];
+            currentHtmlHash = selectedOption.value; 
+            
             if (currentHtmlHash && pageSelect.selectedIndex > 0) { 
-                fetchAnalysisData(currentHtmlHash, currentView);
+                fetchAnalysisData(currentHtmlHash);
             } else {
-                currentHtmlHash = null; // Reset if default selected
-                clearVisualization();
-                clearMetrics();
-                if (vizPlaceholder) vizPlaceholder.textContent = 'Select a page to view analysis.';
+                currentHtmlHash = null; 
+                clearDataDisplay();
+                if (dataPlaceholder) dataPlaceholder.textContent = 'Select a page to view total clicks.';
             }
         });
     } else {
         console.error("Page select element not found");
     }
 
-    if (viewTabs) {
-        viewTabs.addEventListener('click', (e) => {
-            const target = e.target;
-            // Ensure target is the anchor tag itself
-            if (target instanceof HTMLElement && target.closest('a[role="tab"]')) {
-                 const tabLink = target.closest('a[role="tab"]');
-                 if (!tabLink) return; // Should not happen due to outer check, but good practice
+    // Remove viewTabs listener
+    // if (viewTabs) { ... }
 
-                // Update active tab style
-                viewTabs.querySelectorAll('a[role="tab"]').forEach(tab => tab.classList.remove('tab-active'));
-                tabLink.classList.add('tab-active');
-
-                // Use optional chaining for dataset access
-                currentView = tabLink.dataset?.view || 'click'; 
-                if (currentHtmlHash) {
-                    fetchAnalysisData(currentHtmlHash, currentView);
-                } else {
-                    clearVisualization();
-                    clearMetrics();
-                    if(vizPlaceholder) vizPlaceholder.textContent = 'Select a page first.';
-                }
-                e.preventDefault(); // Prevent default anchor behavior
-            }
-        });
+    if (runAggregationBtn) {
+        runAggregationBtn.addEventListener('click', runAggregation);
     } else {
-        console.error("View tabs element not found");
+        console.error("Run Aggregation button not found");
     }
 
-    // Initial state setup on client-side based on passed error
-    // The select element's disabled state is now purely controlled by the server-side rendering
-    if (!pageSelect?.disabled && vizPlaceholder) {
-        // If select is enabled (meaning pages loaded) but no hash selected yet
-        vizPlaceholder.textContent = 'Select a page to view analysis.';
-    } else if (pageSelect?.disabled && vizPlaceholder) {
-        // If select is disabled (meaning no pages or initial error)
-        vizPlaceholder.textContent = serverInitialError || 'No aggregated data found. Run aggregation first.';
+    // Initial state setup
+    if (!pageSelect?.disabled && dataPlaceholder) {
+        dataPlaceholder.textContent = 'Select a page to view total clicks.';
+    } else if (pageSelect?.disabled && dataPlaceholder) {
+        dataPlaceholder.textContent = initialError || 'No aggregated data found. Run aggregation first.';
     }
 
   </script>

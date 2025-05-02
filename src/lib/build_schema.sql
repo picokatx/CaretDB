@@ -433,6 +433,7 @@ insert into webstate (html_hash, email_domain, email_name) values ('f62b9ab27ca9
 -- aggregation tables for analysis
 -- #######################################################################
 
+/* -- Removed heatmap/scroll summary tables for simplification
 -- summary table for click heatmap data
 create table page_click_heatmap_summary (
     html_hash char(64) not null,
@@ -468,84 +469,54 @@ create table page_scroll_depth_summary (
     constraint fk_scroll_depth_webstate foreign key (html_hash) references webstate(html_hash) on delete cascade,
     constraint fk_scroll_depth_replay foreign key (replay_id) references replay(replay_id) on delete cascade
 );
+*/
+
+-- Simplified summary table for total clicks per page
+create table page_summary (
+    html_hash char(64) not null primary key,
+    total_clicks int not null default 0,
+    last_updated timestamp default current_timestamp on update current_timestamp,
+    constraint fk_page_summary_webstate foreign key (html_hash) references webstate(html_hash) on delete cascade
+);
 
 
 -- #######################################################################
--- stored procedure for updating analysis summaries
+-- stored procedure for updating analysis summaries (Simplified)
 -- #######################################################################
 
 create procedure update_analysis_summaries(in p_replay_id char(36), in p_html_hash char(64))
 begin
-    -- declare v_bin_size int default 2; -- Binning removed for debugging
-    -- insert into page_click_heatmap_summary (html_hash, bin_x, bin_y, click_count) values (p_html_hash, 1, 1, 100); -- Test insert removed
-    
-    -- update click heatmap summary (Simplified: All replays, fixed hash, no binning)
-    insert into page_click_heatmap_summary (html_hash, bin_x, bin_y, click_count)
-    select
-        'debug-all-clicks-hash-value', -- Fixed hash for debugging
-        any_value(mid.x) as bin_x, -- Use raw x coordinate
-        any_value(mid.y) as bin_y, -- Use raw y coordinate
-        count(*) as click_count
+    declare v_click_count int default 0;
+
+    -- Calculate clicks for the given replay
+    select count(*)
+    into v_click_count
     from event e
     join incremental_snapshot_event ise on e.event_id = ise.event_id
     join mouse_interaction_data mid on ise.event_id = mid.event_id
-    -- where e.replay_id = p_replay_id -- Removed replay filter for debugging
-      where ise.t = 'mouseinteraction'
-      and mid.interaction_type = 'click'
-      and mid.x is not null
-      and mid.y is not null
-    group by mid.x, mid.y -- Group by raw coordinates
-    on duplicate key update
-        click_count = 999;
+    where e.replay_id = p_replay_id
+      and ise.t = 'mouseinteraction'
+      and mid.interaction_type = 'click';
 
-    /* -- Movement heatmap update commented out for debugging
-    -- update movement heatmap summary using subquery 
-    insert into page_movement_heatmap_summary (html_hash, bin_x, bin_y, position_count)
-    select
-        p_html_hash,
-        any_value(floor(mp.x / v_bin_size)) as bin_x, 
-        any_value(floor(mp.y / v_bin_size)) as bin_y,
-        count(*) as position_count -- count each recorded position in the bin
-    from mouse_position mp
-    where mp.event_id in ( -- event_id corresponds to incremental snapshot event id for mousemove
-         select e.event_id
-         from event e
-         join incremental_snapshot_event ise on e.event_id = ise.event_id
-         -- join to mousemove_data is implicit as mp.event_id comes from there
-         where e.replay_id = p_replay_id and ise.t = 'mousemove'
-    )
-    group by floor(mp.x / v_bin_size), floor(mp.y / v_bin_size) 
+    -- Insert or update the total click count for the page
+    insert into page_summary (html_hash, total_clicks)
+    values (p_html_hash, v_click_count)
     on duplicate key update
-        position_count = page_movement_heatmap_summary.position_count + values(position_count);
-    */
-
-    /* -- Scroll depth update commented out for debugging
-    -- update scroll depth summary using subquery in values
-    insert into page_scroll_depth_summary (html_hash, replay_id, max_scroll_y)
-    values (
-        p_html_hash,
-        p_replay_id,
-        ( -- subquery calculates the max scroll for the given replay
-            select coalesce(max(sd.y), 0)
-            from scroll_data sd
-            join incremental_snapshot_event ise on sd.event_id = ise.event_id
-            join event e on ise.event_id = e.event_id
-            where e.replay_id = p_replay_id and ise.t = 'scroll'
-        )
-    )
-    on duplicate key update
-        max_scroll_y = greatest(page_scroll_depth_summary.max_scroll_y, values(max_scroll_y)); -- update if new max is greater
-    */
+        total_clicks = page_summary.total_clicks + values(total_clicks); 
+        -- Note: This adds the count from the *current* replay to the existing total.
+        -- If the procedure could be run multiple times for the same replay, this might inflate counts.
+        -- Assuming it runs once per replay after all its data is saved.
 end;
 
 
 -- #######################################################################
 -- trigger to call the stored procedure after replay insert
 -- #######################################################################
-
+/* -- Trigger removed due to timing issues. Call procedure from application logic.
 create trigger after_replay_insert
 after insert on replay
 for each row
 begin
     call update_analysis_summaries(new.replay_id, new.html_hash);
 end;
+*/
