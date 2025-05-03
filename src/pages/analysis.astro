@@ -1,6 +1,7 @@
 ---
 import Layout from '../components/Layout.astro';
 import { getSession } from "auth-astro/server";
+import { sqlQueries } from '../lib/sql_query_locale'; // Adjust import path
 
 const session = await getSession(Astro.request);
 
@@ -15,7 +16,7 @@ let userCount = 0;
 let webstateCount = 0;
 let replayCount = 0;
 let eventCount = 0;
-let eventsOverTimeData: { date: string; count: number }[] = []; // For chart data
+let clickEventsPerSecondData: { second: string; count: number }[] = []; // Renamed and updated type
 let fetchError: string | null = null;
 
 // Helper function to fetch counts
@@ -33,12 +34,12 @@ async function fetchCount(query: string): Promise<number> {
     if (data.success && Array.isArray(data.rows) && data.rows.length > 0) {
         return parseInt(data.rows[0].count) || 0;
     } else {
-        throw new Error(data.error?.message || data.error || 'Invalid data format from API');
+        throw new Error(data.error?.message || data.error || 'Invalid data format for count query');
     }
 }
 
-// Helper function to fetch time series data
-async function fetchTimeSeries(query: string): Promise<{ date: string; count: number }[]> {
+// Helper function to fetch time series data (updated for second granularity)
+async function fetchTimeSeriesPerSecond(query: string): Promise<{ second: string; count: number }[]> {
     const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -50,24 +51,24 @@ async function fetchTimeSeries(query: string): Promise<{ date: string; count: nu
     }
     const data = await response.json();
     if (data.success && Array.isArray(data.rows)) {
-        // Ensure count is a number
-        return data.rows.map((row: { date: string; count: any }) => ({
-            date: row.date, 
+        // Ensure count is a number and second exists
+        return data.rows.map((row: { second: any; count: any }) => ({ 
+            second: String(row.second), // Ensure second is string
             count: parseInt(row.count) || 0 
-        }));
+        })).filter(row => row.second); // Filter out rows with no second
     } else {
-        throw new Error(data.error?.message || data.error || 'Invalid data format from API');
+        throw new Error(data.error?.message || data.error || 'Invalid data format for time series query');
     }
 }
 
 try {
-    // Fetch all data in parallel
+    // Fetch all data in parallel, using the new query for time series
     const results = await Promise.allSettled([
-        fetchCount("SELECT COUNT(*) as count FROM user;"),
-        fetchCount("SELECT COUNT(*) as count FROM webstate;"),
-        fetchCount("SELECT COUNT(*) as count FROM replay;"),
-        fetchCount("SELECT COUNT(*) as count FROM event;"),
-        fetchTimeSeries("SELECT DATE(timestamp) as date, COUNT(event_id) as count FROM event GROUP BY DATE(timestamp) ORDER BY date ASC;")
+        fetchCount(sqlQueries.countUsers),
+        fetchCount(sqlQueries.countWebstates),
+        fetchCount(sqlQueries.countReplays),
+        fetchCount(sqlQueries.countEvents),
+        fetchTimeSeriesPerSecond(sqlQueries.clickEventsPerSecond) // Use the per-second query
     ]);
 
     // Process results safely
@@ -75,16 +76,26 @@ try {
     if (results[1].status === 'fulfilled') webstateCount = results[1].value;
     if (results[2].status === 'fulfilled') replayCount = results[2].value;
     if (results[3].status === 'fulfilled') eventCount = results[3].value;
-    if (results[4].status === 'fulfilled') eventsOverTimeData = results[4].value;
-
-    // Collect errors
-    const errors = results.filter(r => r.status === 'rejected') as PromiseRejectedResult[];
-    if (errors.length > 0) {
-        fetchError = errors.map(e => e.reason?.message || 'Unknown error').join('; ');
-        console.error("Errors fetching database statistics:", errors.map(e => e.reason));
+    if (results[4].status === 'fulfilled') {
+        clickEventsPerSecondData = results[4].value; // Assign to the renamed variable
+        console.log("[Astro Frontmatter] Fetched clickEventsPerSecondData:", clickEventsPerSecondData);
+    } else {
+        console.error("[Astro Frontmatter] Failed to fetch clickEventsPerSecondData:", results[4].reason);
     }
 
-} catch (error: any) { // Catch potential errors in Promise.allSettled itself (unlikely)
+    // Collect errors from basic counts if any
+    const countErrors = results.slice(0, 4).filter(r => r.status === 'rejected') as PromiseRejectedResult[];
+    if (countErrors.length > 0) {
+        fetchError = countErrors.map(e => e.reason?.message || 'Unknown error').join('; ');
+        console.error("Errors fetching database counts:", countErrors.map(e => e.reason));
+    }
+    // Add time series error if it occurred
+    if (results[4].status === 'rejected') {
+         const timeSeriesError = results[4].reason?.message || 'Error fetching click time series data';
+         fetchError = fetchError ? `${fetchError}; ${timeSeriesError}` : timeSeriesError;
+    }
+
+} catch (error: any) {
     console.error("Unexpected error fetching database stats:", error);
     fetchError = error.message || "Could not load database statistics.";
 }
@@ -98,49 +109,29 @@ try {
 
   <div class="stats shadow w-full mb-8">
     <div class="stat">
-      <div class="stat-figure text-primary">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-      </div>
       <div class="stat-title">Users</div>
       <div class="stat-value">{userCount.toLocaleString()}</div>
-      <div class="stat-desc">Total registered users</div>
     </div>
-    
-    <div class="stat">
-      <div class="stat-figure text-secondary">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-      </div>
+        <div class="stat">
       <div class="stat-title">Webstates</div>
       <div class="stat-value">{webstateCount.toLocaleString()}</div>
-      <div class="stat-desc">Unique HTML snapshots</div>
-    </div>
-
-    <div class="stat">
-      <div class="stat-figure text-accent">
-         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
-      </div>
+        </div>
+        <div class="stat">
       <div class="stat-title">Replays</div>
       <div class="stat-value">{replayCount.toLocaleString()}</div>
-      <div class="stat-desc">Total recording sessions</div>
-    </div>
-    
-    <div class="stat">
-      <div class="stat-figure text-info">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 16v-2m8-8h2M4 12H2m16.93-9.93l-1.41-1.41M5.48 18.52l-1.41-1.41M18.52 5.48l1.41-1.41M6.9 18.52l-1.41 1.41M12 18a6 6 0 100-12 6 6 0 000 12z"></path></svg>
-      </div>
-      <div class="stat-title">Events</div>
+        </div>
+        <div class="stat">
+      <div class="stat-title">Total Events</div>
       <div class="stat-value">{eventCount.toLocaleString()}</div>
-      <div class="stat-desc">Total recorded rrweb events</div>
     </div>
-    
   </div>
 
-  <h2 class="text-xl font-semibold mb-4">Events Recorded Over Time</h2>
+  <h2 class="text-xl font-semibold mb-4">Click Events Recorded Per Second</h2>
   <div class="bg-base-200 rounded-box p-4">
-    {eventsOverTimeData.length > 0 ? (
+    {clickEventsPerSecondData.length > 0 ? (
       <canvas id="eventsOverTimeChart"></canvas>
     ) : (
-      <p class="text-base-content/50">No event data available to display chart.</p>
+      <p class="text-base-content/50">No click event data available to display chart, or an error occurred fetching data.</p>
     )}
   </div>
 
@@ -152,77 +143,87 @@ try {
 </Layout>
 
 <!-- Script to safely pass data to the client -->
-<script define:vars={{ eventsOverTimeData }} is:inline>
-    window.chartData = JSON.parse(JSON.stringify(eventsOverTimeData));
-    // Alternative using raw stringify if JSON.parse causes issues:
-    // window.chartData = <Fragment set:html={JSON.stringify(eventsOverTimeData)} />;
+<script define:vars={{ clickEventsPerSecondData }} is:inline>
+    window.chartData = JSON.parse(JSON.stringify(clickEventsPerSecondData)); 
 </script>
 
 <script>
-  // No define:vars needed here anymore
-  import { Chart, registerables } from 'chart.js/auto'; // Import Chart.js
-  
-  // Extend the Window interface to include our custom property
+  import { Chart, registerables } from 'chart.js/auto'; 
+
+  // Extend the Window interface
   declare global {
       interface Window {
-          chartData: { date: string; count: number }[] | undefined;
+          chartData: { second: string; count: number }[] | undefined; // Updated type 
       }
   }
 
-  // Check if we have data and the chart canvas element exists
   const canvas = document.getElementById('eventsOverTimeChart');
   console.log("[Debug Chart] Canvas element:", canvas);
   
-  // Read data from the global variable set by the inline script
-  const clientEventsOverTimeData = window.chartData;
-  console.log("[Debug Chart] eventsOverTimeData read from window:", clientEventsOverTimeData);
+  const clientClickEventsPerSecondData = window.chartData; 
+  console.log("[Debug Chart] clickEventsPerSecondData read from window:", clientClickEventsPerSecondData);
 
-  if (canvas instanceof HTMLCanvasElement && clientEventsOverTimeData && clientEventsOverTimeData.length > 0) { // Type guard for canvas
-    console.log("[Debug Chart] Canvas found and data exists. Attempting to create chart.");
+  if (canvas instanceof HTMLCanvasElement && clientClickEventsPerSecondData && clientClickEventsPerSecondData.length > 0) {
+    console.log("[Debug Chart] Canvas found and click data exists. Attempting to create chart.");
     try {
-        Chart.register(...registerables); // Register necessary components
+        Chart.register(...registerables);
 
-        const labels = clientEventsOverTimeData.map((item: { date: string; count: number }) => { // Type annotation for item
-            // Attempt to format date nicely, fallback to original string
-            try {
-                // Add timezone hint for better parsing consistency
-                return new Date(item.date + 'T00:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-            } catch (e) {
-                console.warn(`[Debug Chart] Error formatting date: ${item.date}`, e);
-                return item.date;
-            }
-        });
-        const dataCounts = clientEventsOverTimeData.map((item: { date: string; count: number }) => item.count); // Type annotation for item
-        console.log("[Debug Chart] Processed labels:", labels);
+        // Use the 'second' string directly as the label
+        const labels = clientClickEventsPerSecondData.map((item: { second: string; count: number }) => item.second); 
+        const dataCounts = clientClickEventsPerSecondData.map((item: { second: string; count: number }) => item.count);
+        console.log("[Debug Chart] Processed labels (seconds):", labels);
         console.log("[Debug Chart] Processed dataCounts:", dataCounts);
 
-        new Chart(canvas, { // canvas is now confirmed HTMLCanvasElement
-          type: 'line', // Line chart
+        new Chart(canvas, {
+          type: 'line',
           data: {
             labels: labels,
             datasets: [{
-              label: 'Events Recorded',
+              label: 'Click Events Recorded per Second',
               data: dataCounts,
-              borderColor: 'rgb(75, 192, 192)', // Example color
-              tension: 0.1 // Slight curve
+              borderColor: 'lightblue', // Higher contrast color
+              backgroundColor: 'rgba(173, 216, 230, 0.2)', // Lighter background
+              fill: true,
+              tension: 0.1 
             }]
           },
           options: {
             responsive: true,
+            maintainAspectRatio: false, 
             scales: {
               y: {
                 beginAtZero: true,
                 title: {
                     display: true,
-                    text: 'Number of Events'
+                    text: 'Number of Click Events',
+                    color: '#E5E7EB' // Light color for title
+                },
+                ticks: {
+                    color: '#E5E7EB' // Light color for ticks
                 }
               },
               x: {
                  title: {
                     display: true,
-                    text: 'Date'
+                    text: 'Time (Second)', // Updated axis title
+                    color: '#E5E7EB' // Light color for title
+                 },
+                 ticks: {
+                     color: '#E5E7EB', // Light color for ticks
+                     // Optional: Auto-skip ticks if labels become too dense
+                     autoSkip: true,
+                     maxTicksLimit: 20 // Adjust as needed
                  }
               }
+            },
+            plugins: {
+                legend: {
+                    display: false 
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                }
             }
           }
         });
@@ -230,8 +231,8 @@ try {
     } catch (error) {
         console.error("[Debug Chart] Error creating chart:", error);
     }
-  } else {
-      console.log("[Debug Chart] Condition not met: Canvas found?", canvas instanceof HTMLCanvasElement, "Data exists?", !!clientEventsOverTimeData, "Data length > 0?", clientEventsOverTimeData ? clientEventsOverTimeData.length > 0 : false);
-  }
+                } else {
+      console.log("[Debug Chart] Condition not met: Canvas found?", canvas instanceof HTMLCanvasElement, "Data exists?", !!clientClickEventsPerSecondData, "Data length > 0?", clientClickEventsPerSecondData ? clientClickEventsPerSecondData.length > 0 : false);
+    }
 
-</script>
+  </script>

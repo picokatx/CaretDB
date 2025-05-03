@@ -18,34 +18,34 @@ if (!session) {
   return Astro.redirect('/login');
 }
 
-// Check for webstate parameter and fetch hashes if needed
+// Check for webstate parameter
 const urlParams = new URL(Astro.request.url).searchParams;
 const webstateHash = urlParams.get('webstate');
-let webstateHashes: string[] = [];
+
+let webstateHashes: { html_hash: string }[] = [];
 let fetchError: string | null = null;
-let rows: any[] = [];
-let _: any;
+
+// If no specific webstate is selected, fetch all available ones for the selection UI
 if (!webstateHash) {
-  // Fetch hashes from DB only if no webstate parameter is provided
   try {
-    const query = 'SELECT html_hash FROM webstate;'; // Simple query
-    // Assuming sql.query returns [rows, fields] and rows is an array of objects
-    [rows, _] = await sql.query(query);
-    // Explicitly type 'row' in the map function
-    webstateHashes = rows.map((row: { html_hash: string }) => row.html_hash);
+    const query = 'SELECT html_hash FROM webstate ORDER BY html_hash;'; 
+    const [rows, _] = await sql.query(query);
+    webstateHashes = rows as { html_hash: string }[]; // Type assertion
   } catch (error: any) {
     console.error("Error fetching webstate hashes:", error);
     fetchError = "Failed to load webstate list from database.";
-    // Handle error appropriately, maybe show a message
   }
 }
 
+const API_URL = `${Astro.url.origin}/api/generate_preview`;
+
 ---
 
-<Layout title={`${systemName} - Local Record & Replay`}>
+<Layout title={`${systemName} - Record & Replay`}>
   <!-- Inject clientInfo for client-side scripts -->
   <h1 class="text-2xl font-bold mb-4">
-    RRWeb Local Record & Replay {webstateHash ? `(${webstateHash.substring(0,8)}...)` : '(Select Webstate)'}
+    RRWeb Record & Replay 
+    {webstateHash ? `( ${webstateHash.substring(0,12)}... )` : '( Select a Webstate )'}
   </h1>
 
   {webstateHash ? (
@@ -65,16 +65,33 @@ if (!webstateHash) {
     <>
       {/* Display selection UI only if webstateHash does NOT exist */}
       <div class="p-4 border rounded bg-base-200 mb-4">
-        <h2 class="text-xl font-semibold mb-2">Select a Webstate to Analyze</h2>
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-semibold">Select a Webstate to Analyze</h2>
+          <button id="generate-previews-btn" class="btn btn-sm btn-secondary">Generate Missing Previews</button>
+        </div>
+        <div id="preview-generation-status" class="text-xs mb-4 min-h-[2em]"></div>
+
         {fetchError ? (
           <p class="text-error">{fetchError}</p>
         ) : webstateHashes.length > 0 ? (
-          <select id="webstate-selector" class="select select-bordered w-full max-w-xs">
-            <option disabled selected>Choose a webstate hash...</option>
-            {webstateHashes.map(hash => (
-              <option value={hash}>{hash}</option>
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {webstateHashes.map(ws => (
+              <a href={`/matrix?webstate=${ws.html_hash}`} class="card card-compact bg-base-100 shadow-xl hover:shadow-2xl transition-shadow duration-300">
+                <figure class="bg-neutral h-48 flex items-center justify-center overflow-hidden">
+                  <img 
+                    src={`/dom/preview/${ws.html_hash}.png`} 
+                    alt={`Preview of ${ws.html_hash}`}
+                    class="object-contain h-full w-full preview-image"
+                    data-hash={ws.html_hash} 
+                    onerror="handlePreviewError(this)"
+                  />
+                </figure>
+                <div class="card-body p-3">
+                  <p class="text-xs font-mono break-all">{ws.html_hash}</p>
+                </div>
+              </a>
             ))}
-          </select>
+          </div>
         ) : (
           <p class="text-warning">No webstates found in the database.</p>
         )}
@@ -83,63 +100,129 @@ if (!webstateHash) {
   )}
 </Layout>
 
-<script>
+<script define:vars={{ webstateHash, webstateHashes, API_URL }}>
   import { initRecorder } from "../lib/matrix/recorder";
   import { initTimelineControls } from "../lib/matrix/timeline";
 
+  // Function to handle image loading errors for previews
+  function handlePreviewError(imgElement) {
+      console.log(`[Debug] Preview failed to load for image:`, imgElement.dataset.hash);
+      imgElement.onerror = null; // Prevent infinite loops if the placeholder also fails
+      const figure = imgElement.closest('figure');
+      if (figure) {
+          figure.innerHTML = '<div class="text-neutral-content text-center text-xs p-2">(Preview not generated)</div>';
+      }
+      imgElement.classList.add('missing'); // Add class for checking later
+  }
+  // Make function globally accessible for inline handler
+  window.handlePreviewError = handlePreviewError;
+
   document.addEventListener("DOMContentLoaded", () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const webstateHash = urlParams.get('webstate');
-    const selector = document.getElementById('webstate-selector') as HTMLSelectElement | null;
-
     if (webstateHash) {
-      // --- This block runs only if webstate parameter exists ---
+      // --- Code for when a webstate IS selected ---
       console.log("Webstate parameter found:", webstateHash);
-
-      // ** Start: Load selected HTML into RecordingPanel iframe **
-      const recordFrame = document.getElementById('record-frame') as HTMLIFrameElement | null;
+      const recordFrame = document.getElementById('record-frame'); // Removed type assertion
       const iframeUrlDisplay = document.getElementById('iframe-url-display');
       const htmlUrl = `/dom/${webstateHash}.html`;
 
-      if (recordFrame) {
+      if (recordFrame instanceof HTMLIFrameElement) { // Use instanceof check
         console.log("Setting recording iframe src to:", htmlUrl);
         recordFrame.src = htmlUrl;
       } else {
-        console.error("Recording iframe (record-frame) not found!");
+        console.error("Recording iframe (record-frame) not found or not an iframe!");
       }
-
       if (iframeUrlDisplay) {
         iframeUrlDisplay.textContent = htmlUrl;
       } else {
         console.warn("Iframe URL display element (iframe-url-display) not found.");
       }
-      // ** End: Load selected HTML into RecordingPanel iframe **
-
-      // Initialize recorder and timeline (ensure iframe content is loaded first, though src change might be enough)
-      // A small delay might be safer if init depends on iframe content being fully ready
-      // setTimeout(() => {
-         initTimelineControls();
-         initRecorder();
-      // }, 100); // Optional small delay
-
-    } else if (selector) {
-      // --- This block runs only if webstate parameter is NOT present AND selector exists ---
-      console.log("No webstate parameter found, initializing selector.");
-
-      selector.addEventListener('change', (event) => {
-        // Use type assertion for event.target
-        const selectedHash = (event.target as HTMLSelectElement).value;
-        if (selectedHash) {
-          console.log("Webstate selected:", selectedHash);
-          // Redirect to the page with the selected hash as parameter
-          window.location.href = `/matrix?webstate=${encodeURIComponent(selectedHash)}`;
-        }
-      });
-      // --- End selector block ---
+      initTimelineControls();
+      initRecorder();
     } else {
-        // Fallback case: No webstate param and no selector found (shouldn't usually happen)
-        console.log("No webstate parameter and no selector found.");
-    }
+      // --- Code for when NO webstate is selected ---
+      console.log("No webstate parameter found, setting up preview generation button.");
+      const generateBtn = document.getElementById('generate-previews-btn');
+      const statusDiv = document.getElementById('preview-generation-status');
+      
+      if (generateBtn && statusDiv) {
+        generateBtn.addEventListener('click', async () => {
+          console.log('[Debug Preview Gen] Generate button clicked.'); // Log click
+          generateBtn.disabled = true;
+          generateBtn.classList.add('loading');
+          statusDiv.textContent = `Checking ${webstateHashes.length} webstates for missing previews...`;
+          let generatedCount = 0;
+          let errorCount = 0;
 
+          // Iterate through all known hashes
+          for (const ws of webstateHashes) {
+            const hash = ws.html_hash;
+            console.log(`[Debug Preview Gen] Processing hash: ${hash}`); // Log loop iteration
+            const imgElement = document.querySelector(`.preview-image[data-hash="${hash}"]`); 
+            
+            // Check if image needs generation
+            let needsGeneration = false;
+            if (imgElement && imgElement.classList.contains('missing')) {
+                needsGeneration = true;
+            }
+            else if (imgElement instanceof HTMLImageElement && !(imgElement.complete && imgElement.naturalWidth > 0)) {
+                needsGeneration = true;
+                if (!imgElement.onerror) {
+                  imgElement.onerror = () => handlePreviewError(imgElement);
+                }
+            }
+             else if (!imgElement) {
+                 needsGeneration = true;
+                 console.warn(`Image element not found for hash ${hash}`);
+             }
+
+            if (needsGeneration) {
+                console.log(`[Debug Preview Gen] Needs generation for ${hash}. Preparing fetch...`); // Log before fetch
+                statusDiv.textContent = `Generating preview for ${hash.substring(0, 12)}...`;
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ html_hash: hash })
+                    });
+                    const result = await response.json();
+                    if (!response.ok || !result.success) {
+                        console.error(`Error generating preview for ${hash}:`, result.error || `Status ${response.status}`);
+                        errorCount++;
+                    } else {
+                        console.log(`Preview request successful for ${hash}:`, result.message);
+                        generatedCount++;
+                        // If successfully generated, attempt to update the image source
+                        if (imgElement instanceof HTMLImageElement && result.message === "Preview generated successfully.") {
+                             imgElement.src = `/dom/preview/${hash}.png?t=${Date.now()}`; // Add timestamp to force reload
+                             imgElement.classList.remove('missing'); // Ensure missing class is removed
+                             // Replace figure content if it was placeholder
+                             const figure = imgElement.closest('figure');
+                             if(figure && figure.querySelector('.text-neutral-content')) {
+                                 figure.innerHTML = ''; // Clear placeholder div
+                                 figure.appendChild(imgElement); // Re-add the image
+                             }
+                             // Remove error handler only after successful load is confirmed (might need onload event)
+                             // imgElement.onerror = null; 
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Fetch error generating preview for ${hash}:`, error);
+                    errorCount++;
+                }
+            } else {
+                console.log(`[Debug Preview Gen] Preview already exists or loaded for ${hash}. Skipping fetch.`); // Log skipping
+            }
+             // Small delay between requests
+             await new Promise(resolve => setTimeout(resolve, 100)); 
+          }
+
+          statusDiv.textContent = `Finished. Generated: ${generatedCount}, Errors: ${errorCount}. Refresh might be needed to see all previews.`;
+          generateBtn.disabled = false;
+          generateBtn.classList.remove('loading');
+        });
+      } else {
+          console.error("Generate Previews button or status div not found.");
+      }
+    }
   });
 </script>
