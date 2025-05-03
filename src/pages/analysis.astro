@@ -8,15 +8,18 @@ if (!session) {
   return Astro.redirect('/login');
 }
 
-const pageTitle = "ClickstreamDB - Page Click Summary";
-const API_URL = `${Astro.url.origin}/api/query_mysql`; 
+const pageTitle = "ClickstreamDB - Database Overview";
+const API_URL = `${Astro.url.origin}/api/query_mysql`;
 
-// Fetch distinct html_hash values from the new summary table
-let availablePages: { html_hash: string }[] = [];
-let initialError: string | null = null;
-try {
-    // Query the new page_summary table
-    const query = "SELECT html_hash FROM page_summary ORDER BY html_hash;";
+let userCount = 0;
+let webstateCount = 0;
+let replayCount = 0;
+let eventCount = 0;
+let eventsOverTimeData: { date: string; count: number }[] = []; // For chart data
+let fetchError: string | null = null;
+
+// Helper function to fetch counts
+async function fetchCount(query: string): Promise<number> {
     const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -24,311 +27,211 @@ try {
     });
     if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(`API Error (${response.status}): ${errorData.error?.message || errorData.error || 'Failed to fetch pages'}`);
+        throw new Error(`API Error (${response.status}): ${errorData.error?.message || errorData.error || 'Failed to fetch count'}`);
     }
     const data = await response.json();
-    if (data.success && Array.isArray(data.rows)) {
-        availablePages = data.rows;
+    if (data.success && Array.isArray(data.rows) && data.rows.length > 0) {
+        return parseInt(data.rows[0].count) || 0;
     } else {
         throw new Error(data.error?.message || data.error || 'Invalid data format from API');
     }
-} catch (error: any) {
-    console.error("Error fetching available pages:", error);
-    initialError = error.message || "Could not load available pages for analysis.";
+}
+
+// Helper function to fetch time series data
+async function fetchTimeSeries(query: string): Promise<{ date: string; count: number }[]> {
+    const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query })
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`API Error (${response.status}): ${errorData.error?.message || errorData.error || 'Failed to fetch time series data'}`);
+    }
+    const data = await response.json();
+    if (data.success && Array.isArray(data.rows)) {
+        // Ensure count is a number
+        return data.rows.map((row: { date: string; count: any }) => ({
+            date: row.date, 
+            count: parseInt(row.count) || 0 
+        }));
+    } else {
+        throw new Error(data.error?.message || data.error || 'Invalid data format from API');
+    }
+}
+
+try {
+    // Fetch all data in parallel
+    const results = await Promise.allSettled([
+        fetchCount("SELECT COUNT(*) as count FROM user;"),
+        fetchCount("SELECT COUNT(*) as count FROM webstate;"),
+        fetchCount("SELECT COUNT(*) as count FROM replay;"),
+        fetchCount("SELECT COUNT(*) as count FROM event;"),
+        fetchTimeSeries("SELECT DATE(timestamp) as date, COUNT(event_id) as count FROM event GROUP BY DATE(timestamp) ORDER BY date ASC;")
+    ]);
+
+    // Process results safely
+    if (results[0].status === 'fulfilled') userCount = results[0].value;
+    if (results[1].status === 'fulfilled') webstateCount = results[1].value;
+    if (results[2].status === 'fulfilled') replayCount = results[2].value;
+    if (results[3].status === 'fulfilled') eventCount = results[3].value;
+    if (results[4].status === 'fulfilled') eventsOverTimeData = results[4].value;
+
+    // Collect errors
+    const errors = results.filter(r => r.status === 'rejected') as PromiseRejectedResult[];
+    if (errors.length > 0) {
+        fetchError = errors.map(e => e.reason?.message || 'Unknown error').join('; ');
+        console.error("Errors fetching database statistics:", errors.map(e => e.reason));
+    }
+
+} catch (error: any) { // Catch potential errors in Promise.allSettled itself (unlikely)
+    console.error("Unexpected error fetching database stats:", error);
+    fetchError = error.message || "Could not load database statistics.";
 }
 
 ---
 
 <Layout title={pageTitle}>
-  <h1 class="text-2xl font-bold mb-6">Page Click Summary</h1>
+  <h1 class="text-2xl font-bold mb-6">Database Overview</h1>
 
-  { initialError && <div class="alert alert-error shadow-lg mb-4"><span>Error loading page list: {initialError}</span></div> }
+  { fetchError && <div class="alert alert-warning shadow-lg mb-4"><span>Warning: {fetchError}</span></div> }
 
-  <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-    <!-- Controls -->
-    <div class="md:col-span-1 space-y-4">
-      <div class="form-control w-full">
-        <label class="label" for="page-select">
-          <span class="label-text">Select Page (HTML Hash)</span>
-        </label>
-        <select id="page-select" class="select select-bordered w-full" disabled={availablePages.length === 0}>
-          <option disabled selected={availablePages.length === 0}>Select a page</option>
-          {availablePages.map(page => (
-            <option value={page.html_hash}>{page.html_hash.substring(0, 12)}...</option> // Shorten hash for display
-          ))}
-        </select>
-        { availablePages.length === 0 && !initialError && 
-          <label class="label">
-            <span class="label-text-alt">No aggregated data found. Run aggregation first.</span>
-          </label> 
-        }
+  <div class="stats shadow w-full mb-8">
+    <div class="stat">
+      <div class="stat-figure text-primary">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
       </div>
-      
-      <!-- Aggregation Button and Status -->
-      <div class="form-control w-full mt-4 pt-4 border-t border-base-300">
-        <label class="label">
-            <span class="label-text">Manual Aggregation</span>
-        </label>
-        <button id="run-aggregation-btn" class="btn btn-secondary w-full">Run Data Aggregation</button>
-        <div id="aggregation-status" class="text-sm mt-2 min-h-[5em] p-2 bg-base-200 rounded overflow-auto"> 
-          Click the button to aggregate click data for analysis.
-        </div>
+      <div class="stat-title">Users</div>
+      <div class="stat-value">{userCount.toLocaleString()}</div>
+      <div class="stat-desc">Total registered users</div>
+    </div>
+    
+    <div class="stat">
+      <div class="stat-figure text-secondary">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
       </div>
-      
+      <div class="stat-title">Webstates</div>
+      <div class="stat-value">{webstateCount.toLocaleString()}</div>
+      <div class="stat-desc">Unique HTML snapshots</div>
     </div>
 
-    <!-- Data Display Area -->
-    <div class="md:col-span-3">
-      <div id="data-display-area" 
-           class="bg-base-200 rounded-box border border-base-300 p-4 min-h-[150px]">
-        <span id="data-placeholder" class="text-base-content/50">Select a page to view total clicks.</span>
-        <!-- Table will be added here by JS -->
+    <div class="stat">
+      <div class="stat-figure text-accent">
+         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
       </div>
+      <div class="stat-title">Replays</div>
+      <div class="stat-value">{replayCount.toLocaleString()}</div>
+      <div class="stat-desc">Total recording sessions</div>
     </div>
+    
+    <div class="stat">
+      <div class="stat-figure text-info">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 16v-2m8-8h2M4 12H2m16.93-9.93l-1.41-1.41M5.48 18.52l-1.41-1.41M18.52 5.48l1.41-1.41M6.9 18.52l-1.41 1.41M12 18a6 6 0 100-12 6 6 0 000 12z"></path></svg>
+      </div>
+      <div class="stat-title">Events</div>
+      <div class="stat-value">{eventCount.toLocaleString()}</div>
+      <div class="stat-desc">Total recorded rrweb events</div>
+    </div>
+    
   </div>
 
-  <script define:vars={{ API_URL, initialError }}>
-    // No heatmap.js needed anymore
-    
-    const pageSelect = document.getElementById('page-select');
-    const dataDisplayArea = document.getElementById('data-display-area');
-    const dataPlaceholder = document.getElementById('data-placeholder');
-    const runAggregationBtn = document.getElementById('run-aggregation-btn');
-    const aggregationStatus = document.getElementById('aggregation-status');
+  <h2 class="text-xl font-semibold mb-4">Events Recorded Over Time</h2>
+  <div class="bg-base-200 rounded-box p-4">
+    {eventsOverTimeData.length > 0 ? (
+      <canvas id="eventsOverTimeChart"></canvas>
+    ) : (
+      <p class="text-base-content/50">No event data available to display chart.</p>
+    )}
+  </div>
 
-    let currentHtmlHash = null;
-    
-    function clearDataDisplay() {
-        if (!dataDisplayArea || !dataPlaceholder) return;
-        dataDisplayArea.innerHTML = ''; // Clear previous content/table
-        dataDisplayArea.appendChild(dataPlaceholder); // Add placeholder back
-        dataPlaceholder.textContent = 'Loading data...';
-        dataPlaceholder.style.display = 'block'; // Ensure visible
-    }
+  <div class="mt-8 p-4 bg-base-200 rounded-box">
+    <h2 class="text-xl font-semibold mb-2">Notes</h2>
+    <p>This page shows basic counts and a summary of event recording activity.</p>
+  </div>
 
-    async function fetchAnalysisData(htmlHash) {
-        console.log(`[Debug] fetchAnalysisData called for hash: ${htmlHash}`); // Debug log
-        clearDataDisplay();
+</Layout>
 
-        if (!dataPlaceholder) return;
+<!-- Script to safely pass data to the client -->
+<script define:vars={{ eventsOverTimeData }} is:inline>
+    window.chartData = JSON.parse(JSON.stringify(eventsOverTimeData));
+    // Alternative using raw stringify if JSON.parse causes issues:
+    // window.chartData = <Fragment set:html={JSON.stringify(eventsOverTimeData)} />;
+</script>
 
-        const query = `SELECT html_hash, total_clicks, last_updated FROM page_summary WHERE html_hash = '${htmlHash}';`;
-        console.log(`[Debug] Executing query: ${query}`); // Debug log
+<script>
+  // No define:vars needed here anymore
+  import { Chart, registerables } from 'chart.js/auto'; // Import Chart.js
+  
+  // Extend the Window interface to include our custom property
+  declare global {
+      interface Window {
+          chartData: { date: string; count: number }[] | undefined;
+      }
+  }
 
-        try {
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query })
-            });
-            
-            console.log(`[Debug] API Response Status: ${response.status}`); // Debug log
-            const responseText = await response.text(); // Get raw text first
-            console.log(`[Debug] API Response Text: ${responseText}`); // Debug log
-            
-            if (!response.ok) {
-                let errorData;
-                try { errorData = JSON.parse(responseText); } catch (e) { errorData = { error: responseText }; }
-                throw new Error(`API Error (${response.status}): ${errorData.error?.message || errorData.error || 'Failed to fetch summary data'}`);
-            }
+  // Check if we have data and the chart canvas element exists
+  const canvas = document.getElementById('eventsOverTimeChart');
+  console.log("[Debug Chart] Canvas element:", canvas);
+  
+  // Read data from the global variable set by the inline script
+  const clientEventsOverTimeData = window.chartData;
+  console.log("[Debug Chart] eventsOverTimeData read from window:", clientEventsOverTimeData);
 
-            const result = JSON.parse(responseText); // Parse after checking ok status
-            console.log(`[Debug] Parsed API Result:`, result); // Debug log
+  if (canvas instanceof HTMLCanvasElement && clientEventsOverTimeData && clientEventsOverTimeData.length > 0) { // Type guard for canvas
+    console.log("[Debug Chart] Canvas found and data exists. Attempting to create chart.");
+    try {
+        Chart.register(...registerables); // Register necessary components
 
-            if (result.success && Array.isArray(result.rows)) {
-                if (result.rows.length === 0) {
-                   console.log(`[Debug] No data found for hash ${htmlHash}. Displaying placeholder.`); // Debug log
-                   dataPlaceholder.textContent = `No summary data found for this page. Run aggregation if needed.`;
-                   dataPlaceholder.style.display = 'block'; 
-                } else {
-                   console.log(`[Debug] Data found for hash ${htmlHash}. Calling renderData.`); // Debug log
-                   dataPlaceholder.style.display = 'none'; // Hide placeholder
-                   renderData(result.rows[0]); // Render the first (only) row
-                }
-            } else {
-                throw new Error(result.error?.message || result.error || 'Invalid data format from API');
-            }
-        } catch (error) { 
-            console.error("[Debug] Error in fetchAnalysisData:", error); // Debug log
-            dataPlaceholder.style.display = 'block';
-            dataPlaceholder.textContent = `Error loading data: ${error.message}`;
-        }
-    }
-
-    function renderData(data) {
-       if (!dataDisplayArea) return;
-
-       dataDisplayArea.innerHTML = ''; // Clear placeholder
-
-       const table = document.createElement('table');
-       table.className = 'table w-full';
-       
-       const thead = table.createTHead();
-       thead.innerHTML = `<tr><th>Metric</th><th>Value</th></tr>`;
-       
-       const tbody = table.createTBody();
-       tbody.innerHTML = `
-         <tr>
-           <td>Page Hash</td>
-           <td class="font-mono text-xs">${data.html_hash}</td>
-         </tr>
-         <tr>
-           <td>Total Clicks Recorded</td>
-           <td class="font-bold text-lg">${(parseInt(data.total_clicks) || 0).toLocaleString()}</td>
-         </tr>
-         <tr>
-           <td>Last Aggregated</td>
-           <td>${new Date(data.last_updated).toLocaleString()}</td>
-         </tr>
-       `;
-
-       dataDisplayArea.appendChild(table);
-    }
-
-    // --- Aggregation Logic (Mostly unchanged, calls the simplified procedure) ---
-    function updateAggregationStatus(message, isError = false) {
-        console.log(`[Debug] updateAggregationStatus called with message: ${message}`); // Log entry
-        if (aggregationStatus) {
-            const line = document.createElement('div');
-            line.textContent = message;
-            if (isError) {
-                line.classList.add('text-error');
-            }
-            // Prepend new messages and limit log lines if needed
-            aggregationStatus.insertBefore(line, aggregationStatus.firstChild);
-            // Keep only last N lines (e.g., 50)
-            // while (aggregationStatus.children.length > 50) { 
-            //    aggregationStatus.removeChild(aggregationStatus.lastChild); 
-            // }
-        } else {
-            console.error("[Debug] aggregationStatus element is null inside updateAggregationStatus!"); // Log if null
-        }
-    }
-
-    async function runAggregation() {
-        console.log("runAggregation function called");
-        
-        console.log("[Debug] Checking button and status elements...");
-        if (!runAggregationBtn || !aggregationStatus) {
-             console.error("[Debug] runAggregationBtn or aggregationStatus is null! Aborting.");
-             return;
-        } 
-        console.log("[Debug] Elements check passed.");
-
-        console.log("[Debug] Setting button disabled...");
-        runAggregationBtn.disabled = true;
-        console.log("[Debug] Adding loading class...");
-        runAggregationBtn.classList.add('loading');
-        console.log("[Debug] Clearing aggregation status HTML...");
-        aggregationStatus.innerHTML = ''; // Clear previous status
-        console.log("[Debug] Calling updateAggregationStatus('Starting aggregation...')...");
-        updateAggregationStatus('Starting aggregation...');
-        console.log("[Debug] Returned from updateAggregationStatus. Proceeding to try block...");
-
-        let replays = [];
-        try {
-            updateAggregationStatus('Fetching replays...');
-            console.log("[Debug] Preparing to fetch replays..."); 
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: 'SELECT replay_id, html_hash FROM replay;' })
-            });
-            const result = await response.json();
-            if (!response.ok || !result.success) {
-                throw new Error(result.error?.message || result.error || 'Failed to fetch replays');
-            }
-            replays = result.rows;
-            updateAggregationStatus(`Found ${replays.length} replays to process.`);
-        } catch (error) {
-            updateAggregationStatus(`Error fetching replays: ${error.message}`, true);
-            console.error("[Debug] Error occurred while fetching replays:", error); 
-            runAggregationBtn.disabled = false;
-            runAggregationBtn.classList.remove('loading');
-            return;
-        }
-
-        let successCount = 0;
-        let errorCount = 0;
-
-        for (const replay of replays) {
-            const { replay_id, html_hash } = replay;
-            if (!replay_id || !html_hash) {
-                updateAggregationStatus(`Skipping invalid replay data: ${JSON.stringify(replay)}`, true);
-                errorCount++;
-                continue;
-            }
-            // Basic escaping - Prefer parameterized queries if API is adapted
-            const escapedReplayId = replay_id.replace(/\'/g, "''");
-            const escapedHtmlHash = html_hash.replace(/\'/g, "''");
-            // Calls the *same* procedure name, which now has simpler logic
-            const callQuery = `CALL update_analysis_summaries('${escapedReplayId}', '${escapedHtmlHash}');`;
-            
+        const labels = clientEventsOverTimeData.map((item: { date: string; count: number }) => { // Type annotation for item
+            // Attempt to format date nicely, fallback to original string
             try {
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: callQuery })
-                });
-                const result = await response.json();
-                if (!response.ok || !result.success) {
-                    const errorMsg = result.error?.message || JSON.stringify(result.error) || 'Unknown error executing procedure';
-                    updateAggregationStatus(`Error for replay ${replay_id.substring(0,8)}...: ${errorMsg}`, true);
-                    errorCount++;
-                } else {
-                    successCount++;
-                    // Update status less frequently on success to avoid flooding
-                    if (successCount % 10 === 0 || successCount === replays.length) {
-                         updateAggregationStatus(`${successCount} / ${replays.length} processed...`);
-                    }
-                }
-            } catch (error) {
-                updateAggregationStatus(`Fetch error for replay ${replay_id.substring(0,8)}...: ${error.message}`, true);
-                errorCount++;
-            }
-             // await new Promise(resolve => setTimeout(resolve, 10)); // Optional small delay
-        }
-
-        updateAggregationStatus(`Aggregation finished. Success: ${successCount}, Errors: ${errorCount}`);
-        runAggregationBtn.disabled = false;
-        runAggregationBtn.classList.remove('loading');
-        updateAggregationStatus('Consider refreshing the page or re-selecting a page to see updated data.');
-    }
-
-    // --- Event Listeners ---
-    if (pageSelect) {
-        pageSelect.addEventListener('change', () => {
-            // Get the full hash from the option's value attribute
-            const selectedOption = pageSelect.options[pageSelect.selectedIndex];
-            currentHtmlHash = selectedOption.value; 
-            
-            if (currentHtmlHash && pageSelect.selectedIndex > 0) { 
-                fetchAnalysisData(currentHtmlHash);
-            } else {
-                currentHtmlHash = null; 
-                clearDataDisplay();
-                if (dataPlaceholder) dataPlaceholder.textContent = 'Select a page to view total clicks.';
+                // Add timezone hint for better parsing consistency
+                return new Date(item.date + 'T00:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+            } catch (e) {
+                console.warn(`[Debug Chart] Error formatting date: ${item.date}`, e);
+                return item.date;
             }
         });
-    } else {
-        console.error("Page select element not found");
+        const dataCounts = clientEventsOverTimeData.map((item: { date: string; count: number }) => item.count); // Type annotation for item
+        console.log("[Debug Chart] Processed labels:", labels);
+        console.log("[Debug Chart] Processed dataCounts:", dataCounts);
+
+        new Chart(canvas, { // canvas is now confirmed HTMLCanvasElement
+          type: 'line', // Line chart
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Events Recorded',
+              data: dataCounts,
+              borderColor: 'rgb(75, 192, 192)', // Example color
+              tension: 0.1 // Slight curve
+            }]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: 'Number of Events'
+                }
+              },
+              x: {
+                 title: {
+                    display: true,
+                    text: 'Date'
+                 }
+              }
+            }
+          }
+        });
+        console.log("[Debug Chart] Chart object created successfully.");
+    } catch (error) {
+        console.error("[Debug Chart] Error creating chart:", error);
     }
+  } else {
+      console.log("[Debug Chart] Condition not met: Canvas found?", canvas instanceof HTMLCanvasElement, "Data exists?", !!clientEventsOverTimeData, "Data length > 0?", clientEventsOverTimeData ? clientEventsOverTimeData.length > 0 : false);
+  }
 
-    // Remove viewTabs listener
-    // if (viewTabs) { ... }
-
-    if (runAggregationBtn) {
-        runAggregationBtn.addEventListener('click', runAggregation);
-    } else {
-        console.error("Run Aggregation button not found");
-    }
-
-    // Initial state setup
-    if (!pageSelect?.disabled && dataPlaceholder) {
-        dataPlaceholder.textContent = 'Select a page to view total clicks.';
-    } else if (pageSelect?.disabled && dataPlaceholder) {
-        dataPlaceholder.textContent = initialError || 'No aggregated data found. Run aggregation first.';
-    }
-
-  </script>
-</Layout> 
+</script>
