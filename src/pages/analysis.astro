@@ -148,7 +148,7 @@ try {
 </script>
 
 <script>
-  import { Chart, registerables } from 'chart.js/auto'; 
+import { Chart, registerables } from 'chart.js/auto'; 
 
   // Extend the Window interface
   declare global {
@@ -168,9 +168,22 @@ try {
     try {
         Chart.register(...registerables);
 
+        const smallestTime = Date.parse(clientClickEventsPerSecondData[0].second);
+        const biggestTime = Date.parse(clientClickEventsPerSecondData[clientClickEventsPerSecondData.length-1].second);
+        let timeDict = new Map<number, number | null>();
+
+
+        for (let i = smallestTime; i <= biggestTime; i += 1000){
+          timeDict.set(i,0);
+        }
+
+        for(var i of clientClickEventsPerSecondData ){
+          timeDict.set(Date.parse(i.second),i.count);
+        }
+
         // Use the 'second' string directly as the label
-        const labels = clientClickEventsPerSecondData.map((item: { second: string; count: number }) => item.second); 
-        const dataCounts = clientClickEventsPerSecondData.map((item: { second: string; count: number }) => item.count);
+        const labels = Array.from(timeDict.keys()); 
+        const dataCounts = Array.from(timeDict.entries());
         console.log("[Debug Chart] Processed labels (seconds):", labels);
         console.log("[Debug Chart] Processed dataCounts:", dataCounts);
 
@@ -184,6 +197,7 @@ try {
               borderColor: 'lightblue', // Higher contrast color
               backgroundColor: 'rgba(173, 216, 230, 0.2)', // Lighter background
               fill: true,
+              spanGaps: true,
               tension: 0.1 
             }]
           },
