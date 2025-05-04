@@ -100,14 +100,38 @@ const API_URL = `${Astro.url.origin}/api/generate_preview`;
   )}
 </Layout>
 
-<script define:vars={{ webstateHash, webstateHashes, API_URL }}>
+<!-- New inline script to pass data -->
+<script define:vars={{ webstateHash, webstateHashes, API_URL }} is:inline>
+  window.matrixData = JSON.parse(JSON.stringify({ 
+    webstateHash, 
+    webstateHashes, 
+    API_URL 
+  }));
+</script>
+
+<!-- Main client-side script, removed define:vars -->
+<script>
   import { initRecorder } from "../lib/matrix/recorder";
   import { initTimelineControls } from "../lib/matrix/timeline";
 
+  // Declare the type for the data passed via the inline script
+  declare global {
+      interface Window {
+          matrixData: {
+              webstateHash: string | null;
+              webstateHashes: { html_hash: string }[];
+              API_URL: string;
+          } | undefined;
+          handlePreviewError: (imgElement: HTMLImageElement | Element) => void;
+      }
+  }
+  
   // Function to handle image loading errors for previews
-  function handlePreviewError(imgElement) {
-      console.log(`[Debug] Preview failed to load for image:`, imgElement.dataset.hash);
-      imgElement.onerror = null; // Prevent infinite loops if the placeholder also fails
+  function handlePreviewError(imgElement: HTMLImageElement | Element): void { // Add return type void
+      if (imgElement instanceof HTMLImageElement) {
+          console.log(`[Debug] Preview failed to load for image:`, imgElement.dataset.hash);
+          imgElement.onerror = null; // Prevent infinite loops if the placeholder also fails - MOVED INSIDE
+      }
       const figure = imgElement.closest('figure');
       if (figure) {
           figure.innerHTML = '<div class="text-neutral-content text-center text-xs p-2">(Preview not generated)</div>';
@@ -117,7 +141,18 @@ const API_URL = `${Astro.url.origin}/api/generate_preview`;
   // Make function globally accessible for inline handler
   window.handlePreviewError = handlePreviewError;
 
+  // Access variables from the window object - MOVED INSIDE DOMContentLoaded
+  // const { webstateHash, webstateHashes, API_URL } = window.matrixData || {};
+
   document.addEventListener("DOMContentLoaded", () => {
+    // Ensure matrixData is available
+    if (!window.matrixData) {
+        console.error("Matrix data not found on window object.");
+        return;
+    }
+    // Destructure variables inside the event listener
+    const { webstateHash, webstateHashes, API_URL } = window.matrixData;
+
     if (webstateHash) {
       // --- Code for when a webstate IS selected ---
       console.log("Webstate parameter found:", webstateHash);
@@ -141,20 +176,21 @@ const API_URL = `${Astro.url.origin}/api/generate_preview`;
     } else {
       // --- Code for when NO webstate is selected ---
       console.log("No webstate parameter found, setting up preview generation button.");
-      const generateBtn = document.getElementById('generate-previews-btn');
+      const generateBtn = document.getElementById('generate-previews-btn') as HTMLButtonElement | null;
       const statusDiv = document.getElementById('preview-generation-status');
       
-      if (generateBtn && statusDiv) {
+      // Ensure elements and required data are present
+      if (generateBtn && statusDiv && webstateHashes && typeof API_URL === 'string') { // Check API_URL type explicitly
         generateBtn.addEventListener('click', async () => {
           console.log('[Debug Preview Gen] Generate button clicked.'); // Log click
-          generateBtn.disabled = true;
-          generateBtn.classList.add('loading');
+          (generateBtn as HTMLButtonElement).disabled = true; // Assert type here
+          (generateBtn as HTMLButtonElement).classList.add('loading'); // Assert type here
           statusDiv.textContent = `Checking ${webstateHashes.length} webstates for missing previews...`;
           let generatedCount = 0;
           let errorCount = 0;
 
           // Iterate through all known hashes
-          for (const ws of webstateHashes) {
+          for (const ws of webstateHashes) { // Use webstateHashes from window.matrixData
             const hash = ws.html_hash;
             console.log(`[Debug Preview Gen] Processing hash: ${hash}`); // Log loop iteration
             const imgElement = document.querySelector(`.preview-image[data-hash="${hash}"]`); 
@@ -179,7 +215,7 @@ const API_URL = `${Astro.url.origin}/api/generate_preview`;
                 console.log(`[Debug Preview Gen] Needs generation for ${hash}. Preparing fetch...`); // Log before fetch
                 statusDiv.textContent = `Generating preview for ${hash.substring(0, 12)}...`;
                 try {
-                    const response = await fetch(API_URL, {
+                    const response = await fetch(API_URL, { // API_URL type checked above
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ html_hash: hash })
@@ -216,12 +252,12 @@ const API_URL = `${Astro.url.origin}/api/generate_preview`;
              await new Promise(resolve => setTimeout(resolve, 100)); 
           }
 
-          statusDiv.textContent = `Finished. Generated: ${generatedCount}, Errors: ${errorCount}. Refresh might be needed to see all previews.`;
-          generateBtn.disabled = false;
-          generateBtn.classList.remove('loading');
+          if(statusDiv) statusDiv.textContent = `Finished. Generated: ${generatedCount}, Errors: ${errorCount}. Refresh might be needed to see all previews.`;
+          (generateBtn as HTMLButtonElement).disabled = false; // Assert type here
+          (generateBtn as HTMLButtonElement).classList.remove('loading'); // Assert type here
         });
       } else {
-          console.error("Generate Previews button or status div not found.");
+          console.error("Generate Previews button, status div, webstateHashes, or API_URL not found/valid.");
       }
     }
   });
