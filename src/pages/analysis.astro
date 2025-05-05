@@ -69,9 +69,23 @@ try {
 
     <div id="chart-status" class="text-sm text-base-content/70 min-h-[1.5em] mb-2">Select a replay to view chart.</div>
 
-    <div class="relative h-96"> {/* Container to give canvas height */} 
+    <div class="relative h-96 bg-base-100 rounded-box flex items-center justify-center"> {/* Container to give canvas height & center spinner */} 
+        {/* Loading Spinner - Hidden by default */} 
+        <div id="chart-loading-spinner" class="hidden">
+            <span class="loading loading-spinner loading-lg"></span>
+        </div>
         <canvas id="clicksOverTimeChart"></canvas>
   </div>
+
+    <div class="mb-4 form-control w-full max-w-xs">
+        <label class="label" for="display-select">
+            <span class="label-text">Choose a value to analyse</span>
+        </label>
+        <select id="display-select" class="select select-bordered">
+            <option selected value=1>Clicks data</option>
+            <option value=2>Events data</option>
+        </select>
+    </div>
 
     <div class="mb-4 form-control w-full max-w-xs">
         <label class="label" for="display-select">
@@ -125,6 +139,7 @@ try {
     const selectTypeElement = document.getElementById('display-select') as HTMLSelectElement;
     const canvas = document.getElementById('clicksOverTimeChart') as HTMLCanvasElement | null;
     const statusDiv = document.getElementById('chart-status');
+    const spinnerDiv = document.getElementById('chart-loading-spinner');
     let currentChart: Chart | null = null; // Keep track of the chart instance
 
     // Populate dropdown
@@ -152,6 +167,9 @@ try {
         if (!canvas || !statusDiv) return;
 
         statusDiv.textContent = `Loading data for replay ${replayId.substring(0, 8)}...`;
+        spinnerDiv.classList.remove('hidden'); // Show spinner
+        canvas.style.display = 'none'; // Hide canvas
+
         if (currentChart) {
             currentChart.destroy(); // Destroy previous chart instance
             currentChart = null;
@@ -247,9 +265,15 @@ try {
             currentChart = new Chart(canvas as ChartItem, config); // Create chart
             statusDiv.textContent = `Displaying click data for replay ${replayId.substring(0, 8)}.`;
 
+            // Hide spinner and show canvas *after* chart is created
+            spinnerDiv.classList.add('hidden'); 
+            canvas.style.display = 'block';
+
         } catch (error: any) {
             console.error("[Chart Update] Error fetching or rendering chart:", error);
             statusDiv.textContent = `Error loading chart data: ${error.message}`;
+            spinnerDiv.classList.add('hidden'); // Hide spinner on error
+            canvas.style.display = 'none'; // Keep canvas hidden on error
         }
     }
 
@@ -273,6 +297,8 @@ try {
                  currentChart.destroy(); // Clear chart if default option selected
                  currentChart = null;
                  if(statusDiv) statusDiv.textContent = 'Select a replay to view chart.';
+                 if(spinnerDiv) spinnerDiv.classList.add('hidden'); // Ensure spinner hidden
+                 if(canvas) canvas.style.display = 'none'; // Ensure canvas hidden
             }
         });
     }

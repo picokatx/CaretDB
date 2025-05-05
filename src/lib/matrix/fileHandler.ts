@@ -140,7 +140,11 @@ async function uploadHtmlFile(
     onSuccess(result.url);
 
     // Show toast notification
-    showUploadToast(file.name);
+    if (window.showGlobalToast) {
+      window.showGlobalToast(`HTML file uploaded successfully: ${file.name}`, 'success');
+    } else {
+      console.warn("Global toast function not available."); // Fallback if somehow not loaded
+    }
 
   } catch (error) {
     console.error('Error uploading HTML file:', error);
@@ -187,40 +191,6 @@ function setupDragAndDrop(
       updateFileInputUI(fileInput, labelElement, promptElement);
     }
   }, false);
-}
-
-/**
- * Show a toast notification for successful file upload
- */
-function showUploadToast(fileName: string) {
-  const container = document.getElementById('toast-container');
-  if (!container) {
-    console.warn('Toast container not found');
-    return;
-  }
-
-  const toastId = `toast-${Date.now()}`;
-  const toastElement = document.createElement('div');
-  toastElement.id = toastId;
-  toastElement.className = 'alert alert-success shadow-lg';
-  toastElement.innerHTML = `
-    <div>
-      <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      <span>HTML file uploaded successfully: <strong>${fileName}</strong></span>
-    </div>
-  `;
-
-  container.appendChild(toastElement);
-
-  // Automatically remove the toast after 5 seconds
-  setTimeout(() => {
-    const elementToRemove = document.getElementById(toastId);
-    if (elementToRemove) {
-      container.removeChild(elementToRemove);
-    }
-  }, 5000);
 }
 
 /**

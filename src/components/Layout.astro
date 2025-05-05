@@ -1,6 +1,7 @@
 ---
 import Head from './Head.astro';
 import Topbar from './Topbar.astro';
+import ToastContainer from './ToastContainer.astro';
 import "../styles/app.css";
 import "../styles/rrweb-player.css";
 
@@ -44,5 +45,6 @@ const { title, description = "ClickstreamDB - Web Recording and Replay Tool" } =
         <p>Copyright © {new Date().getFullYear()} - ClickstreamDB</p>
       </div>
     </footer>
+    <ToastContainer />
   </body>
 </html> 
