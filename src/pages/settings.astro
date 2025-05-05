@@ -80,18 +80,12 @@ if (session) { // Only fetch if logged in
                 <label class="label">
                   <span class="label-text">Display Name</span>
                 </label>
-                <input type="text" placeholder="Your name" class="input input-bordered w-full" value={session.user?.name || ''} />
-              </div>
-              
-              <div class="form-control w-full max-w-md mb-4">
-                <label class="label">
-                  <span class="label-text">Email</span>
-                </label>
-                <input type="email" placeholder="Your email" class="input input-bordered w-full" value={session.user?.email || ''} readonly />
+                <input type="text" id="display-name-input" placeholder="Your name" class="input input-bordered w-full" value={session.user?.name || ''} />
               </div>
               
               <div class="card-actions justify-end">
-                <button class="btn btn-primary">Save Changes</button>
+                <button id="save-display-name-btn" class="btn btn-primary hidden">Save Name</button>
+                <button id="change-password-btn" type="button" class="btn btn-outline">Change Password</button>
               </div>
             </div>
           </div>
@@ -155,6 +149,43 @@ if (session) { // Only fetch if logged in
     )}
   </div>
 </Layout>
+
+{/* --- Password Change Modal --- */} 
+<dialog id="password-change-modal" class="modal">
+  <div class="modal-box">
+    <h3 class="font-bold text-lg mb-4">Change Password</h3>
+    <form id="password-change-form" method="dialog"> {/* Use method="dialog" for default close on Cancel */} 
+      <div class="form-control w-full mb-3">
+        <label class="label" for="current-password">
+          <span class="label-text">Current Password</span>
+        </label>
+        <input type="password" id="current-password" placeholder="Enter your current password" class="input input-bordered w-full" required />
+      </div>
+      <div class="form-control w-full mb-3">
+        <label class="label" for="new-password">
+          <span class="label-text">New Password</span>
+        </label>
+        <input type="password" id="new-password" placeholder="Enter new password" class="input input-bordered w-full" required minlength="6"/>
+      </div>
+      <div class="form-control w-full mb-6">
+        <label class="label" for="confirm-password">
+          <span class="label-text">Confirm New Password</span>
+        </label>
+        <input type="password" id="confirm-password" placeholder="Confirm new password" class="input input-bordered w-full" required minlength="6"/>
+      </div>
+      <div class="modal-action">
+        <button type="submit" class="btn btn-primary">Submit Change</button>
+        <button type="button" id="cancel-password-change-btn" class="btn">Cancel</button> 
+      </div>
+    </form>
+  </div>
+  {/* Optional: Click backdrop to close */} 
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+{/* --- End Password Change Modal --- */} 
+
 <script define:vars={{ session }}>
   window.session = session;
 </script>
@@ -265,6 +296,128 @@ if (session) { // Only fetch if logged in
       radioToCheck.checked = true;
     }
     // --- End Apply Theme Logic ---
+  });
+
+  // --- Profile Editing Logic ---
+  const displayNameInput = document.getElementById('display-name-input') as HTMLInputElement | null;
+  const saveDisplayNameBtn = document.getElementById('save-display-name-btn') as HTMLButtonElement | null;
+  let initialDisplayName = displayNameInput?.value; // Store initial value
+
+  // Show/Hide Save button for Display Name
+  if (displayNameInput && saveDisplayNameBtn) {
+    displayNameInput.addEventListener('input', () => {
+      if (displayNameInput.value !== initialDisplayName && displayNameInput.value.trim() !== '') {
+        saveDisplayNameBtn.classList.remove('hidden');
+      } else {
+        saveDisplayNameBtn.classList.add('hidden');
+      }
+    });
+
+    // Handle Save Display Name click (Requires API endpoint: /api/user/profile)
+    saveDisplayNameBtn.addEventListener('click', async () => {
+      const newName = displayNameInput.value.trim();
+      if (newName === initialDisplayName || newName === '') return; // Don't save if unchanged or empty
+
+      saveDisplayNameBtn.classList.add('loading', 'btn-disabled'); // Show loading state
+
+      try {
+        // Call the new API endpoint
+        const response = await fetch('/api/user/profile', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ displayName: newName })
+        });
+        
+        const result = await response.json(); // Always try to parse JSON
+        if (!response.ok || !result.success) { 
+            throw new Error(result.error || 'Failed to update name'); 
+        }
+
+        alert('Display name updated successfully!'); // Replace with better notification
+
+        // Update initial value and hide button on success
+        initialDisplayName = newName; 
+        saveDisplayNameBtn.classList.add('hidden'); 
+
+      } catch (error) {
+        console.error('Error updating display name:', error);
+        alert(`Error updating name: ${(error as Error).message}`); // Replace with better notification
+      } finally {
+         saveDisplayNameBtn.classList.remove('loading', 'btn-disabled'); // Remove loading state
+      }
+    });
+  }
+
+  // --- Password Change Modal Logic ---
+  const changePasswordBtn = document.getElementById('change-password-btn');
+  const passwordModal = document.getElementById('password-change-modal') as HTMLDialogElement | null;
+  const passwordForm = document.getElementById('password-change-form') as HTMLFormElement | null;
+  const cancelPasswordBtn = document.getElementById('cancel-password-change-btn');
+  const currentPasswordInput = document.getElementById('current-password') as HTMLInputElement | null;
+  const newPasswordInput = document.getElementById('new-password') as HTMLInputElement | null;
+  const confirmPasswordInput = document.getElementById('confirm-password') as HTMLInputElement | null;
+
+  // Open modal
+  changePasswordBtn?.addEventListener('click', () => {
+    passwordModal?.showModal();
+  });
+
+  // Cancel button closes modal
+  cancelPasswordBtn?.addEventListener('click', () => {
+    passwordForm?.reset(); // Clear form
+    passwordModal?.close();
+  });
+
+  // Handle password form submission (Requires API endpoint: /api/user/password)
+  passwordForm?.addEventListener('submit', async (e) => {
+    e.preventDefault(); // Prevent default dialog closing if we handle it
+
+    if (!currentPasswordInput || !newPasswordInput || !confirmPasswordInput) return;
+
+    const currentPassword = currentPasswordInput.value;
+    const newPassword = newPasswordInput.value;
+    const confirmPassword = confirmPasswordInput.value;
+
+    if (newPassword.length < 6) {
+        alert('New password must be at least 6 characters long.');
+        return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      alert('New passwords do not match.');
+      return; // Don't proceed
+    }
+
+    // Optionally add loading state to submit button
+    const submitBtn = passwordForm.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+    if(submitBtn) submitBtn.classList.add('loading', 'btn-disabled');
+
+    try {
+      // TODO: Replace with actual API call to change password
+      console.log(`TODO: Call API to change password. Current: ${currentPassword}, New: ${newPassword}`);
+      // Example fetch (replace with your actual endpoint and method, likely POST)
+      // const response = await fetch('/api/user/password', { 
+      //   method: 'POST', 
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ currentPassword, newPassword })
+      // });
+      // const result = await response.json();
+      // if (!response.ok || !result.success) throw new Error(result.error || 'Failed to change password');
+
+      // Simulate success for now
+      await new Promise(res => setTimeout(res, 1000)); 
+      alert('Password changed successfully! (Simulated)'); // Replace with better notification
+
+      passwordForm.reset(); // Clear form on success
+      passwordModal?.close(); // Close modal on success
+
+    } catch (error) {
+      console.error('Error changing password:', error);
+      alert(`Error changing password: ${(error as Error).message}`); // Replace with better notification
+      // Keep modal open on error?
+    } finally {
+      if(submitBtn) submitBtn.classList.remove('loading', 'btn-disabled'); // Remove loading state
+    }
   });
 
 </script> 

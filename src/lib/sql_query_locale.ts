@@ -207,5 +207,13 @@ export const sqlQueries = {
   `,
   updateUserPrivacyMask: `
     UPDATE user SET privacy_mask = ? WHERE email_domain = ? AND email_name = ?;
+  `,
+  updateUserDisplayName: `
+    UPDATE user SET username = ? WHERE email_domain = ? AND email_name = ?;
+  `,
+  // --- Query for JWT callback --- 
+  getUserByEmail: `
+    SELECT username, email_name, email_domain 
+    FROM user WHERE email_domain = ? AND email_name = ? LIMIT 1;
   `
 }; 

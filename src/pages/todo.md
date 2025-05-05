@@ -14,14 +14,16 @@ if a url parameter file with a string value is not passed to /matrix route, the 
 
 
 
+use views, privileges, stored procedures, triggers, events, etc
 Add relevant jinja2 code in home.html such that a greeting message is shown to user after login (see 1).
 delete account
 remember me checkbox
 admin
 database should only be accessible to admin users
-use views, privileges, stored procedures, triggers, events, etc
 delete various things on cascade and whatever. 
-
+csrf cookie doesn't appear until calling to sign in routedirectly
+add toasts for everywhere that there aren't toasts.
+add loading indicators for everywhere that there aren't loading indicators.
 
 known bug: user id in session does not line up with sql database
 csrf cookie doesn't appear until calling to sign in routedirectly
@@ -38,7 +40,7 @@ unify toast
 - [x] Drag,
 - [x] MediaInteraction,
 - [ ] Font,
-- [ ] ViewportResize, -- need way to resize window
+- [x] ViewportResize, -- need way to resize window
 - [ ] StyleSheetRule,
 - [ ] StyleDeclaration,
 - [ ] AdoptedStyleSheet,
