@@ -9,41 +9,11 @@ if (!session) {
   return Astro.redirect('/login');
 }
 
-const pageTitle = "ClickstreamDB - Database Overview";
+const pageTitle = "ClickstreamDB - Analysis";
 const API_URL = `${Astro.url.origin}/api/query_mysql`;
 
-let userCount = 0;
-let webstateCount = 0;
-let replayCount = 0;
-let eventCount = 0;
-let replayList: { replay_id: string; start_time_formatted: string }[] = []; // New: For dropdown
+let replayList: { replay_id: string; start_time_formatted: string }[] = [];
 let fetchError: string | null = null;
-
-// Define the expected type for rows after mapping
-type MappedReplayData = {
-    replay_id: string;
-    start_time_formatted: string;
-    click_count: number;
-};
-
-// Helper function to fetch counts
-async function fetchCount(query: string): Promise<number> {
-    const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query })
-    });
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`API Error (${response.status}): ${errorData.error?.message || errorData.error || 'Failed to fetch count'}`);
-    }
-    const data = await response.json();
-    if (data.success && Array.isArray(data.rows) && data.rows.length > 0) {
-        return parseInt(data.rows[0].count) || 0;
-    } else {
-        throw new Error(data.error?.message || data.error || 'Invalid data format for count query');
-    }
-}
 
 // Helper function to fetch generic list data (like replay list)
 async function fetchList<T>(query: string): Promise<T[]> {
@@ -65,74 +35,24 @@ async function fetchList<T>(query: string): Promise<T[]> {
 }
 
 try {
-    // Fetch basic counts and the list of replays
-    const results = await Promise.allSettled([
-        fetchCount(sqlQueries.countUsers),
-        fetchCount(sqlQueries.countWebstates),
-        fetchCount(sqlQueries.countReplays),
-        fetchCount(sqlQueries.countEvents),
-        fetchList<{ replay_id: string; start_time_formatted: string }>(sqlQueries.listReplays) // Fetch replay list
-    ]);
-
-    // Process results safely
-    if (results[0].status === 'fulfilled') userCount = results[0].value;
-    if (results[1].status === 'fulfilled') webstateCount = results[1].value;
-    if (results[2].status === 'fulfilled') replayCount = results[2].value;
-    if (results[3].status === 'fulfilled') eventCount = results[3].value;
-    if (results[4].status === 'fulfilled') {
-        replayList = results[4].value;
-        console.log("[Astro Frontmatter] Fetched replayList:", replayList);
-    } else {
-        console.error("[Astro Frontmatter] Failed to fetch replayList:", results[4].reason);
-    }
-
-    // Collect errors from basic counts if any
-    const countErrors = results.slice(0, 4).filter(r => r.status === 'rejected') as PromiseRejectedResult[];
-    if (countErrors.length > 0) {
-        fetchError = countErrors.map(e => e.reason?.message || 'Unknown error').join('; ');
-        console.error("Errors fetching database counts:", countErrors.map(e => e.reason));
-    }
-    // Add list fetch error if it occurred
-    if (results[4].status === 'rejected') {
-         const listFetchError = results[4].reason?.message || 'Error fetching replay list data';
-         fetchError = fetchError ? `${fetchError}; ${listFetchError}` : listFetchError;
-    }
-
-    // ---> DEBUG LOGGING START
-    console.log("[Astro Frontmatter Debug] Final replayList:", JSON.stringify(replayList, null, 2));
-    console.log("[Astro Frontmatter Debug] Final fetchError:", fetchError);
-    // ---> DEBUG LOGGING END
+    // Only fetch the list of replays now
+    replayList = await fetchList<{ replay_id: string; start_time_formatted: string }>(sqlQueries.listReplays);
+    console.log("[Astro Frontmatter] Fetched replayList:", replayList);
 
 } catch (error: any) {
+    // Catch errors specifically from fetchList
     console.error("Unexpected error fetching database stats:", error);
-    fetchError = error.message || "Could not load database statistics.";
+    fetchError = error.message || "Could not load replay list."; // Update error message
+    console.log("[Astro Frontmatter Debug] Final fetchError:", fetchError); // Log error here
 }
 
 ---
 
 <Layout title={pageTitle}>
-  <h1 class="text-2xl font-bold mb-6">Database Overview</h1>
+  <h1 class="text-2xl font-bold mb-6">Database Analysis</h1>
 
-  { fetchError && <div class="alert alert-warning shadow-lg mb-4"><span>Warning: {fetchError}</span></div> }
-
-  <div class="stats shadow w-full mb-8">
-    <div class="stat">
-      <div class="stat-title">Users</div>
-      <div class="stat-value">{userCount.toLocaleString()}</div>
-    </div>
-        <div class="stat">
-      <div class="stat-title">Webstates</div>
-      <div class="stat-value">{webstateCount.toLocaleString()}</div>
-        </div>
-        <div class="stat">
-      <div class="stat-title">Replays</div>
-      <div class="stat-value">{replayCount.toLocaleString()}</div>
-        </div>
-        <div class="stat">
-      <div class="stat-title">Total Events</div>
-      <div class="stat-value">{eventCount.toLocaleString()}</div>
-    </div>
-  </div>
+  {/* Keep potential error display for replay list fetch */} 
+  <div id="server-error-display" class="alert alert-error shadow-lg mb-4" style="display: none;"></div>
 
   <h2 class="text-xl font-semibold mb-4">Clicks Per Second for Selected Replay</h2>
   <div class="bg-base-200 rounded-box p-4">
@@ -151,13 +71,8 @@ try {
 
     <div class="relative h-96"> {/* Container to give canvas height */} 
         <canvas id="clicksOverTimeChart"></canvas>
-    </div>
-
   </div>
 
-  <div class="mt-8 p-4 bg-base-200 rounded-box">
-    <h2 class="text-xl font-semibold mb-2">Notes</h2>
-    <p>This page shows basic counts and a summary of event recording activity.</p>
   </div>
 
 </Layout>

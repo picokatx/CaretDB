@@ -1,6 +1,7 @@
 ---
 // Use the new Layout component
 import Layout from "../components/Layout.astro";
+import FileUploadPanel from "../components/matrix/FileUploadPanel.astro";
 import ControlPanel from "../components/matrix/ControlPanel.astro";
 import RecordingPanel from "../components/matrix/RecordingPanel.astro";
 import TimelinePanel from "../components/matrix/TimelinePanel.astro";
@@ -63,6 +64,10 @@ const API_URL = `${Astro.url.origin}/api/generate_preview`;
     </>
   ) : (
     <>
+      {/* ---> START: File Upload Panel - Moved from dashboard.astro */} 
+      <FileUploadPanel />
+      {/* ---> END: File Upload Panel */} 
+
       {/* Display selection UI only if webstateHash does NOT exist */}
       <div class="p-4 border rounded bg-base-200 mb-4">
         <div class="flex justify-between items-center mb-4">
@@ -112,6 +117,7 @@ const API_URL = `${Astro.url.origin}/api/generate_preview`;
 <!-- Main client-side script, removed define:vars -->
 <script>
   import { initRecorder } from "../lib/matrix/recorder";
+  import { initFileHandlers } from "../lib/matrix/fileHandler";
   import { initTimelineControls } from "../lib/matrix/timeline";
 
   // Declare the type for the data passed via the inline script
@@ -259,6 +265,61 @@ const API_URL = `${Astro.url.origin}/api/generate_preview`;
       } else {
           console.error("Generate Previews button, status div, webstateHashes, or API_URL not found/valid.");
       }
+
+      // ---> START: Init File Handlers - Moved from dashboard.astro
+      initFileHandlers(
+        // onSuccess callback
+        (url) => {
+          console.log("File uploaded via Matrix page:", url);
+          // Redirect or update UI as needed - maybe reload to show new webstate?
+          // window.location.reload(); // Example: Reload to potentially see the new webstate
+        },
+        // onStatus callback
+        (message) => {
+          console.log("Upload Status:", message);
+          // You might want to display this status near the upload panel
+        },
+        // onError callback
+        (errorMessage) => {
+          console.error("Upload Error:", errorMessage);
+          showErrorToast(errorMessage); // Use the local toast function
+        }
+      );
+      // ---> END: Init File Handlers
     }
   });
+
+  // ---> START: Toast Function - Moved/Copied from dashboard.astro
+  function showErrorToast(message: string) {
+    const container = document.getElementById('toast-container');
+    if (!container) {
+      console.warn('Toast container not found for error');
+      return;
+    }
+
+    const toastId = `toast-error-${Date.now()}`;
+    const toastElement = document.createElement('div');
+    toastElement.id = toastId;
+    // Use alert-error for styling
+    toastElement.className = 'alert alert-error shadow-lg'; 
+    toastElement.innerHTML = `
+      <div>
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>Error: ${message}</span>
+      </div>
+    `;
+
+    container.appendChild(toastElement);
+
+    // Automatically remove the toast after 5 seconds
+    setTimeout(() => {
+      const elementToRemove = document.getElementById(toastId);
+      if (elementToRemove) {
+        container.removeChild(elementToRemove);
+      }
+    }, 5000);
+  }
+  // ---> END: Toast Function
 </script>

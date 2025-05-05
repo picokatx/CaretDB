@@ -1,7 +1,7 @@
 ---
 import Layout from '../components/Layout.astro';
 import { getSession } from "auth-astro/server";
-import FileUploadPanel from "../components/matrix/FileUploadPanel.astro";
+import { sqlQueries } from '../lib/sql_query_locale';
 
 // Get the current user session
 const session = await getSession(Astro.request);
@@ -13,6 +13,56 @@ if (!session) {
 
 // If session exists, proceed to render the page
 const pageTitle = "Dashboard";
+
+const API_URL = `${Astro.url.origin}/api/query_mysql`;
+
+let userCount = 0;
+let webstateCount = 0;
+let replayCount = 0;
+let eventCount = 0;
+let fetchCountError: string | null = null;
+
+async function fetchCount(query: string): Promise<number> {
+    const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query })
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`API Error (${response.status}): ${errorData.error?.message || errorData.error || 'Failed to fetch count'}`);
+    }
+    const data = await response.json();
+    if (data.success && Array.isArray(data.rows) && data.rows.length > 0) {
+        return parseInt(data.rows[0].count) || 0;
+    } else {
+        throw new Error(data.error?.message || data.error || 'Invalid data format for count query');
+    }
+}
+
+try {
+    const countResults = await Promise.allSettled([
+        fetchCount(sqlQueries.countUsers),
+        fetchCount(sqlQueries.countWebstates),
+        fetchCount(sqlQueries.countReplays),
+        fetchCount(sqlQueries.countEvents)
+    ]);
+
+    if (countResults[0].status === 'fulfilled') userCount = countResults[0].value;
+    if (countResults[1].status === 'fulfilled') webstateCount = countResults[1].value;
+    if (countResults[2].status === 'fulfilled') replayCount = countResults[2].value;
+    if (countResults[3].status === 'fulfilled') eventCount = countResults[3].value;
+
+    const countErrors = countResults.filter(r => r.status === 'rejected') as PromiseRejectedResult[];
+    if (countErrors.length > 0) {
+        fetchCountError = countErrors.map(e => e.reason?.message || 'Unknown error').join('; ');
+        console.error("[Dashboard] Errors fetching database counts:", countErrors.map(e => e.reason));
+    }
+} catch (error: any) {
+    console.error("[Dashboard] Unexpected error fetching database stats:", error);
+    fetchCountError = error.message || "Could not load database statistics.";
+}
+
 ---
 
 <Layout title={pageTitle}>
@@ -20,63 +70,31 @@ const pageTitle = "Dashboard";
     <h1 class="text-2xl font-bold mb-4">
       Welcome {session?.user?.name || session?.user?.email || "User"}!
     </h1>
-    <FileUploadPanel />
+
+    {fetchCountError && <div class="alert alert-warning shadow-lg mb-4"><span>Warning: {fetchCountError}</span></div>}
+
+    <div class="stats shadow w-full mb-8">
+        <div class="stat">
+            <div class="stat-title">Users</div>
+            <div class="stat-value">{userCount.toLocaleString()}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-title">Webstates</div>
+            <div class="stat-value">{webstateCount.toLocaleString()}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-title">Replays</div>
+            <div class="stat-value">{replayCount.toLocaleString()}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-title">Total Events</div>
+            <div class="stat-value">{eventCount.toLocaleString()}</div>
+        </div>
+    </div>
   </div>
-  <!-- Add the toast container here -->
   <div id="toast-container" class="toast toast-end toast-bottom z-50"></div>
-</Layout> 
+</Layout>
+
 <script>
-  import { initFileHandlers } from "../lib/matrix/fileHandler";
-
-  function showErrorToast(message: string) {
-    const container = document.getElementById('toast-container');
-    if (!container) {
-      console.warn('Toast container not found for error');
-      return;
-    }
-
-    const toastId = `toast-error-${Date.now()}`;
-    const toastElement = document.createElement('div');
-    toastElement.id = toastId;
-    // Use alert-error for styling
-    toastElement.className = 'alert alert-error shadow-lg'; 
-    toastElement.innerHTML = `
-      <div>
-        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <span>Error: ${message}</span>
-      </div>
-    `;
-
-    container.appendChild(toastElement);
-
-    // Automatically remove the toast after 5 seconds
-    setTimeout(() => {
-      const elementToRemove = document.getElementById(toastId);
-      if (elementToRemove) {
-        container.removeChild(elementToRemove);
-      }
-    }, 5000);
-  }
-
-  document.addEventListener("DOMContentLoaded", () => {
-    initFileHandlers(
-      // onSuccess callback
-      (url) => {
-        console.log("File uploaded:", url);
-        // Potentially update UI or redirect here
-      },
-      // onStatus callback
-      (message) => {
-        console.log("Status:", message);
-        // Potentially update a status display element here
-      },
-      // onError callback
-      (errorMessage) => {
-        console.error("Upload Error:", errorMessage);
-        showErrorToast(errorMessage);
-      }
-    );
-  });
+  // Dashboard-specific scripts could go here if needed in the future
 </script>
