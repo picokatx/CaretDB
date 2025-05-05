@@ -39,6 +39,7 @@ create table user (
 );
 
 create table webstate (
+    created_at timestamp not null default current_timestamp, -- Added timestamp
     html_hash char(64) primary key check (
         html_hash regexp '^[a-f0-9]{64}$'
     ),
@@ -46,6 +47,9 @@ create table webstate (
     email_name varchar(64),
     constraint fk_webstate_user foreign key (email_domain, email_name) references user(email_domain, email_name) -- added fk
 );
+
+-- Add index for created_at for faster report generation
+create index idx_webstate_created_at on webstate(created_at);
 
 create table replay (
     replay_id char(36) primary key, -- 123e4567-e89b-12d3-a456-426614174000
@@ -525,3 +529,89 @@ begin
     call update_analysis_summaries(new.replay_id, new.html_hash);
 end;
 */
+
+-- #######################################################################
+-- Monthly Reporting Functionality
+-- #######################################################################
+
+-- Table to store monthly report data
+drop table if exists monthly_reports;
+create table monthly_reports (
+    report_id int auto_increment primary key,
+    report_month_start date not null,
+    report_month_end date not null,
+    generated_at timestamp not null default current_timestamp,
+    new_users_count int unsigned not null default 0,
+    new_webstates_count int unsigned not null default 0,
+    new_replays_count int unsigned not null default 0,
+    new_events_count bigint unsigned not null default 0, -- Can be large
+    total_users_end int unsigned not null default 0,
+    total_webstates_end int unsigned not null default 0,
+    total_replays_end int unsigned not null default 0,
+    total_events_end bigint unsigned not null default 0,
+    unique key uk_report_month (report_month_start) -- Ensure only one report per month start
+);
+
+-- Procedure to generate the report for the PREVIOUS month
+drop procedure if exists generate_monthly_report;
+
+create procedure generate_monthly_report()
+begin
+    declare v_report_month_start date;
+    declare v_report_month_end date;
+    declare v_new_users int unsigned default 0;
+    declare v_new_webstates int unsigned default 0;
+    declare v_new_replays int unsigned default 0;
+    declare v_new_events bigint unsigned default 0;
+    declare v_total_users int unsigned default 0;
+    declare v_total_webstates int unsigned default 0;
+    declare v_total_replays int unsigned default 0;
+    declare v_total_events bigint unsigned default 0;
+
+    -- Calculate start and end dates for the *previous* full month
+    set v_report_month_end = last_day(now() - interval 1 month);
+    set v_report_month_start = date_format(v_report_month_end, '%Y-%m-01');
+
+    -- Check if report for this period already exists
+    if not exists (select 1 from monthly_reports where report_month_start = v_report_month_start) then
+
+        -- Calculate 'new' counts for the period
+        select count(*) into v_new_users from user where created_at between v_report_month_start and v_report_month_end + interval 1 day - interval 1 second;
+        select count(*) into v_new_webstates from webstate where created_at between v_report_month_start and v_report_month_end + interval 1 day - interval 1 second;
+        select count(*) into v_new_replays from replay where start_time between v_report_month_start and v_report_month_end + interval 1 day - interval 1 second;
+        select count(*) into v_new_events from event where timestamp between v_report_month_start and v_report_month_end + interval 1 day - interval 1 second;
+
+        -- Calculate 'total' counts at the time of report generation (or end of period)
+        select count(*) into v_total_users from user;
+        select count(*) into v_total_webstates from webstate;
+        select count(*) into v_total_replays from replay;
+        select count(*) into v_total_events from event;
+
+        -- Insert the report data
+        insert into monthly_reports (
+            report_month_start, report_month_end,
+            new_users_count, new_webstates_count, new_replays_count, new_events_count,
+            total_users_end, total_webstates_end, total_replays_end, total_events_end
+        ) values (
+            v_report_month_start, v_report_month_end,
+            v_new_users, v_new_webstates, v_new_replays, v_new_events,
+            v_total_users, v_total_webstates, v_total_replays, v_total_events
+        );
+
+    end if;
+end;
+-- #######################################################################
+-- Monthly Report Scheduler Event
+-- #######################################################################
+
+-- Note: MySQL Event Scheduler must be enabled on the server!
+-- Execute `SET GLOBAL event_scheduler = ON;` or configure it in my.cnf/my.ini
+
+drop event if exists monthly_report_scheduler;
+create event monthly_report_scheduler
+on schedule every 1 month
+starts date_format(now() + interval 1 month, '%Y-%m-02 02:00:00') -- Run on the 2nd day of the month at 2 AM
+do
+begin
+    call generate_monthly_report();
+end;

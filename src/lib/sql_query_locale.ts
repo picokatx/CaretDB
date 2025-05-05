@@ -182,5 +182,23 @@ export const sqlQueries = {
         AND mid.interaction_type = 'click'
     GROUP BY second
     ORDER BY second ASC;
+  `,
+  // --- Query for reports.astro --- 
+  listMonthlyReports: `
+    SELECT 
+      report_id, 
+      report_month_start, 
+      report_month_end,
+      generated_at,
+      new_users_count,
+      new_webstates_count,
+      new_replays_count,
+      new_events_count,
+      total_users_end,
+      total_webstates_end,
+      total_replays_end,
+      total_events_end
+    FROM monthly_reports
+    ORDER BY report_month_start DESC;
   `
 }; 

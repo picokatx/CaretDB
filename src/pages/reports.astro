@@ -1,0 +1,132 @@
+---
+import Layout from '../components/Layout.astro';
+import { getSession } from "auth-astro/server";
+import { sqlQueries } from '../lib/sql_query_locale';
+
+const session = await getSession(Astro.request);
+
+if (!session) {
+  return Astro.redirect('/login');
+}
+
+const pageTitle = "Monthly Reports";
+const API_URL = `${Astro.url.origin}/api/query_mysql`; // Assuming this is still the correct endpoint
+
+// Define the type for a report row
+type MonthlyReport = {
+    report_id: number;
+    report_month_start: string; // Will be date string
+    report_month_end: string;   // Will be date string
+    generated_at: string;      // Will be datetime string
+    new_users_count: number;
+    new_webstates_count: number;
+    new_replays_count: number;
+    new_events_count: number;
+    total_users_end: number;
+    total_webstates_end: number;
+    total_replays_end: number;
+    total_events_end: number;
+};
+
+let reports: MonthlyReport[] = [];
+let fetchError: string | null = null;
+
+// Helper function to fetch generic list data
+async function fetchList<T>(query: string): Promise<T[]> {
+    const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query })
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`API Error (${response.status}): ${errorData.error?.message || errorData.error || 'Failed to fetch list data'}`);
+    }
+    const data = await response.json();
+    if (data.success && Array.isArray(data.rows)) {
+        return data.rows as T[];
+    } else {
+        throw new Error(data.error?.message || data.error || 'Invalid data format for list query');
+    }
+}
+
+try {
+    reports = await fetchList<MonthlyReport>(sqlQueries.listMonthlyReports);
+} catch (error: any) {
+    console.error("Error fetching monthly reports:", error);
+    fetchError = error.message || "Could not load monthly reports.";
+}
+
+// Helper to format date strings (YYYY-MM-DD) nicely
+function formatDate(dateString: string): string {
+    try {
+        return new Date(dateString).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    } catch { 
+        return dateString; // Return original if formatting fails
+    }
+}
+
+// Helper to format datetime strings nicely
+function formatDateTime(dateTimeString: string): string {
+    try {
+        return new Date(dateTimeString).toLocaleString();
+    } catch { 
+        return dateTimeString; // Return original if formatting fails
+    }
+}
+---
+<Layout title={pageTitle}>
+  <h1 class="text-2xl font-bold mb-6">Monthly Database Reports</h1>
+
+  { fetchError && <div class="alert alert-warning shadow-lg mb-4"><span>Warning: {fetchError}</span></div> }
+
+  {reports.length > 0 ? (
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {reports.map((report) => (
+        <details class="collapse collapse-arrow bg-base-200 shadow-xl">
+          <summary class="collapse-title text-md font-medium">
+            Report for {formatDate(report.report_month_start)} - {formatDate(report.report_month_end)}
+          </summary>
+          <div class="collapse-content">
+            <p class="text-xs text-base-content/70 mb-2">Generated: {formatDateTime(report.generated_at)}</p>
+            <div class="overflow-x-auto">
+              <table class="table table-zebra table-sm w-full">
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    <th>This Month</th>
+                    <th>Total (End of Month)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Users</td>
+                    <td>{report.new_users_count.toLocaleString()}</td>
+                    <td>{report.total_users_end.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td>Webstates</td>
+                    <td>{report.new_webstates_count.toLocaleString()}</td>
+                    <td>{report.total_webstates_end.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td>Replays</td>
+                    <td>{report.new_replays_count.toLocaleString()}</td>
+                    <td>{report.total_replays_end.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td>Events</td>
+                    <td>{report.new_events_count.toLocaleString()}</td>
+                    <td>{report.total_events_end.toLocaleString()}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </details>
+      ))}
+    </div>
+  ) : !fetchError ? (
+    <p class="text-base-content/50">No monthly reports found in the database yet.</p>
+  ) : null /* Error already shown */ }
+</Layout> 
