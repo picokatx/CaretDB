@@ -77,6 +77,16 @@ try {
         <canvas id="clicksOverTimeChart"></canvas>
     </div>
 
+    <div class="mb-4 form-control w-full max-w-xs">
+        <label class="label" for="display-select">
+            <span class="label-text">Choose a value to analyse</span>
+        </label>
+        <select id="display-select" class="select select-bordered">
+            <option selected value=1>Clicks data</option>
+            <option value=2>Events data</option>
+        </select>
+    </div>
+
   </div>
 
 </Layout>
@@ -116,6 +126,7 @@ try {
 
     // --- NEW SCRIPT LOGIC --- 
     const selectElement = document.getElementById('replay-select') as HTMLSelectElement | null;
+    const selectTypeElement = document.getElementById('display-select') as HTMLSelectElement;
     const canvas = document.getElementById('clicksOverTimeChart') as HTMLCanvasElement | null;
     const statusDiv = document.getElementById('chart-status');
     const spinnerDiv = document.getElementById('chart-loading-spinner');
@@ -142,7 +153,7 @@ try {
     }
 
     // Function to fetch data and update chart
-    async function updateChart(replayId: string) {
+    async function updateChart(replayId: string, param: string) {
         if (!canvas || !statusDiv || !spinnerDiv) return;
 
         statusDiv.textContent = `Loading data for replay ${replayId.substring(0, 8)}...`;
@@ -155,7 +166,15 @@ try {
         }
 
         try {
-            const apiUrl = `/api/replay_clicks/${replayId}.json`; // Use .json or adjust API route
+            var apiUrl: string;
+            if(param == '1'){
+                apiUrl = `/api/replay_clicks/${replayId}.json`; // Use .json or adjust API route
+            } 
+            else if(param == '2'){
+                apiUrl = `/api/replay_events/${replayId}.json`; // Use .json or adjust API route
+            }
+            else apiUrl = `/api/replay_clicks/${replayId}.json`;
+
             console.log(`[Chart Update] Fetching from: ${apiUrl}`);
             const response = await fetch(apiUrl);
 
@@ -167,7 +186,7 @@ try {
             console.log(`[Chart Update] Received data:`, data);
 
             if (data.length === 0) {
-                statusDiv.textContent = `No click data found for replay ${replayId.substring(0, 8)}.`;
+                statusDiv.textContent = `No data found for replay ${replayId.substring(0, 8)}.`;
                 spinnerDiv.classList.add('hidden'); // Hide spinner
                 return;
             }
@@ -251,16 +270,28 @@ try {
 
     // Add event listener to dropdown
     if (selectElement) {
-        selectElement.addEventListener('change', (event) => {
-            const selectedReplayId = (event.target as HTMLSelectElement).value;
-            if (selectedReplayId) {
-                updateChart(selectedReplayId);
+        selectElement.addEventListener('change', () => {
+            const selectedReplayId = selectElement.value;
+            if (selectedReplayId){
+                updateChart(selectedReplayId,selectTypeElement.value);
             } else if (currentChart) {
                  currentChart.destroy(); // Clear chart if default option selected
                  currentChart = null;
                  if(statusDiv) statusDiv.textContent = 'Select a replay to view chart.';
                  if(spinnerDiv) spinnerDiv.classList.add('hidden'); // Ensure spinner hidden
-                 if(canvas) canvas.style.display = 'none'; // Ensure canvas hidden
+                 if(canvas) canvas.style.display = 'none'; // Ensure 
+            }
+        });
+        selectTypeElement.addEventListener('change', () => {
+            const selectedReplayId = selectElement.value;
+            if (selectedReplayId) {
+                updateChart(selectedReplayId,selectTypeElement.value);
+            } else if (currentChart) {
+                 currentChart.destroy(); // Clear chart if default option selected
+                 currentChart = null;
+                 if(statusDiv) statusDiv.textContent = 'Select a replay to view chart.';
+                 if(spinnerDiv) spinnerDiv.classList.add('hidden'); // Ensure spinner hidden
+                 if(canvas) canvas.style.display = 'none'; // Ensure 
             }
         });
     }
