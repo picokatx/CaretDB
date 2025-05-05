@@ -183,6 +183,18 @@ export const sqlQueries = {
     GROUP BY second
     ORDER BY second ASC;
   `,
+    // --- Query for replay_events/[replay_id].ts --- 
+    eventsPerSecondForReplay: `
+    SELECT 
+        DATE_FORMAT(e.timestamp, '%Y-%m-%d %H:%i:%s') as second, 
+        COUNT(e.event_id) as count 
+    FROM event e
+    JOIN incremental_snapshot_event ise ON e.event_id = ise.event_id
+    WHERE 
+        e.replay_id = ? 
+    GROUP BY second
+    ORDER BY second ASC;
+  `,
   // --- Query for reports.astro --- 
   listMonthlyReports: `
     SELECT 
