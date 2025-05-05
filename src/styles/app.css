@@ -3,11 +3,3 @@
   themes: all;
   logs: true;
 }
-#sentry-feedback {
-  --inset: auto auto 0 0;
-}
-@media (prefers-color-scheme: dark) {
-  #sentry-feedback {
-    --inset: auto auto 0 0;
-  }
-}

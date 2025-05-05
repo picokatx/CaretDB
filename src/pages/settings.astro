@@ -112,34 +112,25 @@ if (session) { // Only fetch if logged in
 
               <p class="mb-4">Choose your preferred theme:</p>
               
-              <!-- Theme Selector Card Grid -->
-              <div id="theme-card-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {themes.map((theme) => {
-                  const isDefault = theme === 'default';
-                  const themeToPreview = isDefault ? 'dracula' : theme; // Use dracula for default preview
-                  const displayName = isDefault ? 'System Default' : theme.charAt(0).toUpperCase() + theme.slice(1);
-                  
-                  return (
-                    <div 
-                      class="card card-compact bg-base-100 border border-base-300 hover:border-primary cursor-pointer theme-card transition-all" 
-                      data-theme-name={theme} 
-                      title={`Select ${displayName} theme`}
-                    >
-                      {/* Apply theme locally for preview */}
-                      <div class="card-body items-center text-center p-3" data-theme={themeToPreview}> 
-                        <h3 class="card-title text-xs font-semibold mb-2 min-h-[2.5rem] flex items-center justify-center">{displayName}</h3>
-                        <div class="flex justify-center gap-1">
-                          <span class="h-4 w-4 rounded bg-primary block" title="Primary"></span>
-                          <span class="h-4 w-4 rounded bg-secondary block" title="Secondary"></span>
-                          <span class="h-4 w-4 rounded bg-accent block" title="Accent"></span>
-                          <span class="h-4 w-4 rounded bg-neutral block" title="Neutral"></span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div class="dropdown w-full max-w-xs">
+                <label tabindex="0" role="button" class="btn btn-outline w-full justify-between" id="theme-dropdown-button">
+                  <span id="theme-dropdown-label">Select Theme</span>
+                  <svg width="12px" height="12px" class="inline-block h-2 w-2 fill-current opacity-60" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2048 2048"><path d="M1799 349l242 241-1017 1017L7 590l242-241 775 775 775-775z"></path></svg>
+                </label>
+                <ul tabindex="0" id="theme-list" class="dropdown-content bg-base-200 rounded-box z-[1] p-2 shadow-lg w-full max-h-96 overflow-y-auto mt-1">
+                  {themes.map((theme) => (
+                    <li>
+                      <input
+                        type="radio"
+                        name="theme-dropdown-radio"
+                        class="theme-controller btn btn-sm btn-block btn-ghost justify-start capitalize my-0.5"
+                        aria-label={theme === 'default' ? 'System Default' : theme}
+                        value={theme}
+                      />
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <!-- End Theme Selector Card Grid -->
             </div>
           </div>
 
@@ -158,6 +149,9 @@ if (session) { // Only fetch if logged in
     )}
   </div>
 </Layout>
+
+{/* --- Toast Container --- */}
+<div id="toast-container" class="toast toast-end toast-bottom z-50"></div>
 
 {/* --- Password Change Modal --- */}
 <dialog id="password-change-modal" class="modal">
@@ -193,21 +187,7 @@ if (session) { // Only fetch if logged in
     <button>close</button>
   </form>
 </dialog>
-{/* --- End Password Change Modal --- */}
-
-<script is:inline>
-  declare global {
-    interface Window {
-        session: {
-            user: {
-                email: string;
-                name: string;
-            } | null;
-        } | null;
-        showGlobalToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
-    }
-  }
-</script>
+{/* --- End Password Change Modal --- */} 
 
 <script define:vars={{ session }}>
   window.session = session;
@@ -217,6 +197,58 @@ if (session) { // Only fetch if logged in
   // Import signOut on a new line as requested
   const { signOut } = await import("auth-astro/client");
 
+  // --- Toast Notification Function ---
+  function showToast(message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) {
+      console.warn('Toast container (#toast-container) not found.');
+      return;
+    }
+
+    const toastId = `toast-${type}-${Date.now()}`;
+    const toastElement = document.createElement('div');
+    // Use alert classes for styling
+    toastElement.className = `alert alert-${type} shadow-lg`; 
+    toastElement.id = toastId;
+
+    // Basic structure, customize icons per type if needed
+    let iconSvg = '';
+    if (type === 'success') {
+      iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+    } else if (type === 'error') {
+      iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+    } // Add more icons for warning/info if used
+
+    toastElement.innerHTML = `
+      <div>
+        ${iconSvg}
+        <span>${message}</span>
+      </div>
+    `;
+
+    container.appendChild(toastElement);
+
+    // Automatically remove the toast after 5 seconds
+    setTimeout(() => {
+      const elementToRemove = document.getElementById(toastId);
+      if (elementToRemove) {
+        elementToRemove.remove(); // Use remove() directly on the element
+      }
+    }, 5000);
+  }
+  // --- End Toast Notification Function ---
+
+  // Declare the type for the data passed via the inline script
+  declare global {
+    interface Window {
+        session: {
+            user: {
+                email: string;
+                name: string;
+            } | null;
+        } | null;
+    }
+  }
   // Smooth scrolling for anchor links
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     const anchorElement = anchor as HTMLAnchorElement;
@@ -231,43 +263,34 @@ if (session) { // Only fetch if logged in
     });
   });
 
-  // --- Theme Selector Logic (Card Grid) --- 
-  const themeCardGrid = document.getElementById('theme-card-grid');
-  const themeCards = document.querySelectorAll('.theme-card');
+  // --- Theme Selector Logic --- 
+  const themeList = document.getElementById('theme-list');
+  const themeDropdownLabel = document.getElementById('theme-dropdown-label');
 
-  function applyTheme(theme: string) {
-    const themeToApply = theme === 'default' ? 'dracula' : theme; // Default theme hardcoded here
-    document.documentElement.setAttribute('data-theme', themeToApply);
-    localStorage.setItem('theme', theme); // Save the *selected* theme name ('default' or specific)
+  if (themeList) {
+    themeList.addEventListener('change', (event) => {
+      const target = event.target as HTMLInputElement;
+      if (target.name === 'theme-dropdown-radio' && target.value) {
+        const theme = target.value; // Get selected theme
 
-    // Update selected card style
-    themeCards.forEach(card => {
-      const cardEl = card as HTMLElement;
-      if (cardEl.dataset.themeName === theme) {
-        cardEl.classList.add('border-primary', 'border-2'); // Highlight selected
-        cardEl.classList.remove('border-base-300');
-      } else {
-        cardEl.classList.remove('border-primary', 'border-2');
-        cardEl.classList.add('border-base-300');
+        // --- Apply Theme Logic (Inlined) --- 
+        const themeToApply = theme === 'default' ? 'dracula' : theme; 
+        document.documentElement.setAttribute('data-theme', themeToApply);
+        localStorage.setItem('theme', theme); 
+        const labelText = theme === 'default' ? 'System Default' : theme.charAt(0).toUpperCase() + theme.slice(1);
+        if (themeDropdownLabel) {
+          themeDropdownLabel.textContent = labelText;
+        }
+        // Note: Checking the radio should happen automatically due to name attribute
+        // --- End Apply Theme Logic ---
+
+        // Close dropdown after selection
+        if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+        }
       }
     });
   }
-
-  if (themeCardGrid) {
-    themeCardGrid.addEventListener('click', (event) => {
-      const targetCard = (event.target as HTMLElement).closest('.theme-card');
-      if (targetCard instanceof HTMLElement && targetCard.dataset.themeName) {
-        const selectedTheme = targetCard.dataset.themeName;
-        applyTheme(selectedTheme);
-      }
-    });
-  }
-
-  // Initialize theme on load (using the new applyTheme function)
-  document.addEventListener('DOMContentLoaded', () => {
-    const savedTheme = localStorage.getItem('theme') || 'default';
-    applyTheme(savedTheme);
-  });
 
   // Privacy Mask Toggle Logic
   const privacyToggle = document.getElementById('privacy-mask-toggle') as HTMLInputElement | null;
@@ -291,17 +314,37 @@ if (session) { // Only fetch if logged in
 
         // Optional: Show success toast/message
         console.log('Privacy setting updated successfully.');
-        window.showGlobalToast('Privacy setting updated successfully.', 'success');
+        showToast('Privacy setting updated successfully.', 'success'); // Added toast
 
       } catch (error: any) {
         console.error('Error updating privacy setting:', error);
         // Optional: Show error toast/message to user
-        window.showGlobalToast(`Error saving setting: ${error.message}`, 'error');
+        showToast(`Error saving setting: ${error.message}`, 'error'); // Replaced alert with toast
         // Revert toggle state on error
         privacyToggle.checked = !newValue;
       }
     });
   }
+
+  // Initialize theme on load
+  document.addEventListener('DOMContentLoaded', () => {
+    const savedTheme = localStorage.getItem('theme') || 'default'; // Get saved theme or use 'default'
+    // --- Apply Theme Logic (Inlined for Initial Load) --- 
+    const theme = savedTheme;
+    const themeToApply = theme === 'default' ? 'dracula' : theme; 
+    document.documentElement.setAttribute('data-theme', themeToApply);
+    // localStorage.setItem('theme', theme); // Already set or default
+    const labelText = theme === 'default' ? 'System Default' : theme.charAt(0).toUpperCase() + theme.slice(1);
+    if (themeDropdownLabel) {
+      themeDropdownLabel.textContent = labelText;
+    }
+    // Check the correct radio button for initial load
+    const radioToCheck = document.querySelector(`input[name="theme-dropdown-radio"][value="${theme}"]`) as HTMLInputElement;
+    if (radioToCheck) {
+      radioToCheck.checked = true;
+    }
+    // --- End Apply Theme Logic ---
+  });
 
   // --- Profile Editing Logic ---
   const displayNameInput = document.getElementById('display-name-input') as HTMLInputElement | null;
@@ -349,7 +392,7 @@ if (session) { // Only fetch if logged in
         }
 
         // Success: Update local state and UI
-        window.showGlobalToast('Display name updated successfully!', 'success');
+        showToast('Display name updated successfully!', 'success');
 
         // Update the locally stored session name for immediate feedback
         // Note: This does *not* update the actual session cookie immediately.
@@ -370,7 +413,7 @@ if (session) { // Only fetch if logged in
       } catch (error) {
         console.error('Error updating display name:', error);
         // Use the specific error message from the thrown Error
-        window.showGlobalToast(`Error updating name: ${(error as Error).message}`, 'error'); 
+        showToast(`Error updating name: ${(error as Error).message}`, 'error'); 
       } finally {
          saveDisplayNameBtn.classList.remove('loading', 'btn-disabled'); // Remove loading state
       }
@@ -408,12 +451,12 @@ if (session) { // Only fetch if logged in
     const confirmPassword = confirmPasswordInput.value;
 
     if (newPassword.length < 6) {
-        window.showGlobalToast('New password must be at least 6 characters long.', 'warning');
+        showToast('New password must be at least 6 characters long.', 'warning');
         return;
     }
 
     if (newPassword !== confirmPassword) {
-      window.showGlobalToast('New passwords do not match.', 'warning');
+      showToast('New passwords do not match.', 'warning');
       return; // Don't proceed
     }
 
@@ -443,7 +486,7 @@ if (session) { // Only fetch if logged in
         throw new Error(result.error || 'Failed to change password');
       }
 
-      window.showGlobalToast('Password changed successfully! Signing out...', 'success');
+      showToast('Password changed successfully! Signing out...', 'success'); // Replaced alert with toast
 
       passwordForm.reset(); // Clear form on success
       passwordModal?.close(); // Close modal on success
@@ -454,13 +497,11 @@ if (session) { // Only fetch if logged in
 
     } catch (error) {
       console.error('Error changing password:', error);
-      window.showGlobalToast(`Error changing password: ${(error as Error).message}`, 'error');
+      showToast(`Error changing password: ${(error as Error).message}`, 'error'); // Replaced alert with toast
       // Keep modal open on error?
     } finally {
       if(submitBtn) submitBtn.classList.remove('loading', 'btn-disabled'); // Remove loading state
     }
   });
 
-  // --- End Toast Notification Function ---
-  // */
 </script> 
