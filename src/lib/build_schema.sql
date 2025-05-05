@@ -406,6 +406,33 @@ create table console_log (
   constraint fk_console_log_replay foreign key (replay_id) references replay(replay_id)
 );
 
+-- 18. Network Request Logs (New Table)
+create table network_request (
+    request_log_id char(36) primary key,        -- Unique ID for this specific log entry
+    replay_id char(36) not null,                -- Foreign key to the replay session
+    request_session_id varchar(64) not null,   -- The unique ID from the network plugin (e.g., fetch-174...) 
+    url text not null,                          -- The request URL
+    method varchar(16) not null,                -- GET, POST, etc.
+    status_code smallint unsigned null,         -- HTTP status code (e.g., 200, 404)
+    status_text varchar(255) null,              -- HTTP status text (e.g., OK, Not Found)
+    request_type varchar(32) null,              -- Type from the log (e.g., fetch, xhr)
+    initiator_type varchar(32) null,           -- Initiator type (e.g., fetch, script)
+    start_time_offset int unsigned not null,    -- Start time relative to recording start (ms)
+    end_time_offset int unsigned null,          -- End time relative to recording start (ms)
+    duration_ms int unsigned null,              -- Request duration (ms)
+    absolute_timestamp timestamp not null,      -- Absolute timestamp of the request end/log point
+    request_headers json null,                  -- Request headers as JSON
+    response_headers json null,                 -- Response headers as JSON
+    response_size_bytes int unsigned null,      -- Size of the response body
+    performance_data json null,                 -- Performance timing data as JSON
+    is_fetch_complete boolean null,             -- Flag from log data
+    is_perf_complete boolean null,              -- Flag from log data
+    constraint fk_network_request_replay foreign key (replay_id) references replay(replay_id) on delete cascade
+);
+
+-- Add index for faster querying by replay_id
+create index idx_network_request_replay_id on network_request(replay_id);
+
 -- we also need to store network and console shoot. should have multitasked that ah whatever
 create table cookie (
     name varchar(256),

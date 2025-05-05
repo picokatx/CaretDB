@@ -156,12 +156,14 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   let body: any;
   let events: eventWithTime[] = []; // Add type
   let consoleLogs: any[] = []; // <-- Add consoleLogs array
+  let networkLogs: any[] = []; // <-- Add networkLogs array
   let htmlHash: string | null = null;
 
   try {
     body = await request.json();
     events = body.events; // Assign typed events
     consoleLogs = body.consoleLogs || []; // <-- Assign consoleLogs, default to empty array
+    networkLogs = body.networkLogs || []; // <-- Assign networkLogs, default to empty array
     const { clientInfo: clientInfoFromReq } = body;
 
     if (!events || !Array.isArray(events) || events.length === 0) {
@@ -633,6 +635,48 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
       } else {
           console.warn("[Save Replay] Cannot calculate console log delays: No rrweb events found.");
       }
+    }
+    console.log('[Save Replay] Inserting network logs...', networkLogs);
+    // --- Database Insertion (Phase 2c: Network Logs) --- 
+    if (networkLogs.length > 0) {
+        const networkLogInsertPromises = [];
+        for (const netLog of networkLogs) {
+            // Validate basic structure
+            if (!netLog || typeof netLog !== 'object' || !netLog.id || !netLog.url || !netLog.method || !netLog.startTime || !netLog.timestamp) {
+                console.warn('[Save Replay] Skipping invalid network log entry:', netLog);
+                continue;
+            }
+
+            const requestLogId = crypto.randomUUID();
+            // Map data from network log object to DB columns
+            const params = [
+                requestLogId,
+                replayId,
+                netLog.id, // request_session_id
+                netLog.url,
+                netLog.method,
+                netLog.status ?? null, // status_code
+                netLog.statusText ?? null,
+                netLog.type ?? null, // request_type
+                netLog.initiatorType ?? null,
+                netLog.startTime, // start_time_offset
+                netLog.endTime ?? null, // end_time_offset
+                netLog.duration ?? null, // duration_ms
+                new Date(netLog.timestamp).toISOString().slice(0, 19).replace('T', ' '), // absolute_timestamp
+                netLog.requestHeaders ? JSON.stringify(netLog.requestHeaders) : null,
+                netLog.responseHeaders ? JSON.stringify(netLog.responseHeaders) : null,
+                netLog.size ?? null, // response_size_bytes
+                netLog.perfData ? JSON.stringify(netLog.perfData) : null, // performance_data
+                netLog.fetchDataComplete ?? null, // is_fetch_complete
+                netLog.perfDataComplete ?? null // is_perf_complete
+            ];
+
+            networkLogInsertPromises.push(
+                sql.query(sqlQueries.insertNetworkRequest, params)
+            );
+        }
+        // Wait for all network logs for this replay to be inserted
+        await Promise.all(networkLogInsertPromises);
     }
 
     // --- Commit Transaction ---

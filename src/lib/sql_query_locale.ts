@@ -230,5 +230,15 @@ export const sqlQueries = {
   // --- Query for display name change --- 
   updateUsernameByEmail: `
     UPDATE user SET username = ? WHERE email_domain = ? AND email_name = ?;
+  `,
+  // --- Query for network request logs --- 
+  insertNetworkRequest: `
+    INSERT INTO network_request (
+      request_log_id, replay_id, request_session_id, url, method, status_code, 
+      status_text, request_type, initiator_type, start_time_offset, 
+      end_time_offset, duration_ms, absolute_timestamp, request_headers, 
+      response_headers, response_size_bytes, performance_data, 
+      is_fetch_complete, is_perf_complete
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `
 }; 

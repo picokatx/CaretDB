@@ -218,6 +218,7 @@ export function initRecorder() {
       const payload = {
         events: mGlob.rrwebEvents,
         consoleLogs: mGlob.consoleLogs,
+        networkLogs: mGlob.networkRequests,
         clientInfo: clientInfo
       };
 
