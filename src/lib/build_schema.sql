@@ -34,6 +34,7 @@ create table user (
         fail_login >= 0
     ),
     twofa boolean not null default false,
+    privacy_mask boolean not null default true, -- Added for input masking preference
     primary key (email_name, email_domain), -- primary key
     unique key uk_user_email (email_domain, email_name) -- added unique key for fk constraint
 );
@@ -430,8 +431,8 @@ create table cookie (
 ); -- https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis
 
 insert into user (email_domain, email_name, username, password, created_at, last_login, status, first_name, middle_name, last_name, phone_num, role, verified, fail_login, twofa)
-values ('nushigh.edu.sg','h1910153','theo','3a4b52fc88795615c55066100afbba60bea938b976fd40f13def78369a209f50','2024-02-05 07:30:25','2024-05-29 02:45:55','enabled','theo','weibin','1','1832555445','user',1,0,1);
-insert into webstate (html_hash, email_domain, email_name) values ('f62b9ab27ca98a242428f2c49b0b69d09af6568f9b83bf35cc6bf529312c3013', 'nushigh.edu.sg', 'h1910153');
+values ('gmail.com','picokatx','theo','3a4b52fc88795615c55066100afbba60bea938b976fd40f13def78369a209f50','2024-02-05 07:30:25','2024-05-29 02:45:55','enabled','theo','weibin','1','1832555445','user',1,0,1);
+insert into webstate (html_hash, email_domain, email_name) values ('f62b9ab27ca98a242428f2c49b0b69d09af6568f9b83bf35cc6bf529312c3013', 'gmail.com', 'picokatx');
 
 -- #######################################################################
 -- aggregation tables for analysis
@@ -614,4 +615,50 @@ starts date_format(now() + interval 1 month, '%Y-%m-02 02:00:00') -- Run on the 
 do
 begin
     call generate_monthly_report();
+end;
+
+-- #######################################################################
+-- Privacy Mask Trigger
+-- #######################################################################
+
+drop trigger if exists before_input_data_insert_mask;
+
+-- Trigger to mask input text before insertion based on user preference
+-- WARNING: This involves joins and might impact insert performance significantly.
+-- Consider application-level filtering if performance is critical.
+create trigger before_input_data_insert_mask
+before insert on input_data
+for each row
+begin
+    -- set new.text = repeat('*', length(new.text));
+
+    declare v_user_privacy_mask boolean default true; -- Default to mask if user not found (shouldn't happen with FKs)
+    declare v_replay_id char(36);
+    declare v_html_hash char(64);
+    declare v_email_domain varchar(255);
+    declare v_email_name varchar(64);
+
+    -- 1. Get replay_id from event
+    select replay_id into v_replay_id from event where event_id = new.event_id limit 1;
+
+    if v_replay_id is not null then
+        -- 2. Get html_hash from replay
+        select html_hash into v_html_hash from replay where replay_id = v_replay_id limit 1;
+
+        if v_html_hash is not null then
+            -- 3. Get user email from webstate
+            select email_domain, email_name into v_email_domain, v_email_name from webstate where html_hash = v_html_hash limit 1;
+
+            if v_email_domain is not null and v_email_name is not null then
+                -- 4. Get the user's privacy setting
+                select privacy_mask into v_user_privacy_mask from user where email_domain = v_email_domain and email_name = v_email_name limit 1;
+            end if;
+        end if;
+    end if;
+
+    -- 5. Mask the text if the user setting is true
+    if v_user_privacy_mask = true then
+        set new.text = repeat('*', length(new.text));
+    end if;
+
 end;

@@ -536,10 +536,7 @@
                     window.parent.postMessage({ type: 'rrwebEvent', event: event, isCheckout: isCheckout }, parentOrigin);
                 },
                 maskAllInputs: false, // Example option
-                blockClass: 'rrweb-block',
-                ignoreClass: 'rrweb-ignore',
-                 maskTextClass: 'rrweb-mask',
-                 maskTextSelector: '*',
+                maskTextClass: 'rrweb-mask',
                 recordCanvas: true,
                  // Exclude console logs plugin here as we do it manually
                  plugins: [], 

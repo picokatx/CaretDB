@@ -200,5 +200,12 @@ export const sqlQueries = {
       total_events_end
     FROM monthly_reports
     ORDER BY report_month_start DESC;
+  `,
+  // --- Queries for user settings --- 
+  getUserPrivacyMask: `
+    SELECT privacy_mask FROM user WHERE email_domain = ? AND email_name = ? LIMIT 1;
+  `,
+  updateUserPrivacyMask: `
+    UPDATE user SET privacy_mask = ? WHERE email_domain = ? AND email_name = ?;
   `
 }; 

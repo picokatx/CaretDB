@@ -14,12 +14,37 @@ const themes = [
   "night", "coffee", "winter", "dim", "nord", "sunset", "default"
 ];
 
+// Fetch current user's privacy setting
+let currentPrivacyMask: boolean = true; // Default to true (safer)
+let fetchSettingsError: string | null = null;
+let response: any;
+let settingsUrl: string;
+if (session) { // Only fetch if logged in
+  try {
+    settingsUrl = `${Astro.url.origin}/api/settings/${session?.user?.email}`;
+    response = await fetch(settingsUrl);
+    if (response.ok) {
+      const data = await response.json();
+      currentPrivacyMask = data.privacyMask;
+    } else {
+      const errorData = await response.json().catch(() => ({ error: "Failed to parse error"}));
+      throw new Error(`API Error (${response.status}): ${errorData.error || 'Failed to fetch settings'}`);
+    }
+  } catch (error: any) {
+      console.error("Error fetching user settings:", error);
+      fetchSettingsError = error.message || "Could not load preferences.";
+      // Keep default currentPrivacyMask = true
+  }
+}
+
 ---
 
 <Layout title="ClickstreamDB - Settings">
   <div class="container mx-auto px-4 py-8">
     <h1 class="text-3xl font-bold mb-8">Settings</h1>
     
+    { fetchSettingsError && <div class="alert alert-warning shadow-lg mb-4"><span>Warning loading preferences: {fetchSettingsError}</span></div> }
+
     {session ? (
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
         <!-- Sidebar navigation -->
@@ -75,6 +100,22 @@ const themes = [
           <div id="preferences" class="card bg-base-100 shadow-xl mt-8">
             <div class="card-body">
               <h2 class="card-title">Preferences</h2>
+              {/* Privacy Mask Setting */} 
+              <div class="form-control">
+                <label class="label cursor-pointer justify-start gap-4">
+                  <span class="label-text">Mask Text Input Fields</span> 
+                  <input 
+                    type="checkbox" 
+                    class="toggle toggle-primary" 
+                    id="privacy-mask-toggle" 
+                    checked={currentPrivacyMask} 
+                  />
+                </label>
+                <p class="text-xs text-base-content/60 pl-1">Replaces text entered into input fields during recordings with asterisks (*) in the saved data. Does not affect recording playback if original data was captured before enabling.</p>
+              </div>
+
+              <div class="divider my-2"></div>
+
               <p class="mb-4">Choose your preferred theme:</p>
               
               <div class="dropdown w-full max-w-xs">
@@ -114,8 +155,22 @@ const themes = [
     )}
   </div>
 </Layout>
+<script define:vars={{ session }}>
+  window.session = session;
+</script>
 
 <script>
+    // Declare the type for the data passed via the inline script
+    declare global {
+      interface Window {
+          session: {
+              user: {
+                  email: string;
+                  name: string;
+              } | null;
+          } | null;
+      }
+  }
   // Smooth scrolling for anchor links
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     const anchorElement = anchor as HTMLAnchorElement;
@@ -130,35 +185,27 @@ const themes = [
     });
   });
 
-  // Theme Selector Logic
+  // --- Theme Selector Logic --- 
   const themeList = document.getElementById('theme-list');
   const themeDropdownLabel = document.getElementById('theme-dropdown-label');
   
-  function applyTheme(theme) {
-    const themeToApply = theme === 'default' ? 'synthwave' : theme; // Define default behavior
-    document.documentElement.setAttribute('data-theme', themeToApply);
-    localStorage.setItem('theme', theme); // Store the actual selection (could be 'default')
-    
-    const labelText = theme === 'default' ? 'System Default' : theme.charAt(0).toUpperCase() + theme.slice(1);
-    if (themeDropdownLabel) {
-      themeDropdownLabel.textContent = labelText;
-    }
-
-    // Uncheck all first (optional, but good practice)
-    // document.querySelectorAll('input[name="theme-dropdown-radio"]').forEach(input => (input as HTMLInputElement).checked = false);
-
-    // Check the correct radio button
-    const radioToCheck = document.querySelector(`input[name="theme-dropdown-radio"][value="${theme}"]`) as HTMLInputElement;
-    if (radioToCheck) {
-      radioToCheck.checked = true;
-    }
-  }
-
   if (themeList) {
     themeList.addEventListener('change', (event) => {
       const target = event.target as HTMLInputElement;
       if (target.name === 'theme-dropdown-radio' && target.value) {
-        applyTheme(target.value);
+        const theme = target.value; // Get selected theme
+
+        // --- Apply Theme Logic (Inlined) --- 
+        const themeToApply = theme === 'default' ? 'synthwave' : theme; 
+        document.documentElement.setAttribute('data-theme', themeToApply);
+        localStorage.setItem('theme', theme); 
+        const labelText = theme === 'default' ? 'System Default' : theme.charAt(0).toUpperCase() + theme.slice(1);
+        if (themeDropdownLabel) {
+          themeDropdownLabel.textContent = labelText;
+        }
+        // Note: Checking the radio should happen automatically due to name attribute
+        // --- End Apply Theme Logic ---
+
         // Close dropdown after selection
         if (document.activeElement instanceof HTMLElement) {
             document.activeElement.blur();
@@ -167,10 +214,57 @@ const themes = [
     });
   }
 
+  // Privacy Mask Toggle Logic
+  const privacyToggle = document.getElementById('privacy-mask-toggle') as HTMLInputElement | null;
+  if (privacyToggle) {
+    privacyToggle.addEventListener('change', async () => {
+      const newValue = privacyToggle.checked;
+      console.log('Privacy mask changed to:', newValue);
+      
+      try {
+        
+        const response = await fetch(`/api/settings/${window.session?.user?.email}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ privacyMask: newValue })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Failed to parse error'}));
+          throw new Error(`API Error (${response.status}): ${errorData.error || 'Failed to update setting'}`);
+        }
+
+        // Optional: Show success toast/message
+        console.log('Privacy setting updated successfully.');
+
+      } catch (error: any) {
+        console.error('Error updating privacy setting:', error);
+        // Optional: Show error toast/message to user
+        alert(`Error saving setting: ${error.message}`); // Simple alert for now
+        // Revert toggle state on error
+        privacyToggle.checked = !newValue;
+      }
+    });
+  }
+
   // Initialize theme on load
   document.addEventListener('DOMContentLoaded', () => {
     const savedTheme = localStorage.getItem('theme') || 'default'; // Get saved theme or use 'default'
-    applyTheme(savedTheme);
+    // --- Apply Theme Logic (Inlined for Initial Load) --- 
+    const theme = savedTheme;
+    const themeToApply = theme === 'default' ? 'synthwave' : theme; 
+    document.documentElement.setAttribute('data-theme', themeToApply);
+    // localStorage.setItem('theme', theme); // Already set or default
+    const labelText = theme === 'default' ? 'System Default' : theme.charAt(0).toUpperCase() + theme.slice(1);
+    if (themeDropdownLabel) {
+      themeDropdownLabel.textContent = labelText;
+    }
+    // Check the correct radio button for initial load
+    const radioToCheck = document.querySelector(`input[name="theme-dropdown-radio"][value="${theme}"]`) as HTMLInputElement;
+    if (radioToCheck) {
+      radioToCheck.checked = true;
+    }
+    // --- End Apply Theme Logic ---
   });
 
 </script> 
