@@ -44,7 +44,7 @@ if (session) { // Only fetch if logged in
     <h1 class="text-3xl font-bold mb-8">Settings</h1>
     
     { fetchSettingsError && <div class="alert alert-warning shadow-lg mb-4"><span>Warning loading preferences: {fetchSettingsError}</span></div> }
-
+    
     {session ? (
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
         <!-- Sidebar navigation -->
@@ -150,7 +150,10 @@ if (session) { // Only fetch if logged in
   </div>
 </Layout>
 
-{/* --- Password Change Modal --- */} 
+{/* --- Toast Container --- */}
+<div id="toast-container" class="toast toast-end toast-bottom z-50"></div>
+
+{/* --- Password Change Modal --- */}
 <dialog id="password-change-modal" class="modal">
   <div class="modal-box">
     <h3 class="font-bold text-lg mb-4">Change Password</h3>
@@ -191,16 +194,60 @@ if (session) { // Only fetch if logged in
 </script>
 
 <script>
-    // Declare the type for the data passed via the inline script
-    declare global {
-      interface Window {
-          session: {
-              user: {
-                  email: string;
-                  name: string;
-              } | null;
-          } | null;
+  // Import signOut on a new line as requested
+  const { signOut } = await import("auth-astro/client");
+
+  // --- Toast Notification Function ---
+  function showToast(message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) {
+      console.warn('Toast container (#toast-container) not found.');
+      return;
+    }
+
+    const toastId = `toast-${type}-${Date.now()}`;
+    const toastElement = document.createElement('div');
+    // Use alert classes for styling
+    toastElement.className = `alert alert-${type} shadow-lg`; 
+    toastElement.id = toastId;
+
+    // Basic structure, customize icons per type if needed
+    let iconSvg = '';
+    if (type === 'success') {
+      iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+    } else if (type === 'error') {
+      iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+    } // Add more icons for warning/info if used
+
+    toastElement.innerHTML = `
+      <div>
+        ${iconSvg}
+        <span>${message}</span>
+      </div>
+    `;
+
+    container.appendChild(toastElement);
+
+    // Automatically remove the toast after 5 seconds
+    setTimeout(() => {
+      const elementToRemove = document.getElementById(toastId);
+      if (elementToRemove) {
+        elementToRemove.remove(); // Use remove() directly on the element
       }
+    }, 5000);
+  }
+  // --- End Toast Notification Function ---
+
+  // Declare the type for the data passed via the inline script
+  declare global {
+    interface Window {
+        session: {
+            user: {
+                email: string;
+                name: string;
+            } | null;
+        } | null;
+    }
   }
   // Smooth scrolling for anchor links
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -219,7 +266,7 @@ if (session) { // Only fetch if logged in
   // --- Theme Selector Logic --- 
   const themeList = document.getElementById('theme-list');
   const themeDropdownLabel = document.getElementById('theme-dropdown-label');
-  
+
   if (themeList) {
     themeList.addEventListener('change', (event) => {
       const target = event.target as HTMLInputElement;
@@ -267,11 +314,12 @@ if (session) { // Only fetch if logged in
 
         // Optional: Show success toast/message
         console.log('Privacy setting updated successfully.');
+        showToast('Privacy setting updated successfully.', 'success'); // Added toast
 
       } catch (error: any) {
         console.error('Error updating privacy setting:', error);
         // Optional: Show error toast/message to user
-        alert(`Error saving setting: ${error.message}`); // Simple alert for now
+        showToast(`Error saving setting: ${error.message}`, 'error'); // Replaced alert with toast
         // Revert toggle state on error
         privacyToggle.checked = !newValue;
       }
@@ -301,7 +349,7 @@ if (session) { // Only fetch if logged in
   // --- Profile Editing Logic ---
   const displayNameInput = document.getElementById('display-name-input') as HTMLInputElement | null;
   const saveDisplayNameBtn = document.getElementById('save-display-name-btn') as HTMLButtonElement | null;
-  let initialDisplayName = displayNameInput?.value; // Store initial value
+  let initialDisplayName = displayNameInput?.value; // Store initial value (make it let)
 
   // Show/Hide Save button for Display Name
   if (displayNameInput && saveDisplayNameBtn) {
@@ -321,27 +369,51 @@ if (session) { // Only fetch if logged in
       saveDisplayNameBtn.classList.add('loading', 'btn-disabled'); // Show loading state
 
       try {
+        // Get user email from session
+        const userEmail = window.session?.user?.email;
+        if (!userEmail) {
+          throw new Error("User session not found or email missing.");
+        }
+
         // Call the new API endpoint
         const response = await fetch('/api/user/profile', { 
           method: 'POST', 
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ displayName: newName })
+          body: JSON.stringify({ 
+            email: userEmail, 
+            displayName: newName 
+          })
         });
-        
-        const result = await response.json(); // Always try to parse JSON
-        if (!response.ok || !result.success) { 
-            throw new Error(result.error || 'Failed to update name'); 
+
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          // Use the specific error from the API if available
+          throw new Error(result.error || 'Failed to update display name');
         }
 
-        alert('Display name updated successfully!'); // Replace with better notification
+        // Success: Update local state and UI
+        showToast('Display name updated successfully!', 'success');
+
+        // Update the locally stored session name for immediate feedback
+        // Note: This does *not* update the actual session cookie immediately.
+        if (window.session && window.session.user) {
+           window.session.user.name = result.newName; // Use name returned from API
+        }
+
+        // Update the h3 tag displaying the name
+        // Find the h3 specifically within the profile card
+        const profileCard = saveDisplayNameBtn.closest('.card'); 
+        const nameHeader = profileCard?.querySelector('.card-body h3') as HTMLElement | null;
+        if (nameHeader) nameHeader.textContent = result.newName;
 
         // Update initial value and hide button on success
-        initialDisplayName = newName; 
+        initialDisplayName = result.newName; // Update the tracked initial value
         saveDisplayNameBtn.classList.add('hidden'); 
 
       } catch (error) {
         console.error('Error updating display name:', error);
-        alert(`Error updating name: ${(error as Error).message}`); // Replace with better notification
+        // Use the specific error message from the thrown Error
+        showToast(`Error updating name: ${(error as Error).message}`, 'error'); 
       } finally {
          saveDisplayNameBtn.classList.remove('loading', 'btn-disabled'); // Remove loading state
       }
@@ -379,12 +451,12 @@ if (session) { // Only fetch if logged in
     const confirmPassword = confirmPasswordInput.value;
 
     if (newPassword.length < 6) {
-        alert('New password must be at least 6 characters long.');
+        showToast('New password must be at least 6 characters long.', 'warning');
         return;
     }
 
     if (newPassword !== confirmPassword) {
-      alert('New passwords do not match.');
+      showToast('New passwords do not match.', 'warning');
       return; // Don't proceed
     }
 
@@ -393,27 +465,39 @@ if (session) { // Only fetch if logged in
     if(submitBtn) submitBtn.classList.add('loading', 'btn-disabled');
 
     try {
-      // TODO: Replace with actual API call to change password
-      console.log(`TODO: Call API to change password. Current: ${currentPassword}, New: ${newPassword}`);
-      // Example fetch (replace with your actual endpoint and method, likely POST)
-      // const response = await fetch('/api/user/password', { 
-      //   method: 'POST', 
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ currentPassword, newPassword })
-      // });
-      // const result = await response.json();
-      // if (!response.ok || !result.success) throw new Error(result.error || 'Failed to change password');
+      // Get user email from session passed to window
+      const userEmail = window.session?.user?.email;
+      if (!userEmail) {
+        throw new Error("User session not found or email missing.");
+      }
 
-      // Simulate success for now
-      await new Promise(res => setTimeout(res, 1000)); 
-      alert('Password changed successfully! (Simulated)'); // Replace with better notification
+      // Example fetch (replace with your actual endpoint and method, likely POST)
+      const response = await fetch('/api/user/password', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: userEmail, // Pass email from session
+          oldPassword: currentPassword, 
+          newPassword: newPassword 
+        })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to change password');
+      }
+
+      showToast('Password changed successfully! Signing out...', 'success'); // Replaced alert with toast
 
       passwordForm.reset(); // Clear form on success
       passwordModal?.close(); // Close modal on success
 
+      // Sign out and redirect to login
+       // Pass empty object as required
+      // Note: signOut should handle redirection based on config or defaults
+
     } catch (error) {
       console.error('Error changing password:', error);
-      alert(`Error changing password: ${(error as Error).message}`); // Replace with better notification
+      showToast(`Error changing password: ${(error as Error).message}`, 'error'); // Replaced alert with toast
       // Keep modal open on error?
     } finally {
       if(submitBtn) submitBtn.classList.remove('loading', 'btn-disabled'); // Remove loading state

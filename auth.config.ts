@@ -6,10 +6,8 @@ import { sql } from './src/lib/mysql-connect';
 import type { FieldPacket, QueryResult, RowDataPacket } from 'mysql2';
 import type { User } from '@auth/core/types';
 import { CredentialsSignin } from '@auth/core/errors';
+import { skipCSRFCheck } from '@auth/core';
 import { createHash } from 'crypto';
-import type { JWT } from "@auth/core/jwt";
-import type { Session } from "@auth/core/types";
-import { sqlQueries } from "./src/lib/sql_query_locale";
 
 // Custom error class for login failures
 class LoginError extends CredentialsSignin {
@@ -21,6 +19,7 @@ class LoginError extends CredentialsSignin {
 }
 
 export default defineConfig({
+  skipCSRFCheck: skipCSRFCheck,
   pages: {
     signIn: '/login',
   },
@@ -70,55 +69,51 @@ export default defineConfig({
   ],
   // Add callbacks to include user ID in the session
   callbacks: {
-    // Include user.id on token
-    async jwt({ token, user, account, profile, trigger }) {
-      // Note: `user` object is usually only passed on initial sign-in.
-      // `token` contains the existing JWT payload.
-      
-      // --- Initial sign-in or account linking --- 
-      if (account && user?.email) {
-        token.id = user.email; // Use email as the stable ID in the token
-        // You might fetch the user's persisted username here too on first login
-        const emailParts = user.email.split('@');
-        if (emailParts.length === 2) {
-          const [result]: any = await sql.query(sqlQueries.getUserByEmail, [emailParts[1], emailParts[0]]);
-          if (result && result.length > 0 && result[0].username) {
-            token.name = result[0].username; // Set name initially from DB
-          }
-        }
+    // Include user.id on token, and refresh username on token update
+    async jwt({ token, user, trigger, session }) {
+      // Initial sign-in: Add user details to the token
+      if (user) { 
+        token.id = user.id; // user.id is the email from authorize
+        token.name = user.name; // Store initial username
+        token.email = user.email;
       }
 
-      // --- On subsequent JWT reads/refreshes --- 
-      // Always try to refresh the name from the database 
-      // This ensures profile updates are reflected when the token is next used/validated
-      if (token.id && typeof token.id === 'string') {
+      // If trigger is "update" and session data is provided (like from client-side update call)
+      // This pattern is more common in Next.js. In Astro, we might rely on re-fetching.
+      // For simplicity and security with Astro's server-side session handling,
+      // let's prioritize re-fetching based on the ID when the token is used.
+
+      // Re-fetch user data if token exists (meaning it's not initial login)
+      // This ensures the name is up-to-date when the token is verified/used later.
+      if (token?.id) { // Check if token exists and has the user ID (email)
         try {
-          const emailParts = token.id.split('@');
+          const email = token.id as string;
+          const emailParts = email.split('@');
           if (emailParts.length === 2) {
-            const [dbUserResult]: any = await sql.query(sqlQueries.getUserByEmail, [emailParts[1], emailParts[0]]);
-            if (dbUserResult && dbUserResult.length > 0 && dbUserResult[0].username) {
-              token.name = dbUserResult[0].username; // Update token name with latest from DB
-              // console.log(`JWT Callback: Refreshed name for ${token.id} to ${token.name}`);
-            } else {
-              // Handle case where user might not exist anymore? 
-              // console.warn(`JWT Callback: User ${token.id} not found in DB during refresh.`);
-              // You might want to invalidate the token or clear the name here
-               token.name = null; // Or keep the old one? Depends on desired behavior.
+            const [dbResult] = await sql.query(
+              'SELECT username FROM user WHERE email_name = ? AND email_domain = ? LIMIT 1',
+              [emailParts[0], emailParts[1]]
+            );
+            const users = dbResult as RowDataPacket[];
+            if (users.length === 1) {
+              token.name = users[0].username; // Update token name with latest from DB
             }
           }
         } catch (error) {
-          console.error("JWT Callback: Error fetching user data for refresh:", error);
-          // Decide how to handle DB errors - potentially keep existing token name?
+          console.error("Error re-fetching user data for JWT:", error);
+          // Decide how to handle error: maybe keep old name, maybe invalidate token?
+          // Keeping old name is safer for now.
         }
       }
 
-      // Return the (potentially updated) token
       return token;
     },
-    // Include user.id on session
+    // Include user.id and updated name on session
     async session({ session, token }) {
       if (token?.id && session?.user) {
         session.user.id = token.id as string; // Add id (email) from token to session user
+        session.user.name = token.name as string; // Add potentially updated name from token
+        session.user.email = token.email as string; // Ensure email is also present
       }
       return session;
     },

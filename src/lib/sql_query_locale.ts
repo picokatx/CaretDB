@@ -208,12 +208,15 @@ export const sqlQueries = {
   updateUserPrivacyMask: `
     UPDATE user SET privacy_mask = ? WHERE email_domain = ? AND email_name = ?;
   `,
-  updateUserDisplayName: `
-    UPDATE user SET username = ? WHERE email_domain = ? AND email_name = ?;
+  // --- Queries for password change --- 
+  getUserPasswordHash: `
+    SELECT password FROM user WHERE email_domain = ? AND email_name = ? LIMIT 1;
   `,
-  // --- Query for JWT callback --- 
-  getUserByEmail: `
-    SELECT username, email_name, email_domain 
-    FROM user WHERE email_domain = ? AND email_name = ? LIMIT 1;
+  updateUserPasswordHash: `
+    UPDATE user SET password = ? WHERE email_domain = ? AND email_name = ?;
+  `,
+  // --- Query for display name change --- 
+  updateUsernameByEmail: `
+    UPDATE user SET username = ? WHERE email_domain = ? AND email_name = ?;
   `
 }; 
