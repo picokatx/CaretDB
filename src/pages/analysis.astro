@@ -349,6 +349,19 @@ try {
     try {
         Chart.register(...registerables);
 
+        const smallestTime = Date.parse(clientClickEventsPerSecondData[0].second);
+        const biggestTime = Date.parse(clientClickEventsPerSecondData[clientClickEventsPerSecondData.length-1].second);
+        let timeDict = new Map<number, number | null>();
+
+
+        for (let i = smallestTime; i <= biggestTime; i += 1000){
+          timeDict.set(i,0);
+        }
+
+        for(var i of clientClickEventsPerSecondData ){
+          timeDict.set(Date.parse(i.second),i.count);
+        }
+
           // Use formatted start time or truncated replay_id as labels
           const labels = clientReplayList.map(item => item.start_time_formatted || item.replay_id.substring(0, 8) + '...');
           const dataCounts = clientReplayList.map(item => item.click_count);
