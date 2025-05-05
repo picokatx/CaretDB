@@ -97,16 +97,51 @@ const currentPath = Astro.url.pathname;
 </header>
 
 <script>
+
   document.addEventListener('DOMContentLoaded', async () => {
-    // Get auth-astro client-side functions
-    const { signOut } = await import("auth-astro/client");
-    
     // Add logout functionality
     const logoutButton = document.getElementById("logout-button");
     if (logoutButton) {
-      logoutButton.addEventListener('click', (e) => {
+      logoutButton.addEventListener('click', async (e) => {
         e.preventDefault();
-        signOut({ callbackUrl: '/login' });
+
+        // Manually call the signout endpoint without CSRF token
+        const callbackUrl = '/login'; // Redirect to login page after signout
+        const signoutUrl = '/api/auth/signout'; // Default auth-astro endpoint
+
+        try {
+          const res = await fetch(signoutUrl, {
+            method: 'post',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-Auth-Return-Redirect': '1', // Ask backend to return redirect URL
+            },
+            body: new URLSearchParams({
+              // NO csrfToken included here
+              callbackUrl,
+            }),
+          });
+
+          if (!res.ok) {
+            throw new Error(`Signout failed: ${res.statusText}`);
+          }
+
+          const data = await res.json();
+          const redirectUrl = data.url ?? callbackUrl; // Use URL from response or fallback
+
+          // Perform the redirect
+          window.location.href = redirectUrl;
+          // If url contains a hash, the browser might not reload, force it if needed
+          if (redirectUrl.includes('#')) {
+            window.location.reload();
+          }
+
+        } catch (error) {
+          console.error("Error during manual signout:", error);
+          // Optionally show a toast or alert to the user
+          // Fallback redirect in case of error
+          window.location.href = callbackUrl;
+        }
       });
     }
   });

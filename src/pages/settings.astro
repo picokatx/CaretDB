@@ -274,7 +274,7 @@ if (session) { // Only fetch if logged in
         const theme = target.value; // Get selected theme
 
         // --- Apply Theme Logic (Inlined) --- 
-        const themeToApply = theme === 'default' ? 'synthwave' : theme; 
+        const themeToApply = theme === 'default' ? 'dracula' : theme; 
         document.documentElement.setAttribute('data-theme', themeToApply);
         localStorage.setItem('theme', theme); 
         const labelText = theme === 'default' ? 'System Default' : theme.charAt(0).toUpperCase() + theme.slice(1);
@@ -331,7 +331,7 @@ if (session) { // Only fetch if logged in
     const savedTheme = localStorage.getItem('theme') || 'default'; // Get saved theme or use 'default'
     // --- Apply Theme Logic (Inlined for Initial Load) --- 
     const theme = savedTheme;
-    const themeToApply = theme === 'default' ? 'synthwave' : theme; 
+    const themeToApply = theme === 'default' ? 'dracula' : theme; 
     document.documentElement.setAttribute('data-theme', themeToApply);
     // localStorage.setItem('theme', theme); // Already set or default
     const labelText = theme === 'default' ? 'System Default' : theme.charAt(0).toUpperCase() + theme.slice(1);

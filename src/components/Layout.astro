@@ -20,9 +20,7 @@ const { title, description = "ClickstreamDB - Web Recording and Replay Tool" } =
         if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
           return localStorage.getItem('theme');
         }
-        // You could add system preference check here if desired
-        // e.g., window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'synthwave'
-        return 'synthwave'; // Default theme if nothing is set
+        return 'dracula'; // Default theme if nothing is set
       })();
 
       if (theme) {
