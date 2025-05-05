@@ -36,6 +36,7 @@ import {
     type cdataNode
 } from '../../lib/matrix/rrtypes';
 import { MouseInteractions } from '../../lib/matrix/rrtypes'; // Import Enum needed at runtime
+import { sqlQueries } from "../../lib/sql_query_locale"; // Import queries
 
 // Define the type for our recursive helper function
 type SaveNodeParams = {
@@ -68,15 +69,7 @@ async function saveSerializedNode({ node, replayId }: SaveNodeParams): Promise<v
     }
 
     // 2. Prepare base node data
-    const baseNodeQuery = `
-        INSERT INTO serialized_node (
-            id, type, root_id, is_shadow_host, is_shadow, 
-            compat_mode, name, public_id, system_id, 
-            tag, is_svg, need_block, is_custom, 
-            text_content
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE type=VALUES(type); -- Handle potential re-insertion if needed, though rrweb IDs should be unique per snapshot
-    `;
+    const baseNodeQuery = sqlQueries.insertSerializedNode;
     const baseNodeParams = [
         node.id,
         nodeTypeString,
@@ -109,12 +102,7 @@ async function saveSerializedNode({ node, replayId }: SaveNodeParams): Promise<v
             // Skip internal rrweb attributes like _cssText if necessary
             if (key === '_cssText') continue; 
 
-            const attrQuery = `
-                INSERT INTO serialized_node_attribute (
-                    node_id, attribute_key, string_value, number_value, is_true, is_null
-                ) VALUES (?, ?, ?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE string_value=VALUES(string_value), number_value=VALUES(number_value), is_true=VALUES(is_true), is_null=VALUES(is_null);
-            `;
+            const attrQuery = sqlQueries.insertSerializedNodeAttribute;
             let stringValue: string | null = null;
             let numberValue: number | null = null;
             let isTrue = false;
@@ -151,7 +139,7 @@ async function saveSerializedNode({ node, replayId }: SaveNodeParams): Promise<v
             await saveSerializedNode({ node: childNode, replayId }); 
             
             // Then link parent to child
-            const linkQuery = 'INSERT INTO serialized_node_child (parent_id, child_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE child_id=VALUES(child_id);';
+            const linkQuery = sqlQueries.linkSerializedNodeChild;
             childLinkPromises.push(sql.query(linkQuery, [node.id, childNode.id]));
         }
         await Promise.all(childLinkPromises); // Link all children for this node
@@ -259,13 +247,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     }
 
     // --- Database Insertion (Phase 1: Replay Metadata) ---
-    const replayQuery = `
-      INSERT INTO replay (
-        replay_id, html_hash, start_time, end_time, product, product_version, 
-        device_type, os_type, os_version, network_id, 
-        d_viewport_width, d_viewport_height
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
+    const replayQuery = sqlQueries.insertReplay;
     const replayParams = [
       replayId, htmlHash, startTime, endTime, product, browserVersion,
       deviceType, osType, osVersion, ipAddress, viewportWidth, viewportHeight
@@ -296,7 +278,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
         }
 
         // Base Event Insertion
-        const baseEventQuery = 'INSERT INTO event (event_id, replay_id, type, timestamp, delay) VALUES (?, ?, ?, ?, ?)';
+        const baseEventQuery = sqlQueries.insertBaseEvent;
         // We will await this base insert before proceeding with specific types
         // This ensures the event record exists before detail records reference it.
         await sql.query(baseEventQuery, [eventId, replayId, eventTypeString, eventTimestamp, event.delay]);
@@ -304,7 +286,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
         // Specific Event Type Handling
         if (event.type === EventType.Meta) {
             const metaData = event.data as RrwebMetaEvent['data'];
-            const metaQuery = 'INSERT INTO meta_event (event_id, href, width, height) VALUES (?, ?, ?, ?)';
+            const metaQuery = sqlQueries.insertMetaEvent;
             await sql.query(metaQuery, [eventId, metaData.href, metaData.width, metaData.height]);
         }
         else if (event.type === EventType.FullSnapshot) {
@@ -316,7 +298,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
             await saveSerializedNode({ node: rootNode, replayId });
 
             // Insert into full_snapshot_event table
-            const snapshotQuery = 'INSERT INTO full_snapshot_event (event_id, node_id, initial_offset_top, initial_offset_left) VALUES (?, ?, ?, ?)';
+            const snapshotQuery = sqlQueries.insertFullSnapshotEvent;
             await sql.query(snapshotQuery, [eventId, rootNode.id, initialOffset.top, initialOffset.left]);
         } 
         else if (event.type === EventType.IncrementalSnapshot) {
@@ -351,7 +333,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
             }
 
             // Insert into incremental_snapshot_event
-            const incrSnapshotQuery = 'INSERT INTO incremental_snapshot_event (event_id, t) VALUES (?, ?)';
+            const incrSnapshotQuery = sqlQueries.insertIncrementalSnapshotEvent;
             await sql.query(incrSnapshotQuery, [eventId, sourceString]);
 
             // Specific handlers based on sourceString
@@ -404,11 +386,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                 
 
                 // Insert into mouse_interaction_data
-                const interactionQuery = `
-                    INSERT INTO mouse_interaction_data 
-                        (event_id, interaction_type, node_id, x, y, pointer_type)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                `;
+                const interactionQuery = sqlQueries.insertMouseInteractionData;
                 await sql.query(interactionQuery, [eventId, interactionTypeString, nodeId, x, y, pointerTypeString]);
             }
             // Handle MouseMove and TouchMove (they share the same data structure)
@@ -417,7 +395,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                 const positions = moveData.positions;
 
                 // 1. Insert into mousemove_data table (linking to the event)
-                const mouseMoveDataQuery = 'INSERT INTO mousemove_data (event_id) VALUES (?)';
+                const mouseMoveDataQuery = sqlQueries.insertMouseMoveData;
                 await sql.query(mouseMoveDataQuery, [eventId]);
 
                 // 2. Insert each position into mouse_position table
@@ -425,11 +403,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                 for (const pos of positions) {
                     // Type assertion for clarity, matching rrweb type
                     const position = pos as RrwebMousePosition; 
-                    const positionQuery = `
-                        INSERT INTO mouse_position 
-                            (event_id, x, y, node_id, time_offset)
-                        VALUES (?, ?, ?, ?, ?)
-                    `;
+                    const positionQuery = sqlQueries.insertMousePosition;
                     positionInsertPromises.push(
                         sql.query(positionQuery, [
                             eventId,          // Foreign key to mousemove_data
@@ -450,7 +424,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                 const x = scroll.x;
                 const y = scroll.y;
 
-                const scrollQuery = 'INSERT INTO scroll_data (event_id, node_id, x, y) VALUES (?, ?, ?, ?)';
+                const scrollQuery = sqlQueries.insertScrollData;
                 await sql.query(scrollQuery, [eventId, nodeId, x, y]);
             }
             // Handle Selection events
@@ -459,7 +433,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                 const ranges = selection.ranges;
 
                 // 1. Insert into selection_data table
-                const selectionDataQuery = 'INSERT INTO selection_data (event_id) VALUES (?)';
+                const selectionDataQuery = sqlQueries.insertSelectionData;
                 await sql.query(selectionDataQuery, [eventId]);
 
                 // 2. Insert each range into selection_range table
@@ -468,11 +442,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                     for (const r of ranges) {
                         // Type assertion for clarity
                         const range = r as RrwebSelectionRange;
-                        const rangeQuery = `
-                            INSERT INTO selection_range 
-                                (event_id, start, start_offset, end, end_offset)
-                            VALUES (?, ?, ?, ?, ?)
-                        `;
+                        const rangeQuery = sqlQueries.insertSelectionRange;
                         rangeInsertPromises.push(
                             sql.query(rangeQuery, [
                                 eventId,         // Foreign key to selection_data
@@ -496,7 +466,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                 // rrweb v2 doesn't seem to have userTriggered, but schema does. Defaulting to false.
                 const userTriggered = (input as any).userTriggered ?? false; 
 
-                const inputQuery = 'INSERT INTO input_data (event_id, node_id, text, is_checked, user_triggered) VALUES (?, ?, ?, ?, ?)';
+                const inputQuery = sqlQueries.insertInputData;
                 await sql.query(inputQuery, [eventId, nodeId, text, isChecked, userTriggered]);
             }
             // Handle MediaInteraction events
@@ -523,11 +493,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                         continue;
                 }
 
-                const mediaQuery = `
-                    INSERT INTO media_interaction_data 
-                        (event_id, interaction_type, node_id, time, volume, muted, isloop, playback_rate)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                `;
+                const mediaQuery = sqlQueries.insertMediaInteractionData;
                 await sql.query(mediaQuery, [
                     eventId, 
                     interactionTypeString, 
@@ -545,7 +511,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                 const width = resizeData.width;
                 const height = resizeData.height;
 
-                const resizeQuery = 'INSERT INTO viewport_resize_data (event_id, width, height) VALUES (?, ?, ?)';
+                const resizeQuery = sqlQueries.insertViewportResizeData;
                 await sql.query(resizeQuery, [eventId, width, height]);
             }
             // Handle Font events
@@ -557,7 +523,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                 const mutation = event.data as mutationData;
 
                 // 1. Insert base mutation record
-                const mutationDataQuery = 'INSERT INTO mutation_data (event_id, is_attach_iframe) VALUES (?, ?)';
+                const mutationDataQuery = sqlQueries.insertMutationData;
                 await sql.query(mutationDataQuery, [eventId, mutation.isAttachIframe ?? false]);
 
                 const mutationPromises = [];
@@ -565,7 +531,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                 // 2. Handle text mutations (changes to existing text nodes)
                 if (mutation.texts?.length) {
                     for (const textChange of mutation.texts) {
-                        const textQuery = 'INSERT INTO text_mutation (event_id, node_id, value) VALUES (?, ?, ?)';
+                        const textQuery = sqlQueries.insertTextMutation;
                         mutationPromises.push(sql.query(textQuery, [eventId, textChange.id, textChange.value]));
                     }
                 }
@@ -577,7 +543,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                         const nodeId = attrChange.id;
                         
                         // Insert/Ensure the base attribute mutation record exists for this node in this event
-                        const attrBaseQuery = 'INSERT INTO attribute_mutation (event_id, node_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE node_id=VALUES(node_id);';
+                        const attrBaseQuery = sqlQueries.insertAttributeMutationBase;
                         mutationPromises.push(sql.query(attrBaseQuery, [eventId, nodeId]));
                         
                         // Insert each specific attribute change into attribute_mutation_entry
@@ -585,7 +551,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                             // TODO: Handle StyleOMValue properly if 'value' is an object.
                             // This would involve inserting into style_om_value tables and referencing the ID here.
                             if (typeof value === 'string' || value === null) {
-                                const entryQuery = 'INSERT INTO attribute_mutation_entry (event_id, node_id, attribute_key, string_value) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE string_value=VALUES(string_value);';
+                                const entryQuery = sqlQueries.insertAttributeMutationEntry;
                                 mutationPromises.push(sql.query(entryQuery, [eventId, nodeId, key, value]));
                             } else {
                                 console.warn(`[Save Replay] Skipping non-string/null attribute mutation for key ${key} on node ${nodeId} in event ${eventId}. Value:`, value);
@@ -597,7 +563,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                 // 4. Handle node removals
                 if (mutation.removes?.length) {
                     for (const removal of mutation.removes) {
-                        const removeQuery = 'INSERT INTO removed_node_mutation (event_id, parent_id, node_id, is_shadow) VALUES (?, ?, ?, ?)';
+                        const removeQuery = sqlQueries.insertRemovedNodeMutation;
                         mutationPromises.push(sql.query(removeQuery, [eventId, removal.parentId, removal.id, removal.isShadow ?? false]));
                     }
                 }
@@ -610,7 +576,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                         await saveSerializedNode({ node: nodeToAdd, replayId });
                         
                         // Now record the addition linkage
-                        const addQuery = 'INSERT INTO added_node_mutation (event_id, parent_id, next_id, node_id) VALUES (?, ?, ?, ?)';
+                        const addQuery = sqlQueries.insertAddedNodeMutation;
                         // Add the promise for the linkage insert to the list
                         mutationPromises.push(sql.query(addQuery, [
                             eventId, 
@@ -650,11 +616,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
                 continue;
             }
 
-            const logQuery = `
-              INSERT INTO console_log 
-                (log_id, replay_id, level, payload, delay, timestamp, trace)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
-            `;
+            const logQuery = sqlQueries.insertConsoleLog;
             consoleLogInsertPromises.push(
                 sql.query(logQuery, [
                     logId, 

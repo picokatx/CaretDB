@@ -10,6 +10,7 @@ import { getSession } from "auth-astro/server";
 import { sql } from "./../lib/mysql-connect"; // Adjusted path, assuming it's relative from pages
 import { UAParser } from 'ua-parser-js';
 import "../styles/rrweb-player.css";
+import { sqlQueries } from "./../lib/sql_query_locale"; // Added import
 const systemName = "ClickstreamDB";
 
 // Get the current user session
@@ -29,7 +30,8 @@ let fetchError: string | null = null;
 // If no specific webstate is selected, fetch all available ones for the selection UI
 if (!webstateHash) {
   try {
-    const query = 'SELECT html_hash FROM webstate ORDER BY html_hash;'; 
+    // Use centralized query
+    const query = sqlQueries.listWebstateHashes; 
     const [rows, _] = await sql.query(query);
     webstateHashes = rows as { html_hash: string }[]; // Type assertion
   } catch (error: any) {

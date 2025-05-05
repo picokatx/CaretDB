@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recordable DOM (Self-Contained)</title>
+    <!-- Add DaisyUI and Tailwind CSS -->
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; 
+            padding: 20px; 
+            background-color: #e0e0e0; 
+            color: #111;
+            line-height: 1.6;
+        }
+        button { padding: 10px 15px; margin: 10px 0; cursor: pointer; border-radius: 5px; border: 1px solid #555; background-color: #ccc; }
+        button:hover { background-color: #bbb; }
+        input[type="text"], textarea, select { padding: 10px; margin: 10px 0; width: 90%; border: 1px solid #777; border-radius: 5px; }
+        #message { margin-top: 15px; padding: 10px; background-color: #f8f8f8; border: 1px solid #ccc; border-radius: 5px; min-height: 20px; }
+        h1 { color: #333; }
+        .card {
+            background-color: #f8f8f8;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        h2 {
+            margin-top: 0;
+            color: #444;
+            font-size: 1.2em;
+        }
+        .request-controls, .request-examples {
+            margin-bottom: 10px;
+        }
+        .example-btn {
+            padding: 5px 10px;
+            margin-right: 5px;
+            font-size: 0.9em;
+        }
+    </style>
+    <!-- Load rrweb library - use the standard browser build -->
+    <script src="https://cdn.jsdelivr.net/npm/rrweb@latest/dist/rrweb.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/rrweb@latest/dist/rrweb.min.js"></script>
+</head>
+<body>
+    <h1>Interact with this DOM</h1>
+    <p>Your actions here will be recorded when instructed by the parent page.</p>
+    
+    <div class="card">
+        <h2>Console Logs Testing</h2>
+        <label for="text-input">Text Input:</label><br>
+        <input type="text" id="text-input" placeholder="Type something..."><br>
+
+        <label for="click-button">Generate Console Logs:</label><br>
+        <button id="click-button">Click to Log in Console</button><br>
+    
+        <label for="text-area">Text Area:</label><br>
+        <textarea id="text-area" rows="3" placeholder="Enter multiple lines..."></textarea>
+    </div>
+
+    <div class="card">
+        <h2>Network Requests Testing</h2>
+        <div class="request-controls">
+            <label for="url-input">Request URL:</label>
+            <input type="text" id="url-input" placeholder="https://example.com/api" value="https://jsonplaceholder.typicode.com/todos/1">
+            
+            <label for="method-select">Method:</label>
+            <select id="method-select">
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+            </select>
+            
+            <button id="fetch-button">Make Request</button>
+        </div>
+        
+        <div class="request-examples">
+            <p>Quick Examples:</p>
+            <button class="example-btn" data-url="https://jsonplaceholder.typicode.com/todos/1">Fetch Todo</button>
+            <button class="example-btn" data-url="https://jsonplaceholder.typicode.com/users">Fetch Users</button>
+            <button class="example-btn" data-url="https://jsonplaceholder.typicode.com/photos">Fetch Photos</button>
+        </div>
+        
+        <div class="request-test-methods mt-4">
+            <p>Test Different Request Methods:</p>
+            <button id="test-xhr-btn" class="example-btn">Test XHR</button>
+            <button id="test-fetch-btn" class="example-btn">Test Fetch</button>
+            <button id="test-image-btn" class="example-btn">Test Image Load</button>
+            <button id="test-all-btn" class="example-btn">Test All Methods</button>
+        </div>
+    </div>
+
+    <div id="message">Status updates appear here...</div>
+
+    <!-- ====================== RECORDING CORE ====================== -->
+    <!-- This script contains the core recording functionality that can be injected into any page -->
+    <script src="rrweb_loader.js"></script>
+
+    <!-- ====================== DEMO UI CODE ====================== -->
+    <!-- This script contains the demo-specific functionality -->
+    <script>
+        // Demo page functionality
+        (function() {
+            const btn = document.getElementById('click-button');
+            const input = document.getElementById('text-input');
+            const textarea = document.getElementById('text-area');
+            const msgDiv = document.getElementById('message');
+            const urlInput = document.getElementById('url-input');
+            const methodSelect = document.getElementById('method-select');
+            const fetchButton = document.getElementById('fetch-button');
+            const exampleButtons = document.querySelectorAll('.example-btn');
+
+            // Basic interaction feedback
+            btn.addEventListener('click', () => {
+                msgDiv.textContent = 'Console logs generated at ' + new Date().toLocaleTimeString();
+                console.log('Button clicked! This generates a basic console.log entry');
+                console.info('Button info:', { element: 'click-button', time: new Date().toISOString() });
+                console.warn('This is a warning log from the button click');
+                if (input.value) {
+                    console.log('Input contains text:', input.value);
+                } else {
+                    console.error('No text in the input field!');
+                }
+            });
+            
+            input.addEventListener('input', (e) => {
+                msgDiv.textContent = `Input value: ${e.target.value}`;
+                console.log('Input changed:', e.target.value);
+            });
+            
+            textarea.addEventListener('input', (e) => {
+                msgDiv.textContent = `Textarea content changed. Length: ${e.target.value.length}`;
+                console.log('Textarea updated, new length:', e.target.value.length);
+                if (e.target.value.length > 50) {
+                    console.warn('Textarea content is getting long');
+                }
+            });
+
+            // Network request functionality
+            fetchButton.addEventListener('click', () => {
+                makeNetworkRequest();
+            });
+
+            // Example button handlers
+            exampleButtons.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const url = e.target.getAttribute('data-url');
+                    if (url) {
+                        urlInput.value = url;
+                        makeNetworkRequest();
+                    }
+                });
+            });
+
+            function makeNetworkRequest() {
+                const url = urlInput.value.trim();
+                const method = methodSelect.value;
+                
+                if (!url) {
+                    console.error('URL is required for network request');
+                    msgDiv.textContent = 'Error: URL is required';
+                    return;
+                }
+                
+                msgDiv.textContent = `Making ${method} request to: ${url}`;
+                console.log(`Initiating ${method} fetch to: ${url}`);
+                
+                fetch(url, { method })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        console.log(`Network response received: ${response.status}`);
+                        
+                        // Return the JSON and response clone
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('Response data:', data);
+                        const dataSize = JSON.stringify(data).length;
+                        msgDiv.textContent = `Request successful! Received ${dataSize} bytes`;
+                    })
+                    .catch(error => {
+                        console.error('Fetch error:', error);
+                        msgDiv.textContent = `Error: ${error.message}`;
+                    });
+            }
+
+            // Test different request methods
+            document.getElementById('test-xhr-btn')?.addEventListener('click', () => {
+                testXhrRequest();
+            });
+            
+            document.getElementById('test-fetch-btn')?.addEventListener('click', () => {
+                testFetchRequest();
+            });
+            
+            document.getElementById('test-image-btn')?.addEventListener('click', () => {
+                testImageLoad();
+            });
+            
+            document.getElementById('test-all-btn')?.addEventListener('click', () => {
+                testAllMethods();
+            });
+            
+            function testXhrRequest() {
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', 'https://jsonplaceholder.typicode.com/todos/2');
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        console.log('XHR request successful:', JSON.parse(xhr.responseText));
+                        msgDiv.textContent = 'XHR request completed successfully';
+                    } else {
+                        console.error('XHR request failed:', xhr.status);
+                        msgDiv.textContent = `XHR request failed: ${xhr.status}`;
+                    }
+                };
+                xhr.onerror = function() {
+                    console.error('XHR request error');
+                    msgDiv.textContent = 'XHR request error';
+                };
+                xhr.send();
+                msgDiv.textContent = 'XHR request sent...';
+            }
+            
+            function testFetchRequest() {
+                fetch('https://jsonplaceholder.typicode.com/todos/3')
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Fetch request successful:', data);
+                        msgDiv.textContent = 'Fetch request completed successfully';
+                    })
+                    .catch(error => {
+                        console.error('Fetch request error:', error);
+                        msgDiv.textContent = `Fetch request error: ${error.message}`;
+                    });
+                msgDiv.textContent = 'Fetch request sent...';
+            }
+            
+            function testImageLoad() {
+                // Create a container for the image
+                const container = document.createElement('div');
+                container.style.margin = '10px 0';
+                container.style.padding = '10px';
+                container.style.border = '1px solid #ccc';
+                container.style.borderRadius = '5px';
+                container.style.backgroundColor = '#f8f8f8';
+                container.style.textAlign = 'center';
+                
+                // Create title
+                const title = document.createElement('h3');
+                title.textContent = 'Random Image';
+                title.style.fontSize = '14px';
+                title.style.margin = '0 0 10px 0';
+                container.appendChild(title);
+                
+                // Create the image element
+                const img = new Image();
+                img.alt = 'Random Image';
+                img.style.maxWidth = '100%';
+                img.style.height = 'auto';
+                
+                // Add loading and loaded status
+                const status = document.createElement('p');
+                status.textContent = 'Loading image...';
+                status.style.fontSize = '12px';
+                status.style.margin = '10px 0 0 0';
+                container.appendChild(status);
+                
+                // Add information about the initiatorType
+                const initiatorInfo = document.createElement('p');
+                initiatorInfo.textContent = 'This image request will have initiatorType="img"';
+                initiatorInfo.style.fontSize = '11px';
+                initiatorInfo.style.opacity = '0.7';
+                initiatorInfo.style.margin = '5px 0 0 0';
+                container.appendChild(initiatorInfo);
+                
+                // Handle successful load
+                img.onload = function() {
+                    console.log('Image loaded successfully');
+                    status.textContent = 'Image loaded successfully';
+                    status.style.color = 'green';
+                    msgDiv.textContent = 'Image appended to DOM and loaded successfully';
+                };
+                
+                // Handle load error
+                img.onerror = function(e) {
+                    console.error('Image load error:', e.type);
+                    status.textContent = 'Error loading image: ' + e.type;
+                    status.style.color = 'red';
+                };
+                
+                // Set crossOrigin to anonymous to avoid CORS issues
+                img.crossOrigin = 'anonymous';
+                
+                img.src = `https://picsum.photos/200/100`;
+                
+                // Add the image to the container
+                container.appendChild(img);
+                
+                // Append the container to the document
+                document.body.appendChild(container);
+                
+                // Update message
+                msgDiv.textContent = 'Image appending to DOM...';
+                
+                // Return container so it can be referenced later if needed
+                return container;
+            }
+            
+            function testAllMethods() {
+                testXhrRequest();
+                setTimeout(testFetchRequest, 500);
+                setTimeout(testImageLoad, 1000);
+            }
+        })();
+    </script>
+  <script src="/dom/rrweb_loader.js"></script>
+</body>
+</html> 
