@@ -129,7 +129,7 @@ const API_URL = `${Astro.url.origin}/api/generate_preview`;
   // Function to handle image loading errors for previews
   function handlePreviewError(imgElement: HTMLImageElement | Element): void { // Add return type void
       if (imgElement instanceof HTMLImageElement) {
-          console.log(`[Debug] Preview failed to load for image:`, imgElement.dataset.hash);
+      console.log(`[Debug] Preview failed to load for image:`, imgElement.dataset.hash);
           imgElement.onerror = null; // Prevent infinite loops if the placeholder also fails - MOVED INSIDE
       }
       const figure = imgElement.closest('figure');

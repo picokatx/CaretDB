@@ -471,12 +471,14 @@ create table page_scroll_depth_summary (
 );
 */
 
--- Simplified summary table for total clicks per page
-create table page_summary (
-    html_hash char(64) not null primary key,
-    total_clicks int not null default 0,
+-- New summary table for clicks per replay session
+create table replay_summary (
+    replay_id char(36) not null primary key,
+    html_hash char(64) not null,
+    click_count int not null default 0,
     last_updated timestamp default current_timestamp on update current_timestamp,
-    constraint fk_page_summary_webstate foreign key (html_hash) references webstate(html_hash) on delete cascade
+    constraint fk_replay_summary_replay foreign key (replay_id) references replay(replay_id) on delete cascade,
+    constraint fk_replay_summary_webstate foreign key (html_hash) references webstate(html_hash) on delete cascade
 );
 
 
@@ -484,6 +486,10 @@ create table page_summary (
 -- stored procedure for updating analysis summaries (Simplified)
 -- #######################################################################
 
+-- Drop existing procedure if it exists
+drop procedure if exists update_analysis_summaries;
+
+-- Recreate procedure to update replay_summary table
 create procedure update_analysis_summaries(in p_replay_id char(36), in p_html_hash char(64))
 begin
     declare v_click_count int default 0;
@@ -498,14 +504,13 @@ begin
       and ise.t = 'mouseinteraction'
       and mid.interaction_type = 'click';
 
-    -- Insert or update the total click count for the page
-    insert into page_summary (html_hash, total_clicks)
-    values (p_html_hash, v_click_count)
+    -- Insert or update the click count for the specific replay
+    insert into replay_summary (replay_id, html_hash, click_count)
+    values (p_replay_id, p_html_hash, v_click_count)
     on duplicate key update
-        total_clicks = page_summary.total_clicks + values(total_clicks); 
-        -- Note: This adds the count from the *current* replay to the existing total.
-        -- If the procedure could be run multiple times for the same replay, this might inflate counts.
-        -- Assuming it runs once per replay after all its data is saved.
+        click_count = values(click_count), -- Ensure the count is updated if re-run
+        last_updated = current_timestamp; 
+
 end;
 
 

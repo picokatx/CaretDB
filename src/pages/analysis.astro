@@ -16,8 +16,15 @@ let userCount = 0;
 let webstateCount = 0;
 let replayCount = 0;
 let eventCount = 0;
-let clickEventsPerSecondData: { second: string; count: number }[] = []; // Renamed and updated type
+let replayList: { replay_id: string; start_time_formatted: string }[] = []; // New: For dropdown
 let fetchError: string | null = null;
+
+// Define the expected type for rows after mapping
+type MappedReplayData = {
+    replay_id: string;
+    start_time_formatted: string;
+    click_count: number;
+};
 
 // Helper function to fetch counts
 async function fetchCount(query: string): Promise<number> {
@@ -38,8 +45,8 @@ async function fetchCount(query: string): Promise<number> {
     }
 }
 
-// Helper function to fetch time series data (updated for second granularity)
-async function fetchTimeSeriesPerSecond(query: string): Promise<{ second: string; count: number }[]> {
+// Helper function to fetch generic list data (like replay list)
+async function fetchList<T>(query: string): Promise<T[]> {
     const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -47,28 +54,24 @@ async function fetchTimeSeriesPerSecond(query: string): Promise<{ second: string
     });
     if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(`API Error (${response.status}): ${errorData.error?.message || errorData.error || 'Failed to fetch time series data'}`);
+        throw new Error(`API Error (${response.status}): ${errorData.error?.message || errorData.error || 'Failed to fetch list data'}`);
     }
     const data = await response.json();
     if (data.success && Array.isArray(data.rows)) {
-        // Ensure count is a number and second exists
-        return data.rows.map((row: { second: any; count: any }) => ({ 
-            second: String(row.second), // Ensure second is string
-            count: parseInt(row.count) || 0 
-        })).filter(row => row.second); // Filter out rows with no second
+        return data.rows as T[];
     } else {
-        throw new Error(data.error?.message || data.error || 'Invalid data format for time series query');
+        throw new Error(data.error?.message || data.error || 'Invalid data format for list query');
     }
 }
 
 try {
-    // Fetch all data in parallel, using the new query for time series
+    // Fetch basic counts and the list of replays
     const results = await Promise.allSettled([
         fetchCount(sqlQueries.countUsers),
         fetchCount(sqlQueries.countWebstates),
         fetchCount(sqlQueries.countReplays),
         fetchCount(sqlQueries.countEvents),
-        fetchTimeSeriesPerSecond(sqlQueries.clickEventsPerSecond) // Use the per-second query
+        fetchList<{ replay_id: string; start_time_formatted: string }>(sqlQueries.listReplays) // Fetch replay list
     ]);
 
     // Process results safely
@@ -77,10 +80,10 @@ try {
     if (results[2].status === 'fulfilled') replayCount = results[2].value;
     if (results[3].status === 'fulfilled') eventCount = results[3].value;
     if (results[4].status === 'fulfilled') {
-        clickEventsPerSecondData = results[4].value; // Assign to the renamed variable
-        console.log("[Astro Frontmatter] Fetched clickEventsPerSecondData:", clickEventsPerSecondData);
+        replayList = results[4].value;
+        console.log("[Astro Frontmatter] Fetched replayList:", replayList);
     } else {
-        console.error("[Astro Frontmatter] Failed to fetch clickEventsPerSecondData:", results[4].reason);
+        console.error("[Astro Frontmatter] Failed to fetch replayList:", results[4].reason);
     }
 
     // Collect errors from basic counts if any
@@ -89,11 +92,16 @@ try {
         fetchError = countErrors.map(e => e.reason?.message || 'Unknown error').join('; ');
         console.error("Errors fetching database counts:", countErrors.map(e => e.reason));
     }
-    // Add time series error if it occurred
+    // Add list fetch error if it occurred
     if (results[4].status === 'rejected') {
-         const timeSeriesError = results[4].reason?.message || 'Error fetching click time series data';
-         fetchError = fetchError ? `${fetchError}; ${timeSeriesError}` : timeSeriesError;
+         const listFetchError = results[4].reason?.message || 'Error fetching replay list data';
+         fetchError = fetchError ? `${fetchError}; ${listFetchError}` : listFetchError;
     }
+
+    // ---> DEBUG LOGGING START
+    console.log("[Astro Frontmatter Debug] Final replayList:", JSON.stringify(replayList, null, 2));
+    console.log("[Astro Frontmatter Debug] Final fetchError:", fetchError);
+    // ---> DEBUG LOGGING END
 
 } catch (error: any) {
     console.error("Unexpected error fetching database stats:", error);
@@ -126,13 +134,25 @@ try {
     </div>
   </div>
 
-  <h2 class="text-xl font-semibold mb-4">Click Events Recorded Per Second</h2>
+  <h2 class="text-xl font-semibold mb-4">Clicks Per Second for Selected Replay</h2>
   <div class="bg-base-200 rounded-box p-4">
-    {clickEventsPerSecondData.length > 0 ? (
-      <canvas id="eventsOverTimeChart"></canvas>
-    ) : (
-      <p class="text-base-content/50">No click event data available to display chart, or an error occurred fetching data.</p>
-    )}
+
+    <div class="mb-4 form-control w-full max-w-xs">
+        <label class="label" for="replay-select">
+            <span class="label-text">Select a Replay Session:</span>
+        </label>
+        <select id="replay-select" class="select select-bordered" disabled>
+            <option disabled selected>Loading replays...</option>
+            {/* Options will be populated by client script */} 
+        </select>
+    </div>
+
+    <div id="chart-status" class="text-sm text-base-content/70 min-h-[1.5em] mb-2">Select a replay to view chart.</div>
+
+    <div class="relative h-96"> {/* Container to give canvas height */} 
+        <canvas id="clicksOverTimeChart"></canvas>
+    </div>
+
   </div>
 
   <div class="mt-8 p-4 bg-base-200 rounded-box">
@@ -143,48 +163,208 @@ try {
 </Layout>
 
 <!-- Script to safely pass data to the client -->
-<script define:vars={{ clickEventsPerSecondData }} is:inline>
-    window.chartData = JSON.parse(JSON.stringify(clickEventsPerSecondData)); 
+<script define:vars={{ replayList, fetchError }} is:inline>
+    // Initialize chartData if it doesn't exist
+    window.chartData = window.chartData || {};
+    // Add replayList
+    window.chartData.replayList = JSON.parse(JSON.stringify(replayList));
+    // Add fetchError
+    window.chartData.fetchError = fetchError; // Directly assign the string or null
 </script>
 
 <script>
   import { Chart, registerables } from 'chart.js/auto'; 
+  import type { ChartConfiguration, ChartData, ChartItem } from 'chart.js/auto'; // Import types
+
+  // Define type for the click data we expect from the new API
+  type ReplayClickDataPoint = { second: string; count: number };
 
   // Extend the Window interface
   declare global {
       interface Window {
-          chartData: { second: string; count: number }[] | undefined; // Updated type 
+          // Re-add chartData declaration
+          chartData: {
+              replayList?: { replay_id: string; start_time_formatted: string }[];
+              fetchError?: string | null; 
+              // Add other chart data types here if needed, e.g., currentReplayClicks
+          } | undefined;
       }
   }
 
-  const canvas = document.getElementById('eventsOverTimeChart');
-  console.log("[Debug Chart] Canvas element:", canvas);
-  
-  const clientClickEventsPerSecondData = window.chartData; 
-  console.log("[Debug Chart] clickEventsPerSecondData read from window:", clientClickEventsPerSecondData);
+  // Wait for the DOM to be fully loaded before running chart code
+  document.addEventListener('DOMContentLoaded', () => {
+    // ---> Check and Log Server-Side Errors END
 
-  if (canvas instanceof HTMLCanvasElement && clientClickEventsPerSecondData && clientClickEventsPerSecondData.length > 0) {
-    console.log("[Debug Chart] Canvas found and click data exists. Attempting to create chart.");
+    // --- NEW SCRIPT LOGIC --- 
+    const selectElement = document.getElementById('replay-select') as HTMLSelectElement | null;
+    const canvas = document.getElementById('clicksOverTimeChart') as HTMLCanvasElement | null;
+    const statusDiv = document.getElementById('chart-status');
+    let currentChart: Chart | null = null; // Keep track of the chart instance
+
+    // Populate dropdown
+    if (selectElement && window.chartData?.replayList) {
+        const replays = window.chartData.replayList;
+        if (replays.length > 0) {
+            selectElement.disabled = false;
+            selectElement.innerHTML = '<option disabled selected value="">-- Select a Replay --</option>'; // Reset placeholder
+            replays.forEach((replay: { replay_id: string; start_time_formatted: string }) => { // Add type annotation
+                const option = document.createElement('option');
+                option.value = replay.replay_id;
+                // Combine start time and first few chars of ID for display
+                option.textContent = `${replay.start_time_formatted} (${replay.replay_id.substring(0, 8)}...)`; 
+                selectElement.appendChild(option);
+            });
+        } else {
+            selectElement.innerHTML = '<option disabled selected>No replays found</option>';
+        }
+    } else if (selectElement) {
+         selectElement.innerHTML = '<option disabled selected>Error loading replays</option>';
+    }
+
+    // Function to fetch data and update chart
+    async function updateChart(replayId: string) {
+        if (!canvas || !statusDiv) return;
+
+        statusDiv.textContent = `Loading data for replay ${replayId.substring(0, 8)}...`;
+        if (currentChart) {
+            currentChart.destroy(); // Destroy previous chart instance
+            currentChart = null;
+        }
+
+        try {
+            const apiUrl = `/api/replay_clicks/${replayId}.json`; // Use .json or adjust API route
+            console.log(`[Chart Update] Fetching from: ${apiUrl}`);
+            const response = await fetch(apiUrl);
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response.' }));
+                throw new Error(`API Error (${response.status}): ${errorData.error || 'Failed to fetch click data'}`);
+            }
+            const data: ReplayClickDataPoint[] = (await response.json()).rows;
+            console.log(`[Chart Update] Received data:`, data);
+
+            if (data.length === 0) {
+                statusDiv.textContent = `No click data found for replay ${replayId.substring(0, 8)}.`;
+                return;
+            }
+            
+            const smallestTime = Date.parse(data[0].second);
+            const biggestTime = Date.parse(data[data.length-1].second);
+            let timeDict = new Map<number, number | null>()
+            for (let i = smallestTime; i <= biggestTime; i += 1000){
+              timeDict.set(i - smallestTime,0);
+            }
+            for(var i of data ){
+              timeDict.set(Date.parse(i.second) - smallestTime,i.count);
+            }
+
+            // Create the new line chart
+            // const labels = data.map(item => item.second.split(' ')[1]); // Extract time part HH:MM:SS
+            // const dataCounts = data.map(item => item.count);
+            const labels = Array.from(timeDict.keys()).map(msOffset => 
+                // Format milliseconds offset into HH:MM:SS
+                new Date(msOffset).toISOString().slice(11, 19)
+            ); 
+            const dataCounts = Array.from(timeDict.values()); // Use values() for data counts
+
+            const chartData: ChartData = {
+                labels: labels,
+                datasets: [{
+                    label: 'Clicks per Second',
+                    data: dataCounts,
+                    borderColor: '#FF1493', // Deep Pink hex
+                    backgroundColor: 'transparent', // Optional: Keep transparent or remove
+                    fill: false, // <--- Remove fill
+                    spanGaps: true,
+                    tension: 0.1,
+                    pointBackgroundColor: '#FF1493', // Deep Pink hex for points
+                    pointBorderColor: '#FFFFFF' // White hex for point borders
+                }]
+            };
+
+            const config: ChartConfiguration = {
+                type: 'line',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Number of Clicks', color: '#E5E7EB' },
+                            ticks: { color: '#E5E7EB' }
+                        },
+                        x: {
+                            title: { display: true, text: 'Time (HH:MM:SS from start)', color: '#E5E7EB' },
+                            ticks: {
+                                color: '#E5E7EB',
+                                autoSkip: true,
+                                maxTicksLimit: 15 // Adjust for density
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { mode: 'index', intersect: false }
+                    }
+                }
+            };
+
+            currentChart = new Chart(canvas as ChartItem, config); // Create chart
+            statusDiv.textContent = `Displaying click data for replay ${replayId.substring(0, 8)}.`;
+
+        } catch (error: any) {
+            console.error("[Chart Update] Error fetching or rendering chart:", error);
+            statusDiv.textContent = `Error loading chart data: ${error.message}`;
+        }
+    }
+
+    // Add event listener to dropdown
+    if (selectElement) {
+        selectElement.addEventListener('change', (event) => {
+            const selectedReplayId = (event.target as HTMLSelectElement).value;
+            if (selectedReplayId) {
+                updateChart(selectedReplayId);
+            } else if (currentChart) {
+                 currentChart.destroy(); // Clear chart if default option selected
+                 currentChart = null;
+                 if(statusDiv) statusDiv.textContent = 'Select a replay to view chart.';
+            }
+        });
+    }
+
+    // --- REMOVE OLD CHART LOGIC ---
+    /*
+    const canvas = document.getElementById('clicksPerReplayChart');
+    console.log("[Debug Chart ClicksPerReplay] Canvas element:", canvas);
+
+    const clientReplayList = window.chartData?.replayList;
+    // ---> DEBUG LOGGING START
+    console.log("[Client Script Debug] window.chartData.replayList:", JSON.stringify(clientReplayList, null, 2));
+    // ---> DEBUG LOGGING END
+    console.log("[Debug Chart ClicksPerReplay] replayList read from window:", clientReplayList);
+
+    if (canvas instanceof HTMLCanvasElement && clientReplayList && clientReplayList.length > 0) {
+      console.log("[Debug Chart ClicksPerReplay] Canvas found and click data exists. Attempting to create chart.");
     try {
         Chart.register(...registerables);
 
-        // Use the 'second' string directly as the label
-        const labels = clientClickEventsPerSecondData.map((item: { second: string; count: number }) => item.second); 
-        const dataCounts = clientClickEventsPerSecondData.map((item: { second: string; count: number }) => item.count);
-        console.log("[Debug Chart] Processed labels (seconds):", labels);
-        console.log("[Debug Chart] Processed dataCounts:", dataCounts);
+          // Use formatted start time or truncated replay_id as labels
+          const labels = clientReplayList.map(item => item.start_time_formatted || item.replay_id.substring(0, 8) + '...');
+          const dataCounts = clientReplayList.map(item => item.click_count);
+          console.log("[Debug Chart ClicksPerReplay] Processed labels (replay sessions):", labels);
+          console.log("[Debug Chart ClicksPerReplay] Processed dataCounts (clicks):", dataCounts);
 
         new Chart(canvas, {
-          type: 'line',
+            type: 'bar', // Change chart type to bar
           data: {
             labels: labels,
             datasets: [{
-              label: 'Click Events Recorded per Second',
+                label: 'Clicks per Replay Session',
               data: dataCounts,
-              borderColor: 'lightblue', // Higher contrast color
-              backgroundColor: 'rgba(173, 216, 230, 0.2)', // Lighter background
-              fill: true,
-              tension: 0.1 
+                borderColor: 'hsl(var(--bc) / 0.4)', // Use DaisyUI base content color with alpha
+                backgroundColor: 'hsl(var(--a) / 0.5)', // Use DaisyUI accent color with alpha
+                borderWidth: 1
             }]
           },
           options: {
@@ -195,7 +375,7 @@ try {
                 beginAtZero: true,
                 title: {
                     display: true,
-                    text: 'Number of Click Events',
+                      text: 'Number of Clicks',
                     color: '#E5E7EB' // Light color for title
                 },
                 ticks: {
@@ -205,7 +385,7 @@ try {
               x: {
                  title: {
                     display: true,
-                    text: 'Time (Second)', // Updated axis title
+                      text: 'Replay Session (Started At)', // Updated axis title
                     color: '#E5E7EB' // Light color for title
                  },
                  ticks: {
@@ -232,7 +412,10 @@ try {
         console.error("[Debug Chart] Error creating chart:", error);
     }
                 } else {
-      console.log("[Debug Chart] Condition not met: Canvas found?", canvas instanceof HTMLCanvasElement, "Data exists?", !!clientClickEventsPerSecondData, "Data length > 0?", clientClickEventsPerSecondData ? clientClickEventsPerSecondData.length > 0 : false);
+        console.log("[Debug Chart ClicksPerReplay] Condition not met: Canvas found?", canvas instanceof HTMLCanvasElement, "Data exists?", !!clientReplayList, "Data length > 0?", clientReplayList ? clientReplayList.length > 0 : false);
     }
 
+    */
+
+  }); // End of DOMContentLoaded listener
   </script>

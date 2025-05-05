@@ -44,5 +44,24 @@ export const sqlQueries = {
         ise.t = 'mouseinteraction' AND mid.interaction_type = 'click'
     GROUP BY second
     ORDER BY second ASC;
+  `,
+  clicksPerReplay: `
+    SELECT
+        r.replay_id,
+        DATE_FORMAT(r.start_time, '%Y-%m-%d %H:%i:%s') as start_time_formatted,
+        rs.click_count
+    FROM
+        replay r
+    JOIN
+        replay_summary rs ON r.replay_id = rs.replay_id
+    ORDER BY
+        r.start_time ASC;
+  `,
+  listReplays: `
+    SELECT 
+        replay_id, 
+        DATE_FORMAT(start_time, '%Y-%m-%d %H:%i:%s') as start_time_formatted 
+    FROM replay 
+    ORDER BY start_time DESC;
   `
 }; 
