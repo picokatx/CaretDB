@@ -4,22 +4,31 @@ import vercel from '@astrojs/vercel';
 import tailwindcss from "@tailwindcss/vite";
 import auth from 'auth-astro';
 import sentry from '@sentry/astro';
+import starlight from '@astrojs/starlight';
 // import auth from 'auth-astro';
 
 // https://astro.build/config
 export default defineConfig({
-  integrations: [auth(),
-    sentry({
-      dsn: "https://8fd1ef3a81f6fdc102b53da54d7d2595@o4508760857116672.ingest.de.sentry.io/4509212112060496",
-      // Setting this option to true will send default PII data to Sentry.
-      // For example, automatic IP address collection on events
-      // sendDefaultPii: true,
-      sourceMapsUploadOptions: {
-        project: "caretdb",
-        authToken: process.env.SENTRY_AUTH_TOKEN,
-      },
-    }),
-  ],
+  integrations: [auth(), sentry({
+    dsn: "https://8fd1ef3a81f6fdc102b53da54d7d2595@o4508760857116672.ingest.de.sentry.io/4509212112060496",
+    // Setting this option to true will send default PII data to Sentry.
+    // For example, automatic IP address collection on events
+    // sendDefaultPii: true,
+    sourceMapsUploadOptions: {
+      project: "caretdb",
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+    },
+  }), starlight({
+    title: 'My delightful docs site',
+    social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/withastro/starlight' }],
+    sidebar: [
+      { label: 'Getting Started', items: ['docs/guide/example'] },
+    ],
+    customCss: [
+      // Relative path to your custom CSS file
+      './src/styles/app.css',
+    ],
+  })],
   vite: {
     plugins: [tailwindcss()]
   },

@@ -62,7 +62,8 @@ export default defineConfig({
           return {
           id: userEmail,
           name: users[0].username, // Keep username as name
-          email: userEmail
+          email: userEmail,
+          role: users[0].role // <-- Add role from database
         };
       }
     })
@@ -76,6 +77,7 @@ export default defineConfig({
         token.id = user.id; // user.id is the email from authorize
         token.name = user.name; // Store initial username
         token.email = user.email;
+        token.role = user.role; // <-- Add role to token
       }
 
       // If trigger is "update" and session data is provided (like from client-side update call)
@@ -90,13 +92,15 @@ export default defineConfig({
           const email = token.id as string;
           const emailParts = email.split('@');
           if (emailParts.length === 2) {
-            const [dbResult] = await sql.query(
-              'SELECT username FROM user WHERE email_name = ? AND email_domain = ? LIMIT 1',
+            // Fetch username AND role
+            const [dbResult] = await sql.query( 
+              'SELECT username, role FROM user WHERE email_name = ? AND email_domain = ? LIMIT 1',
               [emailParts[0], emailParts[1]]
             );
             const users = dbResult as RowDataPacket[];
             if (users.length === 1) {
               token.name = users[0].username; // Update token name with latest from DB
+              token.role = users[0].role; // Update token role with latest from DB
             }
           }
         } catch (error) {
@@ -114,6 +118,7 @@ export default defineConfig({
         session.user.id = token.id as string; // Add id (email) from token to session user
         session.user.name = token.name as string; // Add potentially updated name from token
         session.user.email = token.email as string; // Ensure email is also present
+        session.user.role = token.role as string; // <-- Add role to session
       }
       return session;
     },

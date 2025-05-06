@@ -240,5 +240,32 @@ export const sqlQueries = {
       response_headers, response_size_bytes, performance_data, 
       is_fetch_complete, is_perf_complete
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  `,
+  // --- Query for dashboard --- 
+  listRecentReplays: `
+    SELECT 
+        replay_id, 
+        DATE_FORMAT(start_time, '%Y-%m-%d %H:%i:%s') as start_time_formatted 
+    FROM replay 
+    ORDER BY start_time DESC
+    LIMIT 5;
+  `,
+  getLatestMonthlyReport: `
+    SELECT 
+      report_month_start, 
+      new_users_count, 
+      new_replays_count,
+      total_users_end,
+      total_replays_end,
+      generated_at
+    FROM monthly_reports 
+    ORDER BY report_month_start DESC
+    LIMIT 1;
+  `,
+  listRecentWebstates: `
+    SELECT html_hash 
+    FROM webstate 
+    ORDER BY created_at DESC
+    LIMIT 5;
   `
 }; 

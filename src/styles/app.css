@@ -1,4 +1,11 @@
 @import "tailwindcss";
+@layer base, starlight, theme, components, utilities;
+
+@import '@astrojs/starlight-tailwind';
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+
 @plugin "daisyui" {
   themes: all;
   logs: true;
@@ -11,4 +18,23 @@
   #sentry-feedback {
     --inset: auto auto 0 0;
   }
+}
+
+:root,
+:root[data-theme="dark"],
+:root[data-theme="light"],
+:root[data-theme="black"] {
+  --bg: oklch(var(--b1));
+  --text: oklch(var(--bc));
+  --sl-color-accent-low: color-mix(in oklch, oklch(var(--p)) 60%, black 40%);
+  --sl-color-accent: oklch(var(--p) / 1);
+  --sl-color-accent-high: color-mix(in oklch, oklch(var(--p)) 80%, white 20%);
+  --sl-color-white: oklch(var(--bc) / 1);
+  --sl-color-gray-1: color-mix(in oklch, var(--bg) 10%, var(--text) 90%);
+  --sl-color-gray-2: color-mix(in oklch, var(--bg) 20%, var(--text) 80%);
+  --sl-color-gray-3: color-mix(in oklch, var(--bg) 50%, var(--text) 50%);
+  --sl-color-gray-4: color-mix(in oklch, var(--bg) 60%, var(--text) 40%);
+  --sl-color-gray-5: color-mix(in oklch, var(--bg) 70%, var(--text) 30%);
+  --sl-color-gray-6: color-mix(in oklch, var(--bg) 90%, var(--text) 10%);
+  --sl-color-black: oklch(var(--b1) / 1);
 }

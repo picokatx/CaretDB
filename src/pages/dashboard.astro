@@ -20,7 +20,13 @@ let userCount = 0;
 let webstateCount = 0;
 let replayCount = 0;
 let eventCount = 0;
+let recentReplays: { replay_id: string; start_time_formatted: string }[] = [];
 let fetchCountError: string | null = null;
+let fetchReplayError: string | null = null; // Separate error for replays
+let latestReport: any | null = null; // To store latest report data
+let fetchReportError: string | null = null; // Separate error for report
+let recentWebstates: { html_hash: string }[] = [];
+let fetchWebstateError: string | null = null;
 
 async function fetchCount(query: string): Promise<number> {
     const response = await fetch(API_URL, {
@@ -40,6 +46,65 @@ async function fetchCount(query: string): Promise<number> {
     }
 }
 
+// Helper to fetch a single row (like latest report)
+async function fetchSingleRow<T>(query: string): Promise<T | null> {
+    const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query })
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`API Error (${response.status}): ${errorData.error?.message || errorData.error || 'Failed to fetch single row data'}`);
+    }
+    const data = await response.json();
+    if (data.success && Array.isArray(data.rows) && data.rows.length > 0) {
+        return data.rows[0] as T;
+    } else if (data.success && data.rows.length === 0) {
+        return null; // No rows found
+    } else {
+        throw new Error(data.error?.message || data.error || 'Invalid data format for single row query');
+    }
+}
+
+// Helper to fetch list data (generic)
+async function fetchList<T>(query: string, caller?: string): Promise<T[]> { // Add optional caller for logging
+    const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query })
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`API Error fetching ${caller || 'list data'} (${response.status}): ${errorData.error?.message || errorData.error || 'Unknown API error'}`);
+    }
+    const data = await response.json();
+    if (data.success && Array.isArray(data.rows)) {
+        return data.rows as T[];
+    } else {
+        throw new Error(`Invalid data format fetching ${caller || 'list data'}: ${data.error?.message || data.error || 'Unknown format error'}`);
+    }
+}
+
+// Helper to fetch recent replays (similar to fetchCount but returns array)
+async function fetchRecentReplays(query: string): Promise<{ replay_id: string; start_time_formatted: string }[]> {
+    const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query })
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`API Error (${response.status}): ${errorData.error?.message || errorData.error || 'Failed to fetch recent replays'}`);
+    }
+    const data = await response.json();
+    if (data.success && Array.isArray(data.rows)) {
+        return data.rows as { replay_id: string; start_time_formatted: string }[];
+    } else {
+        throw new Error(data.error?.message || data.error || 'Invalid data format for recent replays query');
+    }
+}
+
 try {
     const countResults = await Promise.allSettled([
         fetchCount(sqlQueries.countUsers),
@@ -55,9 +120,34 @@ try {
 
     const countErrors = countResults.filter(r => r.status === 'rejected') as PromiseRejectedResult[];
     if (countErrors.length > 0) {
-        fetchCountError = countErrors.map(e => e.reason?.message || 'Unknown error').join('; ');
+        fetchCountError = countErrors.map(e => e.reason?.message || 'Unknown count error').join('; ');
         console.error("[Dashboard] Errors fetching database counts:", countErrors.map(e => e.reason));
     }
+
+    // Fetch recent replays separately using fetchList
+    try {
+        recentReplays = await fetchList<{ replay_id: string; start_time_formatted: string }>(sqlQueries.listRecentReplays, 'recent replays');
+    } catch (replayError: any) {
+        fetchReplayError = replayError.message || "Could not load recent replays.";
+        console.error("[Dashboard] Error fetching recent replays:", replayError);
+    }
+
+    // Fetch latest report separately
+    try {
+        latestReport = await fetchSingleRow<any>(sqlQueries.getLatestMonthlyReport);
+    } catch (reportError: any) {
+        fetchReportError = reportError.message || "Could not load latest report.";
+        console.error("[Dashboard] Error fetching latest report:", reportError);
+    }
+
+    // Fetch recent webstates separately using fetchList
+    try {
+        recentWebstates = await fetchList<{ html_hash: string }>(sqlQueries.listRecentWebstates, 'recent webstates');
+    } catch (webstateError: any) {
+        fetchWebstateError = webstateError.message || "Could not load recent webstates.";
+        console.error("[Dashboard] Error fetching recent webstates:", webstateError);
+    }
+
 } catch (error: any) {
     console.error("[Dashboard] Unexpected error fetching database stats:", error);
     fetchCountError = error.message || "Could not load database statistics.";
@@ -68,10 +158,27 @@ try {
 <Layout title={pageTitle}>
   <div class="container mx-auto px-4 py-8">
     <h1 class="text-2xl font-bold mb-4">
-      Welcome {session?.user?.name || session?.user?.email || "User"}!
-    </h1>
-
-    {fetchCountError && <div class="alert alert-warning shadow-lg mb-4"><span>Warning: {fetchCountError}</span></div>}
+       Welcome {session?.user?.name || session?.user?.email || "User"}! 
+       {/* Display role badge if role exists in session */}
+       {session?.user?.role && (
+         <span class="badge badge-outline badge-primary ml-2 capitalize"> 
+           {session.user.role}
+         </span>
+       )}
+     </h1>
+ 
+     {/* Combine error messages */} 
+     {(fetchCountError || fetchReplayError || fetchReportError) && (
+       <div class="alert alert-warning shadow-lg mb-4">
+         {/* Simplified error display */} 
+         <span>
+           Warning:
+           {fetchCountError && ` Counts: ${fetchCountError}`}
+           {fetchReplayError && ` Replays: ${fetchReplayError}`}
+           {fetchReportError && ` Report: ${fetchReportError}`}
+         </span> 
+       </div>
+     )}
 
     <div class="stats shadow w-full mb-8">
         <div class="stat">
@@ -91,6 +198,120 @@ try {
             <div class="stat-value">{eventCount.toLocaleString()}</div>
         </div>
     </div>
+
+    <!-- Quick Actions -->
+    <div class="mb-8 flex flex-wrap gap-4">
+        <a href="/matrix" class="btn btn-primary">Start New Recording Session</a>
+        <a href="/reports" class="btn btn-secondary">View Monthly Reports</a>
+    </div>
+
+    <!-- Latest Report Summary -->
+    <div class="card bg-base-200 shadow-xl mb-8">
+        <div class="card-body">
+            {latestReport ? (
+                <> {/* Fragment to group elements */} 
+                    <h2 class="card-title">Latest Report Summary ({new Date(latestReport.report_month_start).toLocaleString('default', { month: 'long', year: 'numeric' })})</h2>
+                    <div class="stats stats-vertical sm:stats-horizontal shadow">
+                        <div class="stat">
+                            <div class="stat-title">New Users</div>
+                            <div class="stat-value">{latestReport.new_users_count?.toLocaleString() ?? 'N/A'}</div>
+                            <div class="stat-desc">Total: {latestReport.total_users_end?.toLocaleString() ?? 'N/A'}</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-title">New Replays</div>
+                            <div class="stat-value">{latestReport.new_replays_count?.toLocaleString() ?? 'N/A'}</div>
+                            <div class="stat-desc">Total: {latestReport.total_replays_end?.toLocaleString() ?? 'N/A'}</div>
+                        </div>
+                        <div class="stat place-items-center">
+                            <div class="stat-title">Generated</div>
+                            <div class="stat-value text-sm">{new Date(latestReport.generated_at).toLocaleString()}</div>
+                        </div>
+                    </div>
+                    <div class="card-actions justify-end mt-2">
+                        <a href="/reports" class="btn btn-sm btn-outline">View Full Reports</a>
+                    </div>
+                </> 
+            ) : (
+                <> {/* Fragment for alternative content */} 
+                    <h2 class="card-title">Latest Report Summary</h2>
+                    <p>No reports generated yet.</p>
+                    {/* Optionally add a link to the reports page anyway */} 
+                    <div class="card-actions justify-end mt-2">
+                        <a href="/reports" class="btn btn-sm btn-outline">View Reports Page</a>
+                    </div>
+                </>
+            )}
+        </div>
+    </div>
+
+    <!-- Recent Replays -->
+    <div class="card bg-base-200 shadow-xl">
+      <div class="card-body">
+        <h2 class="card-title">Recent Replays</h2>
+        {fetchReplayError ? (
+            <p class="text-error">Could not load recent replays.</p>
+        ) : recentReplays.length > 0 ? (
+          <div class="overflow-x-auto">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Replay ID</th>
+                  <th>Started At</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentReplays.map(replay => (
+                  <tr>
+                    <td class="font-mono text-xs">{replay.replay_id.substring(0, 12)}...</td>
+                    <td>{replay.start_time_formatted}</td>
+                    <td>
+                      {/* Placeholder Link: Needs a dedicated replay viewer page */}
+                      <a href={`/matrix?replay_id=${replay.replay_id}`} class="btn btn-xs btn-ghost" title="View Replay (Placeholder)">
+                         View 
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p>No recent replays found.</p>
+        )}
+      </div>
+    </div>
+
+    <!-- Recent Webstates -->
+    <div class="card bg-base-200 shadow-xl mt-8">
+        <div class="card-body">
+            <h2 class="card-title">Recent Webstates</h2>
+            {fetchWebstateError ? (
+                <p class="text-error">Could not load recent webstates.</p>
+            ) : recentWebstates.length > 0 ? (
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {recentWebstates.map(ws => (
+                        <a href={`/matrix?webstate=${ws.html_hash}`} class="card card-compact bg-base-100 shadow hover:shadow-lg transition-shadow duration-300 group">
+                            <figure class="bg-neutral h-32 flex items-center justify-center overflow-hidden rounded-t">
+                                <img 
+                                    src={`/dom/preview/${ws.html_hash}.png`} 
+                                    alt={`Preview of ${ws.html_hash}`}
+                                    class="object-contain h-full w-full group-hover:scale-105 transition-transform" 
+                                    onerror='this.onerror=null; this.parentElement.innerHTML="<div class=\"text-neutral-content text-xs p-1\">(No Preview)</div>";' 
+                                />
+                            </figure>
+                            <div class="card-body p-2">
+                                <p class="text-xs font-mono break-all" title={ws.html_hash}>{ws.html_hash.substring(0, 16)}...</p>
+                            </div>
+                        </a>
+                    ))}
+                </div>
+            ) : (
+                <p>No recent webstates found.</p>
+            )}
+        </div>
+    </div>
+
   </div>
 </Layout>
 

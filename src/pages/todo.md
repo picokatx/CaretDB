@@ -18,12 +18,11 @@ delete account
 remember me checkbox
 admin
 database should only be accessible to admin users
+
+
 delete various things on cascade and whatever, add constraints checks 
 make ddl not AI generated.
 pad out dashboard and analysis a bit more
-
-theo (self assigned)
-save network data to database.
 
 
 - [x] Mutation,
