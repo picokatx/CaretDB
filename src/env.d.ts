@@ -8,26 +8,43 @@ declare global {
     }
 }
 
-// Augment Auth.js types
-declare module "@auth/core/types" {
-    interface User {
-      role?: string;
+declare namespace App {
+    interface Locals {
+      session: import("@auth/core/types").Session | null;
     }
+  }
+
+// Extend Auth.js types
+declare module "@auth/core/types" {
+    /**
+     * Returned by `useSession`, `getSession` and received as a prop on the `SessionProvider` React Context
+     */
     interface Session {
-      user?: { // Ensure user object structure matches what we populate
-        id?: string;
-        name?: string | null;
-        email?: string | null;
-        image?: string | null;
-        role?: string; // Add role here
-      } & DefaultSession["user"]; // Include default fields if needed
+      user: {
+        /** The user's role. */
+        role?: string;
+         /** The user's unique ID (often email or DB id) */
+         id?: string;
+      } & DefaultSession["user"];
+      /** The provider used for login */
+      provider?: string;
+    }
+  
+    interface User {
+      /** The user's role. */
+      role?: string;
     }
 }
 
+// Extend JWT type
 declare module "@auth/core/jwt" {
-  interface JWT {
-    role?: string;
-  }
+    /** Returned by the `jwt` callback and `getToken`, when using JWT sessions */
+    interface JWT {
+      /** User role */
+      role?: string;
+      /** Provider */
+      provider?: string;
+    }
 }
 
 // Export empty object to treat this file as a module

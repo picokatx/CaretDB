@@ -70,6 +70,10 @@ export const sqlQueries = {
   defaultUserQuery: `
     SELECT * FROM user;
   `,
+  // --- Query to get user role by email ---
+  selectUserRoleByEmail: `
+    SELECT role FROM user WHERE email_name = ? AND email_domain = ? LIMIT 1;
+  `,
   // --- Queries for save-replay.ts --- 
   insertSerializedNode: `
     INSERT INTO serialized_node (

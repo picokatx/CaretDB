@@ -8,6 +8,8 @@ import type { User } from '@auth/core/types';
 import { CredentialsSignin } from '@auth/core/errors';
 import { skipCSRFCheck } from '@auth/core';
 import { createHash } from 'crypto';
+import type { AuthConfig, Session } from "@auth/core/types";
+import { sqlQueries } from "./src/lib/sql_query_locale";
 
 // Custom error class for login failures
 class LoginError extends CredentialsSignin {
@@ -17,6 +19,15 @@ class LoginError extends CredentialsSignin {
     this.code = code; // Set the custom error code
   }
 }
+
+// Helper function to split email
+const splitEmail = (email: string): { name: string | null, domain: string | null } => {
+  if (!email || !email.includes('@')) {
+    return { name: null, domain: null };
+  }
+  const [name, domain] = email.split('@', 2);
+  return { name, domain };
+};
 
 export default defineConfig({
   skipCSRFCheck: skipCSRFCheck,
@@ -71,55 +82,53 @@ export default defineConfig({
   // Add callbacks to include user ID in the session
   callbacks: {
     // Include user.id on token, and refresh username on token update
-    async jwt({ token, user, trigger, session }) {
-      // Initial sign-in: Add user details to the token
-      if (user) { 
-        token.id = user.id; // user.id is the email from authorize
-        token.name = user.name; // Store initial username
-        token.email = user.email;
-        token.role = user.role; // <-- Add role to token
+    async jwt({ token, user, account, profile }) {
+      // Persist the OAuth access_token and provider to the token right after signin
+      if (account) {
+        token.accessToken = account.access_token;
+        token.provider = account.provider;
       }
-
-      // If trigger is "update" and session data is provided (like from client-side update call)
-      // This pattern is more common in Next.js. In Astro, we might rely on re-fetching.
-      // For simplicity and security with Astro's server-side session handling,
-      // let's prioritize re-fetching based on the ID when the token is used.
-
-      // Re-fetch user data if token exists (meaning it's not initial login)
-      // This ensures the name is up-to-date when the token is verified/used later.
-      if (token?.id) { // Check if token exists and has the user ID (email)
-        try {
-          const email = token.id as string;
-          const emailParts = email.split('@');
-          if (emailParts.length === 2) {
-            // Fetch username AND role
-            const [dbResult] = await sql.query( 
-              'SELECT username, role FROM user WHERE email_name = ? AND email_domain = ? LIMIT 1',
-              [emailParts[0], emailParts[1]]
+      // If user object exists (sign in), try to fetch role
+      if (user && user.email) {
+        console.log(`[JWT Callback] User signed in: ${user.email}. Fetching role...`);
+        const { name: email_name, domain: email_domain } = splitEmail(user.email);
+        if (email_name && email_domain) {
+          try {
+            const [rows]: [any[], any] = await sql.query(
+              sqlQueries.selectUserRoleByEmail,
+              [email_name, email_domain]
             );
-            const users = dbResult as RowDataPacket[];
-            if (users.length === 1) {
-              token.name = users[0].username; // Update token name with latest from DB
-              token.role = users[0].role; // Update token role with latest from DB
+            if (rows && rows.length > 0 && rows[0].role) {
+              token.role = rows[0].role; // Add role to the token
+              console.log(`[JWT Callback] Role fetched: ${token.role}`);
+            } else {
+               console.log(`[JWT Callback] Role not found in DB for ${user.email}`);
+               token.role = 'user'; // Assign default role if not found? Or handle downstream?
             }
+          } catch (dbError) {
+            console.error("[JWT Callback] Database error fetching role:", dbError);
+            // Decide how to handle DB errors during login - fail login? proceed without role?
+             token.role = 'user'; // Assign default role on error for now
           }
-        } catch (error) {
-          console.error("Error re-fetching user data for JWT:", error);
-          // Decide how to handle error: maybe keep old name, maybe invalidate token?
-          // Keeping old name is safer for now.
+        } else {
+          console.warn(`[JWT Callback] Could not parse email: ${user.email}`);
+           token.role = 'user'; // Assign default if email is weird
         }
       }
-
       return token;
     },
     // Include user.id and updated name on session
     async session({ session, token }) {
-      if (token?.id && session?.user) {
-        session.user.id = token.id as string; // Add id (email) from token to session user
-        session.user.name = token.name as string; // Add potentially updated name from token
-        session.user.email = token.email as string; // Ensure email is also present
-        session.user.role = token.role as string; // <-- Add role to session
+      // Send properties to the client, like role and provider
+      if (token.provider && session.user) {
+        session.provider = token.provider as string;
       }
+      if (token.role && session.user) {
+        session.user.role = token.role as string; // Add role to session user object
+      }
+       if (token.sub && session.user) {
+         session.user.id = token.sub; // Add user id (subject) to session
+       }
       return session;
     },
   },
@@ -127,4 +136,4 @@ export default defineConfig({
   session: {
     strategy: "jwt",
   },
-});
+}) satisfies AuthConfig;

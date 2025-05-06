@@ -3,12 +3,20 @@ import Layout from "../components/Layout.astro";
 import Topbar from "../components/Topbar.astro"; // Included via Layout usually, but explicit here for clarity
 import { getSession } from "auth-astro/server";
 
+// --- Auth Check ---
 const session = await getSession(Astro.request);
 
-// Redirect if not logged in
-if (!session) {
-  return Astro.redirect("/login");
+// 1. Check if logged in (Basic check, already done in original code, but good practice)
+if (!session?.user) {
+  // Original code already handles this redirect, but we'll keep the check explicit
+  return Astro.redirect("/login?error=Unauthorized"); 
 }
+
+// 2. Check if admin
+if (session.user.role !== 'admin') {
+  return Astro.redirect("/unauthorized?page=Debug Tools"); // Redirect non-admins
+}
+// --- End Auth Check ---
 
 const pageTitle = "CaretDB - Debug Tools";
 ---
