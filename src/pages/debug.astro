@@ -1,4 +1,5 @@
 ---
+import { Console } from "console";
 import Layout from "../components/Layout.astro";
 import Topbar from "../components/Topbar.astro"; // Included via Layout usually, but explicit here for clarity
 import { getSession } from "auth-astro/server";
@@ -19,6 +20,7 @@ if (session.user.role !== 'admin') {
 // --- End Auth Check ---
 
 const pageTitle = "CaretDB - Debug Tools";
+const API_URL = `${Astro.url.origin}/api`;
 ---
 
 <Layout title={pageTitle}>
@@ -59,7 +61,7 @@ const pageTitle = "CaretDB - Debug Tools";
         </p>
         <div class="form-control mt-4">
           <button id="export-queries-button" class="btn btn-secondary">
-            Export Predefined Queries (.sql)
+            Export Predefined Queries (.csv)
           </button>
         </div>
         <div class="border border-base-300 rounded-md p-2 mt-4">
@@ -88,6 +90,11 @@ const pageTitle = "CaretDB - Debug Tools";
   </div>
 </Layout>
 
+<script define:vars={{ API_URL }} is:inline>
+  // Now `API_URL` is available here as a plain JS variable:
+  window.API_URL = API_URL;
+</script>
+
 <script>
   // Get controls and displays
   const buildSchemaButton = document.getElementById("build-schema-button");
@@ -98,7 +105,7 @@ const pageTitle = "CaretDB - Debug Tools";
   // const sentryResultDisplay = document.getElementById('sentry-result-display'); // Placeholder
 
   // Function to trigger browser download
-  function downloadFile(filename, content, mimeType = "text/plain") {
+  /*function downloadFile(filename, content, mimeType = "text/plain") {
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -108,6 +115,12 @@ const pageTitle = "CaretDB - Debug Tools";
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }*/
+
+  declare global {
+      interface Window {
+          API_URL: string;
+      }
   }
 
   // Add listener for Build Schema button
@@ -151,14 +164,46 @@ const pageTitle = "CaretDB - Debug Tools";
     );
   }
 
+  async function downloadCSV(apiUrl: string, param: string){
+    const response = await fetch(apiUrl + '/export_csv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: param })
+    });
+    if (!response.ok) throw new Error(`Export failed (${response.status})`);
+  }
+
+  async function exportSQL(apiUrl: string): Promise<string[]>{
+    const response = await fetch(apiUrl + '/query_mysql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: "SHOW TABLES;" })
+    });
+    if (!response.ok) throw new Error(`Export failed (${response.status})`);
+    const data = await response.json();
+
+    for(const i of data.rows){
+      await downloadCSV(apiUrl,i.Tables_in_caretdb)
+    }
+
+    return data.rows;
+  }
   // Add listener for Export Queries button
   if (exportQueriesButton && exportResultDisplay) {
     exportQueriesButton.addEventListener("click", () => {
-      console.log("[exportQueries - Debug Page] Button clicked. Sending request to /api/export_queries");
+      console.log("[exportQueries - Debug Page] Button clicked. Sending request to /api/query_mysql");
       exportResultDisplay.textContent = "Initiating export...";
       exportQueriesButton.setAttribute("disabled", "true");
 
-      fetch("/api/export_queries", {
+      const apiUrl = window.API_URL;
+
+      console.log("testing")
+      const tablelist = exportSQL(apiUrl);
+      console.log(tablelist);
+      
+      
+
+      /*fetch("/api/export_queries", {
         method: "GET", // GET request is suitable here
       })
         .then(async (resp) => {
@@ -168,7 +213,7 @@ const pageTitle = "CaretDB - Debug Tools";
             try {
               const errorData = await resp.json();
               errorMsg = errorData.error || errorMsg;
-            } catch (e) { /* Ignore if response is not JSON */ }
+            } catch (e) { /* Ignore if response is not JSON  }
             throw new Error(errorMsg);
           }
           // Get filename from Content-Disposition header if available
@@ -193,7 +238,7 @@ const pageTitle = "CaretDB - Debug Tools";
         })
         .finally(() => {
           exportQueriesButton.removeAttribute("disabled");
-        });
+        });*/
     });
   }
 

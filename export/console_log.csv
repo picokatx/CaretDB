@@ -1,0 +1,5 @@
+log_id,replay_id,level,payload,delay,timestamp,trace
+23486573-2890-4432-ad13-82b0026f68c7,ba2a036f-4f6b-4ded-95d9-70434798e540,log,XHR and Fetch APIs intercepted for network logging.,0,2025-05-06T00:51:02.000Z,
+4f984024-4e38-4862-ab23-675b927555c9,ba2a036f-4f6b-4ded-95d9-70434798e540,log,rrweb recording started.,2,2025-05-06T00:51:02.000Z,
+5030ac63-6b21-4cd5-b614-f7135a6a104d,ba2a036f-4f6b-4ded-95d9-70434798e540,log,"Form submitted:,{""name"":""cwewde"",""message"":""""}",3375,2025-05-06T00:51:05.000Z,
+af85c6b0-be3a-4856-94c8-f27c16562599,ba2a036f-4f6b-4ded-95d9-70434798e540,log,PerformanceObserver started for network resources.,0,2025-05-06T00:51:02.000Z,

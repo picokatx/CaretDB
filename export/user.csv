@@ -1,0 +1,2 @@
+email_domain,email_name,username,password,created_at,last_login,status,first_name,middle_name,last_name,phone_num,role,verified,fail_login,twofa,privacy_mask
+gmail.com,picokatx,theo,3a4b52fc88795615c55066100afbba60bea938b976fd40f13def78369a209f50,2024-02-04T23:30:25.000Z,2024-05-28T18:45:55.000Z,enabled,theo,weibin,1,1832555445,admin,1,0,1,1
