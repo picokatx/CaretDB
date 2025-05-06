@@ -1,0 +1,124 @@
+id,type,root_id,is_shadow_host,is_shadow,compat_mode,name,public_id,system_id,tag,is_svg,need_block,is_custom,text_content
+1,document,,0,0,,,,,,0,0,0,
+2,documenttype,,0,0,,html,,,,0,0,0,
+3,element,,0,0,,,,,html,0,0,0,
+4,element,,0,0,,,,,head,0,0,0,
+5,text,,0,0,,,,,,0,0,0,"
+    "
+6,element,,0,0,,,,,meta,0,0,0,
+7,text,,0,0,,,,,,0,0,0,"
+    "
+8,element,,0,0,,,,,meta,0,0,0,
+9,text,,0,0,,,,,,0,0,0,"
+    "
+10,element,,0,0,,,,,title,0,0,0,
+11,text,,0,0,,,,,,0,0,0,Sample HTML for Testing
+12,text,,0,0,,,,,,0,0,0,"
+    "
+13,element,,0,0,,,,,style,0,0,0,
+14,text,,0,0,,,,,,0,0,0,"body { font-family: Arial, sans-serif; max-width: 800px; margin: 0px auto; padding: 20px; }.container { border: 1px solid rgb(204, 204, 204); padding: 20px; border-radius: 5px; margin-bottom: 20px; }button { padding: 10px 15px; background-color: rgb(76, 175, 80); color: white; border: none; border-radius: 4px; cursor: pointer; }button:hover { background-color: rgb(69, 160, 73); }input, textarea { width: 100%; padding: 10px; margin: 10px 0px; border: 1px solid rgb(221, 221, 221); border-radius: 4px; }"
+15,text,,0,0,,,,,,0,0,0,"
+  "
+16,element,,0,0,,,,,script,0,0,0,
+17,text,,0,0,,,,,,0,0,0,"
+"
+18,text,,0,0,,,,,,0,0,0,"
+"
+19,element,,0,0,,,,,body,0,0,0,
+20,text,,0,0,,,,,,0,0,0,"
+    "
+21,element,,0,0,,,,,h1,0,0,0,
+22,text,,0,0,,,,,,0,0,0,Test Page for RRWeb Recording
+23,text,,0,0,,,,,,0,0,0,"
+    
+    "
+24,element,,0,0,,,,,div,0,0,0,
+25,text,,0,0,,,,,,0,0,0,"
+        "
+26,element,,0,0,,,,,h2,0,0,0,
+27,text,,0,0,,,,,,0,0,0,Form Interactions
+28,text,,0,0,,,,,,0,0,0,"
+        "
+29,element,,0,0,,,,,form,0,0,0,
+30,text,,0,0,,,,,,0,0,0,"
+            "
+31,element,,0,0,,,,,div,0,0,0,
+32,text,,0,0,,,,,,0,0,0,"
+                "
+33,element,,0,0,,,,,label,0,0,0,
+34,text,,0,0,,,,,,0,0,0,Name:
+35,text,,0,0,,,,,,0,0,0,"
+                "
+36,element,,0,0,,,,,input,0,0,0,
+37,text,,0,0,,,,,,0,0,0,"
+            "
+38,text,,0,0,,,,,,0,0,0,"
+            "
+39,element,,0,0,,,,,div,0,0,0,
+40,text,,0,0,,,,,,0,0,0,"
+                "
+41,element,,0,0,,,,,label,0,0,0,
+42,text,,0,0,,,,,,0,0,0,Message:
+43,text,,0,0,,,,,,0,0,0,"
+                "
+44,element,,0,0,,,,,textarea,0,0,0,
+45,text,,0,0,,,,,,0,0,0,"
+            "
+46,text,,0,0,,,,,,0,0,0,"
+            "
+47,element,,0,0,,,,,button,0,0,0,
+48,text,,0,0,,,,,,0,0,0,Submit
+49,text,,0,0,,,,,,0,0,0,"
+        "
+50,text,,0,0,,,,,,0,0,0,"
+    "
+51,text,,0,0,,,,,,0,0,0,"
+    
+    "
+52,element,,0,0,,,,,div,0,0,0,
+53,text,,0,0,,,,,,0,0,0,"
+        "
+54,element,,0,0,,,,,h2,0,0,0,
+55,text,,0,0,,,,,,0,0,0,API Interaction
+56,text,,0,0,,,,,,0,0,0,"
+        "
+57,element,,0,0,,,,,button,0,0,0,
+58,text,,0,0,,,,,,0,0,0,Fetch Sample Data
+59,text,,0,0,,,,,,0,0,0,"
+        "
+60,element,,0,0,,,,,div,0,0,0,
+61,text,,0,0,,,,,,0,0,0,"
+    "
+62,text,,0,0,,,,,,0,0,0,"
+    
+    "
+63,element,,0,0,,,,,div,0,0,0,
+64,text,,0,0,,,,,,0,0,0,"
+        "
+65,element,,0,0,,,,,h2,0,0,0,
+66,text,,0,0,,,,,,0,0,0,DOM Manipulation
+67,text,,0,0,,,,,,0,0,0,"
+        "
+68,element,,0,0,,,,,button,0,0,0,
+69,text,,0,0,,,,,,0,0,0,Add Element
+70,text,,0,0,,,,,,0,0,0,"
+        "
+71,element,,0,0,,,,,button,0,0,0,
+72,text,,0,0,,,,,,0,0,0,Change Colors
+73,text,,0,0,,,,,,0,0,0,"
+        "
+74,element,,0,0,,,,,div,0,0,0,
+75,text,,0,0,,,,,,0,0,0,"
+    "
+76,text,,0,0,,,,,,0,0,0,"
+    
+    "
+77,element,,0,0,,,,,script,0,0,0,
+78,text,,0,0,,,,,,0,0,0,SCRIPT_PLACEHOLDER
+79,text,,0,0,,,,,,0,0,0,"
+  "
+80,element,,0,0,,,,,script,0,0,0,
+81,text,,0,0,,,,,,0,0,0,"
+
+ "
+82,element,,0,0,,,,,span,0,0,0,

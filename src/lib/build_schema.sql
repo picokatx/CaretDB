@@ -1,4 +1,3 @@
-%%sql
 drop database if exists caretdb;
 create database caretdb;
 use caretdb;
@@ -112,7 +111,7 @@ create table serialized_node (
   need_block       boolean            not null default false,
   is_custom        boolean            not null default false,
 
-  text_content     varchar(255)
+  text_content     text
 );
 
 create table serialized_node_child (

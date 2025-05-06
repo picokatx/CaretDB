@@ -1,0 +1,36 @@
+node_id,attribute_key,string_value,number_value,is_true,is_null
+3,lang,en,,0,0
+3,rr_scrollTop,,555,0,0
+6,charset,UTF-8,,0,0
+8,content,"width=device-width, initial-scale=1.0",,0,0
+8,name,viewport,,0,0
+16,src,https://cdn.jsdelivr.net/npm/rrweb@latest/dist/rrweb.min.js,,0,0
+24,class,container,,0,0
+29,id,testForm,,0,0
+33,for,name,,0,0
+36,fdprocessedid,ej8sujj,,0,0
+36,id,name,,0,0
+36,placeholder,Enter your name,,0,0
+36,type,text,,0,0
+41,for,message,,0,0
+44,id,message,,0,0
+44,placeholder,Type your message here,,0,0
+44,rows,4,,0,0
+47,fdprocessedid,e5pgvg,,0,0
+47,id,submitBtn,,0,0
+47,type,button,,0,0
+52,class,container,,0,0
+57,fdprocessedid,yqgyo,,0,0
+57,id,fetchDataBtn,,0,0
+60,id,apiResult,,0,0
+60,style,margin-top: 10px; padding: 10px; background-color: #f5f5f5;,,0,0
+63,class,container,,0,0
+68,fdprocessedid,ht2vurr,,0,0
+68,id,addElementBtn,,0,0
+71,fdprocessedid,lblewcf,,0,0
+71,id,changeColorBtn,,0,0
+74,id,elementsContainer,,0,0
+74,style,margin-top: 10px; min-height: 100px;,,0,0
+80,src,http://localhost:4321/dom/rrweb_loader.js,,0,0
+82,id,PING_IFRAME_FORM_DETECTION,,0,0
+82,style,display: none;,,0,0
