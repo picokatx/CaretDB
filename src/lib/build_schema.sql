@@ -100,33 +100,38 @@ create table serialized_node (
   is_shadow_host   boolean            not null default false,
   is_shadow        boolean            not null default false,
 
-  compat_mode      text,
-  name             text,
-  public_id        text,
-  system_id        text,
+  compat_mode      varchar(255),
+  name             varchar(255),
+  public_id        varchar(255),
+  system_id        varchar(255),
 
   tag              varchar(24),
   is_svg           boolean            not null default false,
   need_block       boolean            not null default false,
   is_custom        boolean            not null default false,
 
-  text_content     text
+  text_content     varchar(255)
 );
 
 create table serialized_node_child (
   parent_id int not null references serialized_node(id),
   child_id  int not null references serialized_node(id),
-  primary key (parent_id, child_id)
+
+  primary key (parent_id, child_id),
+  constraint fk_serialized_node_child_child_id foreign key (child_id) references serialized_node(id) on delete cascade,
+  constraint fk_serialized_node_child_parent_id foreign key (parent_id) references serialized_node(id) on delete cascade
 );
 
 create table serialized_node_attribute (
-  node_id      int     not null references serialized_node(id),
+  node_id      int     not null,
   attribute_key varchar(32)   not null,
   string_value text,
   number_value numeric,
   is_true      boolean not null default false,
   is_null      boolean not null default false,
-  primary key (node_id, attribute_key)
+
+  primary key (node_id, attribute_key),
+  constraint fk_serialized_node_attribute_node_id foreign key (node_id) references serialized_node(id) on delete cascade
 );
 
 create table style_om_value (
@@ -136,8 +141,8 @@ create table style_om_value (
 create table style_om_value_entry (
   id                 int,
   property           char(32)   not null,
-  value_string       text,
-  priority           text,
+  value_string       varchar(255),
+  priority           varchar(255),
   primary key (id, property)
 );
 
@@ -147,49 +152,62 @@ create table event (
   type       enum('fullsnapshot','incrementalsnapshot','meta')   not null,
   timestamp  timestamp       not null,
   delay      int,
+
   constraint fk_event_replay foreign key (replay_id) references replay(replay_id) 
 );
 
 create table full_snapshot_event (
-  event_id            char(36) primary key references event(event_id),
-  node_id             int not null references serialized_node(id),
+  event_id            char(36) primary key,
+  node_id             int not null,
   initial_offset_top  int not null,
-  initial_offset_left int not null
+  initial_offset_left int not null,
+
+  constraint fk_full_snapshot_event_event_id foreign key (event_id) references event(event_id) on delete cascade,
+  constraint fk_full_snapshot_event_node_id foreign key (node_id) references serialized_node(id) on delete cascade,
 );
 
 create table meta_event (
-  event_id char(36) primary key references event(event_id),
+  event_id char(36) primary key,
   href      text   not null,
   width     int    not null,
-  height    int    not null
+  height    int    not null,
+
+  constraint fk_meta_event_event_id foreign key (event_id) references event(event_id) on delete cascade
 );
 
 create table incremental_snapshot_event (
-  event_id            char(36) primary key references event(event_id),
+  event_id            char(36) primary key,
   t  enum (  
     'mutation','mousemove','mouseinteraction','scroll','viewportresize',
     'input','touchmove','mediainteraction','stylesheetrule',
     'canvasmutation','font','log','drag','styledeclaration','selection',
     'adoptedstylesheet','customelement'
-    )  not null
+    )  not null,
+
+  constraint fk_incremental_snapshot_event_event_id foreign key (event_id) references event(event_id) on delete cascade
 );
 
 create table mutation_data (
-  event_id         char(36)  primary key references incremental_snapshot_event(event_id),
-  is_attach_iframe boolean not null default false
+  event_id         char(36)  primary key,
+  is_attach_iframe boolean not null default false,
+
+  constraint fk_mutation_data_event_id foreign key (event_id) references incremental_snapshot_event(event_id) on delete cascade
 );
 
 create table text_mutation (
-  event_id         char(36)    not null references mutation_data(event_id),
+  event_id         char(36)    not null,
   node_id          int    not null,
   value            text,
-  primary key (event_id, node_id) 
+  primary key (event_id, node_id),
+  constraint fk_text_mutation_event_id foreign key (event_id) references mutation_data(event_id) on delete cascade
 );
 
 create table attribute_mutation (
-  event_id         char(36)    not null references mutation_data(event_id),
+  event_id         char(36)    not null,
   node_id          int    not null,
-  primary key (event_id, node_id) 
+
+  primary key (event_id, node_id),
+  constraint fk_attribute_mutation_event_id foreign key (event_id) references mutation_data(event_id) on delete cascade
 );
 
 create table attribute_mutation_entry (
@@ -197,42 +215,53 @@ create table attribute_mutation_entry (
   node_id          int    not null,
   attribute_key    char(32)   not null,
   string_value     text,
-  style_om_value_id int references style_om_value(id),
+  style_om_value_id int,
+
   primary key (event_id, node_id, attribute_key), 
-  foreign key (event_id, node_id) references attribute_mutation(event_id, node_id) 
+  constraint fk_attribute_mutation_entry_event_id_node_id foreign key (event_id, node_id) references attribute_mutation(event_id, node_id) on delete cascade,
+  constraint fk_attribute_mutation_entry_style_om_value_id foreign key (style_om_value_id) references style_om_value(id) on delete null
 );
 
 create table removed_node_mutation (
-  event_id         char(36)    not null references mutation_data(event_id),
+  event_id         char(36)    not null,
   parent_id        int    not null,
   node_id          int    not null,
   is_shadow        boolean not null default false,
-  primary key (event_id, node_id) 
+
+  primary key (event_id, node_id),
+  constraint fk_removed_node_mutation_node_id foreign key (event_id) references mutation_data(event_id) on delete cascade
 );
 
 create table added_node_mutation (
-  event_id         char(36)    not null references mutation_data(event_id),
+  event_id         char(36)    not null,
   parent_id        int    not null,
   next_id          int,
   node_id          int    not null references serialized_node(id),
-  primary key (event_id, parent_id, node_id) 
+
+  primary key (event_id, parent_id, node_id),
+  constraint fk_added_node_mutation_event_id foreign key (event_id) references mutation_data(event_id) on delete cascade,
+  constraint fk_added_node_mutation_node_id foreign key (node_id) references serialized_node(id) on delete cascade
 );
 
 create table mousemove_data (
-  event_id char(36) primary key references incremental_snapshot_event(event_id)
+  event_id char(36) primary key,
+
+  constraint fk_mousemove_data_event_id foreign key (event_id) references incremental_snapshot_event(event_id) on delete cascade
 );
 
 create table mouse_position (
-  event_id          char(36) not null references mousemove_data(event_id),
+  event_id          char(36) not null,
   x                 int not null,
   y                 int not null,
   node_id           int not null,
   time_offset       int not null,
-  primary key (event_id, node_id, time_offset) 
+
+  primary key (event_id, node_id, time_offset),
+  constraint fk_mouse_position_event_id foreign key (event_id) references mousemove_data(event_id) on delete cascade
 );
 
 create table mouse_interaction_data (
-  event_id         char(36)               primary key references incremental_snapshot_event(event_id),
+  event_id         char(36)               primary key,
   interaction_type enum (
     'mouseup','mousedown','click','contextmenu','dblclick',
     'focus','blur','touchstart','touchmove_departed','touchend','touchcancel'
@@ -240,32 +269,40 @@ create table mouse_interaction_data (
   node_id          int               not null,
   x                int,
   y                int,
-  pointer_type     enum ('mouse','pen','touch')
+  pointer_type     enum ('mouse','pen','touch'),
+
+  constraint fk_mouse_interaction_data_event_id foreign key (event_id) references incremental_snapshot_event(event_id) on delete cascade
 );
 
 create table scroll_data (
-  event_id char(36) primary key references incremental_snapshot_event(event_id),
+  event_id char(36) primary key,
   node_id int not null,
   x       int not null,
-  y       int not null
+  y       int not null,
+
+  constraint fk_scroll_data_event_id foreign key (event_id) references incremental_snapshot_event(event_id) on delete cascade
 );
 
 create table viewport_resize_data (
-  event_id char(36) primary key references incremental_snapshot_event(event_id),
+  event_id char(36) primary key,
   width  int not null,
-  height int not null
+  height int not null,
+
+  constraint fk_viewport_resize_data_event_id foreign key (event_id) references incremental_snapshot_event(event_id) on delete cascade
 );
 
 create table input_data (
-  event_id       char(36)     primary key references incremental_snapshot_event(event_id),
+  event_id       char(36)     primary key,
   node_id        int     not null,
   text           text    not null,
   is_checked     boolean not null,
-  user_triggered boolean not null default false
+  user_triggered boolean not null default false,
+
+  constraint fk_input_data_event_id foreign key (event_id) references incremental_snapshot_event(event_id) on delete cascade
 );
 
 create table media_interaction_data (
-  event_id         char(36)    primary key references incremental_snapshot_event(event_id),
+  event_id         char(36)    primary key,
   interaction_type  enum(
     'play','pause','seeked','volumechange','ratechange'
     ) not null,
@@ -274,34 +311,44 @@ create table media_interaction_data (
   volume           decimal(8,4),
   muted            boolean,
   isloop             boolean,
-  playback_rate    decimal(8,4)
+  playback_rate    decimal(8,4),
+
+  constraint fk_media_interaction_data_event_id foreign key (event_id) references incremental_snapshot_event(event_id) on delete cascade
 );
 
 create table font_data (
-  event_id    char(36)  primary key references incremental_snapshot_event(event_id),
+  event_id    char(36)  primary key,
   family      text not null,
   font_source text not null,
-  buffer      boolean not null
+  buffer      boolean not null,
+
+  constraint fk_font_data_event_id foreign key (event_id) references incremental_snapshot_event(event_id) on delete cascade
 );
 
 create table font_descriptor (
   id               serial primary key,
-  event_id         char(36)    not null references font_data(event_id),
+  event_id         char(36)    not null,
   descriptor_key   text  not null,
-  descriptor_value text  not null
+  descriptor_value text  not null,
+
+  constraint fk_font_descriptor_event_id foreign key (event_id) references font_data(event_id) on delete cascade
 );
 
 create table selection_data (
-  event_id char(36) primary key references incremental_snapshot_event(event_id)
+  event_id char(36) primary key,
+
+  constraint fk_selection_data_event_id foreign key (event_id) references incremental_snapshot_event(event_id) on delete cascade
 );
 
 create table selection_range (
   id               serial primary key,
-  event_id         char(36)   not null references selection_data(event_id),
+  event_id         char(36)   not null,
   start            int    not null,
   start_offset     int    not null,
   end              int    not null,
-  end_offset       int    not null
+  end_offset       int    not null,
+
+  constraint fk_selection_range_event_id foreign key (event_id) references selection_data(event_id) on delete cascade
 );
 
 create table console_log (
@@ -312,7 +359,8 @@ create table console_log (
   delay      int not null,                  
   timestamp  timestamp not null,            
   trace      text null,                     
-  constraint fk_console_log_replay foreign key (replay_id) references replay(replay_id)
+
+  constraint fk_console_log_replay foreign key (replay_id) references replay(replay_id) on delete cascade
 );
 
 create table network_request (
@@ -334,7 +382,8 @@ create table network_request (
     response_size_bytes int unsigned null,      
     performance_data json null,                 
     is_fetch_complete boolean null,             
-    is_perf_complete boolean null,              
+    is_perf_complete boolean null,           
+
     constraint fk_network_request_replay foreign key (replay_id) references replay(replay_id) on delete cascade
 );
 
@@ -359,6 +408,7 @@ create table cookie (
         same_site in ('strict', 'lax', 'none')
     ),
     last_accessed timestamp,
+
     primary key (name, html_hash),
     foreign key (html_hash) references webstate(html_hash)
 ); 
@@ -368,6 +418,7 @@ create table replay_summary (
     html_hash char(64) not null,
     click_count int not null default 0,
     last_updated timestamp default current_timestamp on update current_timestamp,
+
     constraint fk_replay_summary_replay foreign key (replay_id) references replay(replay_id) on delete cascade,
     constraint fk_replay_summary_webstate foreign key (html_hash) references webstate(html_hash) on delete cascade
 );
