@@ -1,32 +1,122 @@
 ---
-title: Authentication Setup
-description: How user authentication is configured in the project.
+title: Authentication Guide
+description: Configuring and managing user authentication using Auth.js (auth-astro).
 ---
 
-User authentication is managed using the `Auth.js` library via the `auth-astro` integration.
-The core configuration resides in `auth.config.ts` at the root of the project.
+User authentication in CaretDB ensures that only authorized users can access the dashboard, view replays, and perform administrative actions. It is powered by the robust `Auth.js` library, seamlessly integrated into the Astro framework using `auth-astro`.
+
+The primary configuration file for authentication is `auth.config.ts`, located at the root of the project.
 
 ## Configuration (`auth.config.ts`)
 
-This file defines:
+This crucial file orchestrates the entire authentication flow. Here's a breakdown of its key components:
 
-- **Authentication Providers:** Specifies which OAuth providers (e.g., GitHub, Google) are enabled for login. Credentials (client ID, client secret) for these providers are typically loaded from environment variables (`process.env`).
-- **Callbacks:** Defines functions that are executed during the authentication process. This can include:
-    - `signIn`: Logic to run when a user attempts to sign in.
-    - `redirect`: Custom logic to determine where users are redirected after certain actions.
-    - `jwt`: Modifying the JWT payload before it's saved.
-    - `session`: Modifying the session object before it's returned to the client (e.g., adding user roles or IDs).
-- **Session Strategy:** Usually configured as `jwt` (JSON Web Tokens) for serverless environments.
-- **Secret:** A secret key used for signing tokens, loaded from environment variables.
+-   **Providers:** Defines the methods users can use to log in. Typically, this involves OAuth providers like GitHub or Google.
+    ```typescript
+    import GitHub from "@auth/core/providers/github";
+    // ... other imports
 
-## Session Handling
+    export default {
+      providers: [
+        GitHub({
+          clientId: process.env.AUTH_GITHUB_ID,
+          clientSecret: process.env.AUTH_GITHUB_SECRET,
+        }),
+        // Add other providers like Google, etc.
+      ],
+      // ... other configurations
+    } satisfiesAuthConfig;
+    ```
+    You **must** provide the corresponding Client ID and Client Secret for each enabled provider via environment variables.
 
-- The `getSession` function from `auth-astro/server` is used in Astro components (`.astro` files) or API endpoints to retrieve the current user's session.
-- If a session exists, it contains user information like name, email, image, and any custom data added via the `session` callback (e.g., user role).
-- Pages requiring authentication typically check for a valid session at the beginning and redirect unauthenticated users to a login page.
+-   **Callbacks:** Allows customization of the authentication lifecycle.
+    -   `signIn`: Can prevent sign-in based on custom logic (e.g., checking if the user's email domain is allowed).
+    -   `redirect`: Controls where users are sent after sign-in, sign-out, or in case of errors.
+    -   `jwt`: Used to encode custom data into the JWT (JSON Web Token) upon successful login. For example, adding a user's database ID or role.
+    -   `session`: Used to expose data from the JWT to the client-side session object, making it accessible in your Astro components.
+        ```typescript
+        callbacks: {
+          async session({ session, token }) {
+            // Expose user ID from the JWT token to the session object
+            if (token.sub && session.user) {
+              session.user.id = token.sub; // 'sub' usually holds the user ID
+            }
+            return session;
+          },
+          // ... other callbacks like jwt, signIn
+        },
+        ```
 
-## Key Files
+-   **Session Strategy:** Configured as `jwt`. This means user sessions are managed using self-contained JSON Web Tokens, suitable for serverless and edge environments.
 
-- `auth.config.ts`: Main configuration for Auth.js.
-- `src/pages/login.astro`: (Likely) The page handling the login UI and initiating the sign-in process.
-- Components using `getSession`: e.g., `src/pages/dashboard.astro`, potentially layout components. 
+-   **Secret (`AUTH_SECRET`):** A critical environment variable containing a random string used to encrypt the JWTs. **Never commit this secret to your repository.** Generate a strong secret (e.g., using `openssl rand -hex 32`).
+
+## Environment Variables
+
+Authentication relies heavily on environment variables. Ensure the following are set in your `.env` file or deployment environment:
+
+-   `AUTH_SECRET`: A strong secret for JWT encryption.
+-   `AUTH_TRUST_HOST=true`: Required for non-HTTPS local development or specific deployment scenarios. Set to `false` in production if behind a trusted proxy handling TLS.
+-   `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET`: Credentials for the GitHub provider (if enabled).
+-   `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`: Credentials for the Google provider (if enabled).
+-   *(Add variables for any other configured providers)*
+
+## Protecting Pages and Routes
+
+To restrict access to specific pages or API routes, you need to check for a valid user session.
+
+**In Astro Pages (`.astro`):**
+
+```astro
+---
+import { getSession } from "auth-astro/server";
+
+const session = await getSession(Astro.request);
+
+// If no session exists or the user is not authorized, redirect to login
+if (!session?.user) {
+  return Astro.redirect("/login?error=Unauthorized"); // Redirect to your login page
+}
+
+// Proceed with rendering the protected page content
+---
+<h1>Welcome, {session.user.name}!</h1>
+<!-- Protected content -->
+```
+
+**In API Endpoints (`src/pages/api/...`):**
+
+```typescript
+// src/pages/api/protected-data.ts
+import type { APIRoute } from "astro";
+import { getSession } from "auth-astro/server";
+
+export const GET: APIRoute = async ({ request }) => {
+  const session = await getSession(request);
+
+  if (!session?.user) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  // Fetch and return protected data, potentially using session.user.id
+  const userId = session.user.id;
+  // ... database query using userId ...
+
+  return new Response(JSON.stringify({ data: "some protected data" }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+};
+```
+
+## Accessing Session Data
+
+As shown above, `getSession(Astro.request)` (or `getSession(request)` in API routes) returns the session object. If the user is logged in, `session.user` will contain details like `name`, `email`, `image`, and any custom fields you added via the `session` callback (like `id`).
+
+## Key Files & Components
+
+-   `auth.config.ts`: The central configuration hub.
+-   `src/env.d.ts`: Often includes type definitions for environment variables used by Auth.js.
+-   `src/middleware.ts`: (Optional) Astro middleware can be used to protect multiple routes centrally.
+-   `src/pages/login.astro`: (Likely) A page displaying login buttons for configured providers.
+-   `src/components/AuthButtons.astro`: (Likely) A component rendering Sign In/Sign Out buttons based on session state. 

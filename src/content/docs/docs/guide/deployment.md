@@ -1,34 +1,74 @@
 ---
-title: Deployment
-description: How the application is deployed.
+title: Deployment Guide (Vercel)
+description: Deploying the CaretDB application to Vercel.
 ---
 
-This project is configured for deployment on [Vercel](https://vercel.com/).
+CaretDB is designed and configured for seamless deployment to [Vercel](https://vercel.com/), a platform specializing in hosting frontend frameworks and serverless functions.
 
-## Configuration
+## Prerequisites
 
-- The `astro.config.mjs` file includes the `@astrojs/vercel/serverless` adapter:
-  ```js
-  import vercel from '@astrojs/vercel/serverless';
-  // ...
-  export default defineConfig({
-    // ...
-    adapter: vercel(),
-    output: 'server' // Required for server-side rendering / API routes on Vercel
-  });
-  ```
-- The `output: 'server'` setting enables server-side rendering (SSR) and API routes, which are necessary for features like authentication and the `/api/query_mysql` endpoint.
+Before deploying, ensure you have:
 
-## Deployment Process
+1.  **Node.js and pnpm:** Installed locally for building the project (Vercel typically uses its own environment, but local setup helps).
+2.  **Git Repository:** Your project code hosted on a platform like GitHub, GitLab, or Bitbucket.
+3.  **Vercel Account:** Sign up for a free or paid Vercel account.
+4.  **Accessible Database:** A MySQL database (like PlanetScale, Neon (via proxy), Aiven, Railway, or self-hosted) that is accessible from Vercel's serverless functions. You'll need the connection URL.
+5.  **OAuth Provider Credentials:** Client ID and Secret for any authentication providers (GitHub, Google, etc.) you configured in `auth.config.ts`.
 
-1.  **Connect Repository:** Connect your Git repository (e.g., on GitHub, GitLab, Bitbucket) to a Vercel project.
-2.  **Build Settings:** Vercel typically auto-detects Astro projects. Ensure the build command is correct (usually `pnpm build` or `npm run build`) and the output directory is set (usually `dist`).
-3.  **Environment Variables:** Configure all necessary environment variables (see the [Environment Variables](./environment-variables) guide) in the Vercel project settings.
-4.  **Deploy:** Trigger a deployment manually or configure automatic deployments on Git pushes.
+## Configuration for Vercel
 
-Vercel handles the build process, serverless function deployment, and CDN distribution.
+The project is pre-configured for Vercel via the Astro Vercel adapter:
+
+-   **`astro.config.mjs`:** Contains the necessary adapter and settings.
+    ```javascript
+    import { defineConfig } from 'astro/config';
+    import vercel from '@astrojs/vercel/serverless'; // Using the serverless adapter
+    // ... other imports
+
+    export default defineConfig({
+      // ... integrations
+      adapter: vercel({
+        // Optional Vercel-specific configurations can go here
+        // e.g., regions, edgeMiddleware
+      }),
+      output: 'server' // CRITICAL: Enables SSR and API routes
+    });
+    ```
+    -   `adapter: vercel()`: Tells Astro to build the project compatible with Vercel's serverless functions.
+    -   `output: 'server'`: This is essential. It enables Server-Side Rendering (SSR) for pages that need dynamic data (like the dashboard) and allows Astro API routes (`src/pages/api/*`) to function correctly on Vercel.
+
+## Deployment Steps
+
+1.  **Create Vercel Project:** Log in to Vercel and click "Add New..." > "Project".
+2.  **Import Repository:** Select your Git provider and import the CaretDB repository.
+3.  **Configure Project:**
+    -   **Framework Preset:** Vercel should automatically detect "Astro".
+    -   **Build Command:** Verify it's set correctly (e.g., `pnpm build`). If you use a different package manager, adjust accordingly (e.g., `npm run build`).
+    -   **Output Directory:** Should be detected as `dist`.
+    -   **Environment Variables:** This is the most crucial step. Navigate to the project's "Settings" > "Environment Variables" section on Vercel. Add **ALL** the required environment variables listed in the [Environment Variables Guide](./environment-variables), including:
+        -   `DATABASE_URL`
+        -   `AUTH_SECRET`
+        -   `AUTH_TRUST_HOST` (Set to `false` for production if Vercel handles TLS, typically the case)
+        -   `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET` (if using GitHub auth)
+        -   `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` (if using Google auth)
+        -   `SENTRY_DSN`, `SENTRY_AUTH_TOKEN` (if using Sentry)
+        -   Any other custom variables your application needs.
+        *Mark sensitive variables like `DATABASE_URL` and `AUTH_SECRET` as "Secret".*
+4.  **Deploy:** Click the "Deploy" button. Vercel will clone your repository, install dependencies, build the project, and deploy it to serverless functions and a CDN.
+
+## Post-Deployment
+
+-   **Domain:** Vercel provides a `.vercel.app` subdomain automatically. You can configure custom domains in the project settings.
+-   **Monitoring:** Use Vercel's dashboard to monitor deployments, logs, and function performance.
+
+## Potential Issues
+
+-   **Missing Environment Variables:** The most common issue. Double-check that *all* required variables are set correctly in Vercel's settings.
+-   **Database Connectivity:** Ensure your database allows connections from Vercel's IP ranges or uses a connection method like PlanetScale's secure connection strings that don't rely on IP allowlisting.
+-   **Build Failures:** Check the build logs on Vercel for errors. Often related to dependency issues or incorrect build commands.
+-   **Authentication Redirects:** Ensure your OAuth provider's allowed callback URLs include your Vercel deployment URL (e.g., `https://your-project.vercel.app/api/auth/callback/github`).
 
 ## Key Files
 
-- `astro.config.mjs`: Contains the Vercel adapter configuration.
-- `.vercel/`: Directory (often gitignored) containing Vercel-specific build output or configuration locally. 
+-   `astro.config.mjs`: Contains the Vercel adapter and `output: 'server'` setting.
+-   `.vercel/`: Directory generated by Vercel CLI locally (usually ignored by Git), not directly used for dashboard deployments but relevant for Vercel CLI usage. 

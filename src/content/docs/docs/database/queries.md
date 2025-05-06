@@ -1,42 +1,40 @@
 ---
-title: SQL Queries
-description: Overview of predefined SQL queries used via the API.
+title: SQL Queries Overview
+description: How predefined SQL queries are structured and used.
 ---
 
-Instead of allowing arbitrary SQL execution, the application uses a predefined set of queries managed in `src/lib/sql_query_locale.ts`.
-The `/api/query_mysql` endpoint accepts an identifier corresponding to one of these queries.
+Database interactions from the application (primarily via the `/api/query_mysql` endpoint) are generally performed using a predefined set of named SQL queries, rather than executing arbitrary SQL strings.
 
-This approach enhances security by preventing SQL injection and provides a central place to manage database interactions.
+This library of queries is defined in the `sqlQueries` object within `src/lib/sql_query_locale.ts`.
 
-## Benefits of Predefined Queries
+## Approach & Benefits
 
-- **Security:** Prevents arbitrary SQL execution from the frontend, mitigating SQL injection risks.
-- **Maintainability:** Database logic is centralized in `sql_query_locale.ts`, making it easier to update or optimize queries without changing frontend code.
-- **Consistency:** Ensures that data fetching follows predefined patterns.
-- **Abstraction:** Frontend developers only need to know the query identifier, not the underlying SQL complexity.
+Using predefined queries offers several advantages:
 
-## Key Query Examples
+-   **Security:** Prevents direct execution of arbitrary SQL from the frontend or API calls, significantly mitigating SQL injection risks.
+-   **Maintainability:** Centralizes database logic. SQL can be updated or optimized in `sql_query_locale.ts` without requiring changes in every place the query is used.
+-   **Consistency:** Ensures data fetching and modification follow established patterns.
+-   **Abstraction:** Frontend or API code only needs to reference a query by its name (e.g., `countUsers`), without needing to know the complex SQL involved.
 
-*(This list is based on observed usage and may not be exhaustive. Always refer to `sql_query_locale.ts` for the ground truth.)*
+## Query Categories
 
-The `sqlQueries` object in `src/lib/sql_query_locale.ts` contains mappings from identifiers (like `countUsers`) to the actual SQL strings.
+The queries in `sql_query_locale.ts` generally fall into several categories:
 
-Here are the likely purposes of some common queries observed in use:
+-   **Data Insertion:** Saving new records related to users, webstates, replays, events, nodes, network requests, etc. (e.g., `insertUser`, `insertReplay`, `insertSerializedNode`).
+-   **Data Retrieval (Lists):** Fetching lists of items, often for display in tables or dropdowns (e.g., `listReplays`, `listMonthlyReports`, `listWebstateHashes`).
+-   **Data Retrieval (Single Item):** Fetching specific records based on an ID or other criteria (e.g., `getUserPasswordHash`).
+-   **Data Aggregation/Analytics:** Queries that count, sum, or average data, often involving joins and grouping (e.g., `countUsers`, `clickEventsOverTime`, `clicksPerReplay`).
+-   **Data Updates:** Modifying existing records (e.g., `updateUserPrivacyMask`, `updateUsernameByEmail`).
+-   **Schema Management:** Queries related to database structure (primarily `buildSchemaQuery`).
 
-- **`countUsers`**: Counts the total number of records in the `users` table.
-- **`countWebstates`**: Counts the total number of unique webstates stored.
-- **`countReplays`**: Counts the total number of replay sessions recorded.
-- **`countEvents`**: Counts the total number of individual events across all replays.
-- **`listRecentReplays`**: Retrieves a list of the most recent replay sessions (e.g., top 10), often including the `replay_id` and formatted `start_time`.
-- **`listRecentWebstates`**: Retrieves a list of the most recently captured unique webstates, typically returning the `html_hash`.
-- **`getLatestMonthlyReport`**: Fetches the full record for the most recently generated report from the `monthly_reports` table.
-- **`getAllMonthlyReports`**: Retrieves all historical records from the `monthly_reports` table.
+## Detailed Query Documentation
 
-*Note: Review `src/lib/sql_query_locale.ts` for the complete and definitive list of available queries and their exact SQL definitions.*
+-   For a complete list and definition of **all** queries, refer to the **[Query Definitions](./query-definitions/)** page, which aims to mirror the content of `sql_query_locale.ts`.
+-   For detailed explanations of the more complex or significant queries, including their purpose, parameters, results, and usage context, see the **[Query Details](./query-details/)** section.
 
 ## Adding New Queries
 
-To add a new query:
-1. Define the SQL query string.
-2. Add a new descriptive key-value pair to the `sqlQueries` object in `src/lib/sql_query_locale.ts`.
-3. Use the new key in frontend fetch requests to `/api/query_mysql`. 
+1.  Define the SQL query string carefully, testing it directly against the database if possible.
+2.  Add a descriptive key (e.g., `getUsersWithRecentActivity`) and the SQL string as its value to the `sqlQueries` object in `src/lib/sql_query_locale.ts`.
+3.  Update the relevant documentation pages ([Query Definitions](./query-definitions/) and potentially [Query Details](./query-details/) if complex).
+4.  Use the new key in frontend fetch requests to `/api/query_mysql` or directly in backend logic. 
