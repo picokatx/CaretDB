@@ -56,6 +56,18 @@ const testColDefs: ColDef[] = [
        font-size: 0.8rem; /* Adjust size for compact tables */
        padding: 0.3rem 0.5rem;
     }
+
+    /* --- Specific overrides for floating filter input --- */
+    .ag-theme-alpine .ag-floating-filter-input input {
+        background-color: var(--b2) !important; /* Match header background */
+        color: var(--bc) !important;           /* Use base content text color */
+        border-color: var(--b3) !important;     /* Match input border */
+    }
+    .ag-theme-alpine .ag-floating-filter-input input:focus {
+        border-color: var(--p) !important;     /* Primary color focus border */
+        box-shadow: none !important;          /* Remove default focus glow */
+        outline: none !important;             /* Remove default focus outline */
+    }
   </style>
   {/* Global styles to map DaisyUI variables to AG Grid Alpine theme */}
   <style is:global>
@@ -79,6 +91,9 @@ const testColDefs: ColDef[] = [
        --ag-row-hover-color: var(--b2) !important;
        --ag-selected-row-background-color: hsla(var(--p)/.3) !important; /* Use primary with opacity */
 
+      /* Cell Editing */
+       --ag-cell-editing-background-color: hsla(var(--p)/.1) !important; /* Slightly transparent primary */
+
       /* Inputs & Controls */
        --ag-input-background-color: var(--b1) !important;
        --ag-input-border-color: var(--b3) !important;
@@ -98,26 +113,22 @@ const testColDefs: ColDef[] = [
        --ag-range-selection-background-color: hsla(var(--p)/.2) !important; 
        --ag-range-selection-highlight-color: var(--s) !important; /* Secondary for cell range handle? */
 
-      /* --- Add these lines for Context Menu --- */
-      /* Menu Popup Background & Shadow */
+      /* Context Menu */
       --ag-menu-background-color: var(--b2) !important;
       --ag-popup-background-color: var(--b2) !important; /* Often used by popups */
-      --ag-card-shadow: none !important; /* Remove default shadow if desired, or map to DaisyUI shadow */
+      --ag-card-shadow: none !important; /* Remove default shadow if desired */
       --ag-menu-border: 1px solid var(--b3) !important; /* Add border */
-
-      /* Menu Item Styling */
       --ag-menu-option-active-color: hsla(var(--p)/.3) !important; /* Background on hover/active */
       --ag-list-item-background-color: transparent !important; /* Make items transparent by default */
       --ag-menu-separator-color: var(--b3) !important; /* Separator line color */
+      --ag-menu-foreground-color: var(--bc) !important; /* Ensure text color is inherited */
 
-      /* Ensure text color is inherited */
-      --ag-menu-foreground-color: var(--bc) !important; 
-      /* --- End of Context Menu additions --- */
+      /* Other Indicators */
+       --ag-value-change-delta-up-color: var(--su) !important; /* Success color for value increases */
+       --ag-value-change-delta-down-color: var(--er) !important; /* Error color for value decreases */
+       --ag-chip-background-color: hsla(var(--a)/.2) !important; /* Accent color for chips (e.g., grouping) */
 
-      /* Other potential overrides - add as needed */
-      /* --ag-value-change-delta-up-color: var(--su); */
-      /* --ag-value-change-delta-down-color: var(--er); */
-      /* --ag-chip-background-color: hsla(var(--a)/.2); */ 
+       --ag-control-panel-background-color: var(--b2) !important;
     }
   </style>
 
@@ -170,6 +181,9 @@ const testColDefs: ColDef[] = [
           </div>
         </div>
 
+        {/* Save Changes Button - Added */}
+        <button id="save-changes-button" class="btn btn-sm btn-success mt-2" disabled>Save Changes (0)</button>
+
       </div>
     </div>
 
@@ -202,6 +216,9 @@ const testColDefs: ColDef[] = [
 </Layout>
 
 <script>
+  // Import AgGrid types needed in the script
+  import type { GridApi, ColDef, IServerSideDatasource, IServerSideGetRowsParams, LoadSuccessParams } from 'ag-grid-enterprise';
+
   // Import JSDoc types for hinting
   /**
    * @typedef {import('ag-grid-enterprise').GridApi} GridApi
@@ -221,7 +238,62 @@ const testColDefs: ColDef[] = [
    */
   let gridApi: import('ag-grid-enterprise').GridApi | null = null;
 
-  /** @param {string} query */
+  // --- State for tracking changes --- Added
+  /** @type {{ rowId: any, field: string, newValue: any, oldValue: any, nodeData: any }[]} */
+  let changedRows: { rowId: any, field: string, newValue: any, oldValue: any, nodeData: any }[] = [];
+  let lastSuccessfulQuery = "";
+  let assumedTableName: string | null = null;
+  let assumedPrimaryKeyCol: string | null = null;
+
+  /** Clear tracked changes and update button state */
+  function clearChanges() {
+    changedRows = [];
+    updateSaveChangesButton();
+  }
+
+  /** Update save button text and disabled state */
+  function updateSaveChangesButton() {
+    if (saveChangesButton) {
+      saveChangesButton.textContent = `Save Changes (${changedRows.length})`;
+      saveChangesButton.disabled = changedRows.length === 0;
+    }
+  }
+  // --- End State for tracking changes --- Added
+
+  // --- Define cell changed handler --- Added
+  const handleCellValueChanged = (params: import('ag-grid-enterprise').NewValueParams) => {
+      console.log('Cell Value Changed (NewValueParams):', params);
+      if (params.oldValue !== params.newValue) {
+          if (!assumedPrimaryKeyCol) {
+              console.warn("Primary key column not identified. Cannot track changes.");
+              alert("Cannot save change: Primary key column not identified from query.");
+              // Safely access node before calling setDataValue
+              if (params.node) { 
+                  params.node.setDataValue(params.colDef.field!, params.oldValue);
+              }
+              return;
+          }
+          // Ensure params.data exists before accessing it
+          if (!params.data) {
+             console.error("No data found on the node for change tracking.");
+             return;
+          }
+          const rowId = params.data[assumedPrimaryKeyCol]; 
+          changedRows.push({
+              rowId: rowId,
+              field: params.colDef.field!, // field is available on colDef
+              newValue: params.newValue,
+              oldValue: params.oldValue,
+              nodeData: params.data
+          });
+          updateSaveChangesButton();
+          console.log('Tracked changes:', changedRows);
+      }
+  };
+  // --- End cell changed handler --- Added
+
+  /**
+   * @param {string} query */
   function runQuery(query: string) {
     console.log(`[runQuery] START - Fetching: ${query}`);
     // Update result display immediately
@@ -248,6 +320,13 @@ const testColDefs: ColDef[] = [
         return;
       }
 
+      // Store the successful query and attempt to parse table name
+      lastSuccessfulQuery = query; 
+      const fromMatch = query.match(/\bfrom\s+(\w+)/i); // Simple regex to find 'FROM table'
+      assumedTableName = fromMatch ? fromMatch[1] : null;
+      console.log(`Assumed table name from query: ${assumedTableName}`);
+      clearChanges(); // Clear old changes on new query
+
       // Use the success flag from the API response
       if (responseData && responseData.success && responseData.rows) {
         console.log(`[runQuery] API reported success. Creating datasource and columns.`);
@@ -263,14 +342,14 @@ const testColDefs: ColDef[] = [
         const errorMsg = responseData?.error || "No rows found or success flag false.";
         console.warn(`[runQuery] API reported failure or no rows: ${errorMsg}`);
         if(resultDisplay) resultDisplay.textContent = `Query failed or returned no data: ${errorMsg}`;
-        if (gridApi) gridApi.setGridOption("serverSideDatasource", null);
+        if (gridApi) gridApi.setGridOption("serverSideDatasource", undefined);
         if (gridApi) gridApi.setGridOption("columnDefs", []);
       }
     }).catch(error => {
       console.error(`[runQuery] Fetch CATCH block error:`, error);
       if(resultDisplay) resultDisplay.textContent = `Fetch Error: ${error.message}`;
       if (gridApi) {
-        gridApi.setGridOption("serverSideDatasource", null);
+        gridApi.setGridOption("serverSideDatasource", undefined);
         gridApi.setGridOption("columnDefs", []);
       }
     });
@@ -280,6 +359,7 @@ const testColDefs: ColDef[] = [
   // Get controls
   const sqlInput = document.getElementById('sql-input') as HTMLTextAreaElement;
   const runQueryButton = document.getElementById('run-query-button');
+  const saveChangesButton = document.getElementById('save-changes-button') as HTMLButtonElement | null; // Added
 
   // Add button listener
   if (sqlInput && runQueryButton && resultDisplay) {
@@ -295,7 +375,66 @@ const testColDefs: ColDef[] = [
     console.error('Could not find controls or result display element.');
   }
 
+  // --- Add listener for Save Changes button --- Added
+  if (saveChangesButton) {
+      saveChangesButton.addEventListener('click', async () => {
+          if (changedRows.length === 0) return;
+          if (!assumedTableName || !assumedPrimaryKeyCol) {
+              alert("Cannot save changes: Table name or primary key could not be determined from the last query.");
+              return;
+          }
 
+          // Disable button during save
+          saveChangesButton.disabled = true;
+          saveChangesButton.classList.add('loading');
+          saveChangesButton.textContent = 'Saving...';
+          if(resultDisplay) resultDisplay.textContent = 'Saving changes...';
+
+          // Prepare payload for the API
+          const payload = changedRows.map(change => ({
+              table: assumedTableName,
+              pk: { [assumedPrimaryKeyCol!]: change.rowId }, // Use assumed PK column and rowId
+              updates: { [change.field]: change.newValue } // Field that changed and its new value
+          }));
+
+          console.log('[Save Changes] Sending payload:', payload);
+
+          try {
+              const response = await fetch('/api/update_data', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload)
+              });
+
+              const responseData = await response.json();
+              
+              if (response.ok && responseData.success) {
+                  console.log('[Save Changes] Success:', responseData);
+                  if(resultDisplay) resultDisplay.textContent = `Successfully saved ${payload.length} changes.`;
+                  clearChanges(); // Clear changes on successful save
+                  // Optional: Refresh grid data or notify user
+                  // gridApi?.onFilterChanged(); // This might re-trigger data fetch if using server-side filtering
+                  alert('Changes saved successfully!'); 
+              } else {
+                  console.error('[Save Changes] API Error:', responseData);
+                  const errorMsg = responseData.error || 'Unknown error saving changes.';
+                  if(resultDisplay) resultDisplay.textContent = `Save Failed: ${errorMsg}\nDetails: ${JSON.stringify(responseData.details || '', null, 2)}`;
+                  alert(`Error saving changes: ${errorMsg}`);
+              }
+          } catch (error: any) {
+              console.error('[Save Changes] Fetch Error:', error);
+              if(resultDisplay) resultDisplay.textContent = `Save Failed: ${error.message}`;
+              alert(`Network error saving changes: ${error.message}`);
+          } finally {
+              // Re-enable button and update text (even if failed)
+              saveChangesButton.classList.remove('loading');
+              updateSaveChangesButton(); // Update count and disabled state
+          }
+      });
+  } else {
+      console.error("Save changes button not found.");
+  }
+  // --- End Save Changes listener --- Added
 
   // --- Server-Side Data Functions (Moved from AgGridAstro) ---
   /**
@@ -331,12 +470,27 @@ const testColDefs: ColDef[] = [
 
   /** 
    * @param {any[]} data 
-   * @returns {ColDef[]}
+   * @returns {import('ag-grid-enterprise').ColDef[]}
    */
-  function createColDefs(data: any[]): ColDef[] {
+  function createColDefs(data: any[]): import('ag-grid-enterprise').ColDef[] {
     console.log(`[createColDefs] Creating columns for data:`, data);
     if (!data || data.length === 0) return [];
-    return Object.keys(data[0]).map(k => ({ field: k, filter: true, floatingFilter: true }));
+    const colDefs: ColDef[] = Object.keys(data[0]).map(k => {
+        const colDef: ColDef = {
+            field: k,
+            filter: true,
+            floatingFilter: true,
+            // --- Add cellValueChanged listener --- Added
+            onCellValueChanged: handleCellValueChanged
+        };
+        return colDef;
+    });
+    // Assume first column is primary key by default if not otherwise determined
+    if (colDefs.length > 0) {
+        assumedPrimaryKeyCol = colDefs[0].field || null;
+        console.log(`Assumed primary key column: ${assumedPrimaryKeyCol}`);
+    }
+    return colDefs;
   }
 
   // Listener for agGridReady to get the API instance
