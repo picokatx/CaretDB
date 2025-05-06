@@ -32,3 +32,5 @@ pnpm-debug.log*
 /playwright/.cache/
 public/dom/b885561c-b64d-4c8f-ba3f-f9789a875014.html
 package-lock.json
+
+./deliverables/*

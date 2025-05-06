@@ -19,8 +19,8 @@ export default defineConfig({
       authToken: process.env.SENTRY_AUTH_TOKEN,
     },
   }), starlight({
-    title: 'My delightful docs site',
-    social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/withastro/starlight' }],
+    title: 'CaretDB Documentation',
+    social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/picokatx/CaretDB' }],
     sidebar: [
       {
         label: 'Overview',
@@ -46,18 +46,30 @@ export default defineConfig({
       {
         label: 'API Reference',
         autogenerate: { directory: 'docs/api' }
-        // items: [ // Manual alternative to autogenerate
-        //   { label: 'Overview', link: '/docs/api/' },
-        //   { label: '/api/query_mysql', link: '/docs/api/query_mysql/' },
-        //   { label: '/dom/preview', link: '/docs/api/dom_preview/' },
-        // ]
+        /* // --- Manual Sidebar Alternative --- 
+        items: [
+          { label: 'Overview', link: '/docs/api/' },
+          { label: 'POST /api/build_schema', link: '/docs/api/build_schema/' },
+          { label: 'POST /api/generate_preview', link: '/docs/api/generate_preview/' },
+          { label: 'POST /api/query_mysql', link: '/docs/api/query_mysql/' },
+          { label: 'POST /api/save-replay', link: '/docs/api/save-replay/' },
+          { label: 'POST /api/upload-html', link: '/docs/api/upload-html/' },
+          // Add links for other endpoints (e.g., in subdirs) manually if needed
+        ]
+        */
       },
       {
         label: 'Database',
-        items: [
-          { label: 'Schema', link: '/docs/database/schema/' },
+        items: [ // Keep manual links for non-table pages
+          { label: 'Overview', link: '/docs/database/' }, // Link to the new index
           { label: 'SQL Queries Overview', link: '/docs/database/queries/' },
           { label: 'Query Definitions File', link: '/docs/database/query-definitions/' },
+          // { label: 'Full Schema (Old)', link: '/docs/database/schema/' }, // Optional: Link to old page if kept
+          {
+            label: 'Tables',
+            autogenerate: { directory: 'docs/database/tables' } // Autogenerate table links
+          },
+          // TODO: Add pages for Procedures, Events, Triggers if desired
         ]
       },
     ],
