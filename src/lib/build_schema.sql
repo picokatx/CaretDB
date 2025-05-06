@@ -1,3 +1,4 @@
+%%sql
 drop database if exists caretdb;
 create database caretdb;
 use caretdb;
@@ -100,7 +101,8 @@ create table serialized_node (
   is_shadow_host   boolean            not null default false,
   is_shadow        boolean            not null default false,
 
-  compat_mode      varchar(255),
+
+   compat_mode      varchar(255),
   name             varchar(255),
   public_id        varchar(255),
   system_id        varchar(255),
@@ -163,7 +165,7 @@ create table full_snapshot_event (
   initial_offset_left int not null,
 
   constraint fk_full_snapshot_event_event_id foreign key (event_id) references event(event_id) on delete cascade,
-  constraint fk_full_snapshot_event_node_id foreign key (node_id) references serialized_node(id) on delete cascade,
+  constraint fk_full_snapshot_event_node_id foreign key (node_id) references serialized_node(id) on delete cascade
 );
 
 create table meta_event (
@@ -219,7 +221,7 @@ create table attribute_mutation_entry (
 
   primary key (event_id, node_id, attribute_key), 
   constraint fk_attribute_mutation_entry_event_id_node_id foreign key (event_id, node_id) references attribute_mutation(event_id, node_id) on delete cascade,
-  constraint fk_attribute_mutation_entry_style_om_value_id foreign key (style_om_value_id) references style_om_value(id) on delete null
+  constraint fk_attribute_mutation_entry_style_om_value_id foreign key (style_om_value_id) references style_om_value(id) on delete set null
 );
 
 create table removed_node_mutation (
@@ -428,7 +430,6 @@ drop procedure if exists update_analysis_summaries;
 create procedure update_analysis_summaries(in p_replay_id char(36), in p_html_hash char(64))
 begin
     declare v_click_count int default 0;
-
     select count(*)
     into v_click_count
     from event e
@@ -443,7 +444,6 @@ begin
     on duplicate key update
         click_count = values(click_count), 
         last_updated = current_timestamp; 
-
 end;
 
 drop table if exists monthly_reports;
@@ -544,7 +544,6 @@ begin
     if v_user_privacy_mask = true then
         set new.text = repeat('*', length(new.text));
     end if;
-
 end;
 
 insert into user (email_domain, email_name, username, password, created_at, last_login, status, first_name, middle_name, last_name, phone_num, role, verified, fail_login, twofa)
