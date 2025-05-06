@@ -4,204 +4,204 @@ import buildSchemaSqlContent from './build_schema.sql?raw'; // Use Vite's raw im
 
 export const sqlQueries = {
   // webstate queries
-  insertWebstateHash: 'INSERT INTO webstate (html_hash) VALUES (?)',
+  insertWebstateHash: 'insert into webstate (html_hash) values (?)',
 
   // user queries
-  selectUserByEmailOrUsername: 'SELECT 1 FROM user WHERE (email_name = ? AND email_domain = ?) OR username = ? LIMIT 1',
-  insertUser: `INSERT INTO user (
+  selectUserByEmailOrUsername: 'select 1 from user where (email_name = ? and email_domain = ?) or username = ? limit 1',
+  insertUser: `insert into user (
     email_domain, email_name, username, password, 
     created_at, status, role, verified, fail_login, twofa
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   // Load the build schema query from the SQL file
   buildSchemaQuery: buildSchemaSqlContent,
 
   // Analysis queries
-  countUsers: "SELECT COUNT(*) as count FROM user;",
-  countWebstates: "SELECT COUNT(*) as count FROM webstate;",
-  countReplays: "SELECT COUNT(*) as count FROM replay;",
-  countEvents: "SELECT COUNT(*) as count FROM event;",
-  eventsOverTime: "SELECT DATE(timestamp) as date, COUNT(event_id) as count FROM event GROUP BY DATE(timestamp) ORDER BY date ASC;",
+  countUsers: "select count(*) as count from user;",
+  countWebstates: "select count(*) as count from webstate;",
+  countReplays: "select count(*) as count from replay;",
+  countEvents: "select count(*) as count from event;",
+  eventsOverTime: "select date(timestamp) as date, count(event_id) as count from event group by date(timestamp) order by date asc;",
   clickEventsOverTime: `
-    SELECT 
-        DATE(e.timestamp) as date, 
-        COUNT(e.event_id) as count 
-    FROM event e
-    JOIN incremental_snapshot_event ise ON e.event_id = ise.event_id
-    JOIN mouse_interaction_data mid ON ise.event_id = mid.event_id
-    WHERE 
-        ise.t = 'mouseinteraction' AND mid.interaction_type = 'click'
-    GROUP BY DATE(e.timestamp)
-    ORDER BY date ASC;
+    select 
+        date(e.timestamp) as date, 
+        count(e.event_id) as count 
+    from event e
+    join incremental_snapshot_event ise on e.event_id = ise.event_id
+    join mouse_interaction_data mid on ise.event_id = mid.event_id
+    where 
+        ise.t = 'mouseinteraction' and mid.interaction_type = 'click'
+    group by date(e.timestamp)
+    order by date asc;
   `,
   clickEventsPerSecond: `
-    SELECT 
-        DATE_FORMAT(e.timestamp, '%Y-%m-%d %H:%i:%s') as second, 
-        COUNT(e.event_id) as count 
-    FROM event e
-    JOIN incremental_snapshot_event ise ON e.event_id = ise.event_id
-    JOIN mouse_interaction_data mid ON ise.event_id = mid.event_id
-    WHERE 
-        ise.t = 'mouseinteraction' AND mid.interaction_type = 'click'
-    GROUP BY second
-    ORDER BY second ASC;
+    select 
+        date_format(e.timestamp, '%Y-%m-%d %H:%i:%s') as second, 
+        count(e.event_id) as count 
+    from event e
+    join incremental_snapshot_event ise on e.event_id = ise.event_id
+    join mouse_interaction_data mid on ise.event_id = mid.event_id
+    where 
+        ise.t = 'mouseinteraction' and mid.interaction_type = 'click'
+    group by second
+    order by second asc;
   `,
   clicksPerReplay: `
-    SELECT
+    select
         r.replay_id,
-        DATE_FORMAT(r.start_time, '%Y-%m-%d %H:%i:%s') as start_time_formatted,
+        date_format(r.start_time, '%Y-%m-%d %H:%i:%s') as start_time_formatted,
         rs.click_count
-    FROM
+    from
         replay r
-    JOIN
-        replay_summary rs ON r.replay_id = rs.replay_id
-    ORDER BY
-        r.start_time ASC;
+    join
+        replay_summary rs on r.replay_id = rs.replay_id
+    order by
+        r.start_time asc;
   `,
   listReplays: `
-    SELECT 
+    select 
         replay_id, 
-        DATE_FORMAT(start_time, '%Y-%m-%d %H:%i:%s') as start_time_formatted 
-    FROM replay 
-    ORDER BY start_time DESC;
+        date_format(start_time, '%Y-%m-%d %H:%i:%s') as start_time_formatted 
+    from replay 
+    order by start_time desc;
   `,
   listWebstateHashes: `
-    SELECT html_hash FROM webstate ORDER BY html_hash;
+    select html_hash from webstate order by html_hash;
   `,
   defaultUserQuery: `
-    SELECT * FROM user;
+    select * from user;
   `,
   // --- Query to get user role by email ---
   selectUserRoleByEmail: `
-    SELECT role FROM user WHERE email_name = ? AND email_domain = ? LIMIT 1;
+    select role from user where email_name = ? and email_domain = ? limit 1;
   `,
   // --- Queries for save-replay.ts --- 
   insertSerializedNode: `
-    INSERT INTO serialized_node (
+    insert into serialized_node (
       id, type, root_id, is_shadow_host, is_shadow,
       compat_mode, name, public_id, system_id,
       tag, is_svg, need_block, is_custom,
       text_content
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
-    ON DUPLICATE KEY UPDATE type=VALUES(type);
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
+    on duplicate key update type=values(type);
   `,
   insertSerializedNodeAttribute: `
-    INSERT INTO serialized_node_attribute (
+    insert into serialized_node_attribute (
       node_id, attribute_key, string_value, number_value, is_true, is_null
-    ) VALUES (?, ?, ?, ?, ?, ?) 
-    ON DUPLICATE KEY UPDATE string_value=VALUES(string_value), number_value=VALUES(number_value), is_true=VALUES(is_true), is_null=VALUES(is_null);
+    ) values (?, ?, ?, ?, ?, ?) 
+    on duplicate key update string_value=values(string_value), number_value=values(number_value), is_true=values(is_true), is_null=values(is_null);
   `,
   linkSerializedNodeChild: `
-    INSERT INTO serialized_node_child (parent_id, child_id) VALUES (?, ?) 
-    ON DUPLICATE KEY UPDATE child_id=VALUES(child_id);
+    insert into serialized_node_child (parent_id, child_id) values (?, ?) 
+    on duplicate key update child_id=values(child_id);
   `,
   insertReplay: `
-    INSERT INTO replay (
+    insert into replay (
       replay_id, html_hash, start_time, end_time, product, product_version, device_type, os_type, os_version, network_id, 
       d_viewport_height, d_viewport_width
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `,
   insertBaseEvent: `
-    INSERT INTO event (event_id, replay_id, type, timestamp, delay) VALUES (?, ?, ?, ?, ?);
+    insert into event (event_id, replay_id, type, timestamp, delay) values (?, ?, ?, ?, ?);
   `,
   insertMetaEvent: `
-    INSERT INTO meta_event (event_id, href, width, height) VALUES (?, ?, ?, ?);
+    insert into meta_event (event_id, href, width, height) values (?, ?, ?, ?);
   `,
   insertFullSnapshotEvent: `
-    INSERT INTO full_snapshot_event (event_id, node_id, initial_offset_top, initial_offset_left) VALUES (?, ?, ?, ?);
+    insert into full_snapshot_event (event_id, node_id, initial_offset_top, initial_offset_left) values (?, ?, ?, ?);
   `,
   insertIncrementalSnapshotEvent: `
-    INSERT INTO incremental_snapshot_event (event_id, t) VALUES (?, ?);
+    insert into incremental_snapshot_event (event_id, t) values (?, ?);
   `,
   insertMouseInteractionData: `
-    INSERT INTO mouse_interaction_data (
+    insert into mouse_interaction_data (
       event_id, interaction_type, node_id, x, y, pointer_type
-    ) VALUES (?, ?, ?, ?, ?, ?);
+    ) values (?, ?, ?, ?, ?, ?);
   `,
   insertMouseMoveData: `
-    INSERT INTO mousemove_data (event_id) VALUES (?);
+    insert into mousemove_data (event_id) values (?);
   `,
   insertMousePosition: `
-    INSERT INTO mouse_position (
+    insert into mouse_position (
       event_id, x, y, node_id, time_offset
-    ) VALUES (?, ?, ?, ?, ?);
+    ) values (?, ?, ?, ?, ?);
   `,
   insertScrollData: `
-    INSERT INTO scroll_data (event_id, node_id, x, y) VALUES (?, ?, ?, ?);
+    insert into scroll_data (event_id, node_id, x, y) values (?, ?, ?, ?);
   `,
   insertSelectionData: `
-    INSERT INTO selection_data (event_id) VALUES (?);
+    insert into selection_data (event_id) values (?);
   `,
   insertSelectionRange: `
-    INSERT INTO selection_range (
+    insert into selection_range (
       event_id, start, start_offset, end, end_offset
-    ) VALUES (?, ?, ?, ?, ?);
+    ) values (?, ?, ?, ?, ?);
   `,
   insertInputData: `
-    INSERT INTO input_data (event_id, node_id, text, is_checked, user_triggered) VALUES (?, ?, ?, ?, ?);
+    insert into input_data (event_id, node_id, text, is_checked, user_triggered) values (?, ?, ?, ?, ?);
   `,
   insertMediaInteractionData: `
-    INSERT INTO media_interaction_data (
+    insert into media_interaction_data (
       event_id, interaction_type, node_id, time, volume, muted, isloop, playback_rate
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+    ) values (?, ?, ?, ?, ?, ?, ?, ?);
   `,
   insertViewportResizeData: `
-    INSERT INTO viewport_resize_data (event_id, width, height) VALUES (?, ?, ?);
+    insert into viewport_resize_data (event_id, width, height) values (?, ?, ?);
   `,
   insertMutationData: `
-    INSERT INTO mutation_data (event_id, is_attach_iframe) VALUES (?, ?);
+    insert into mutation_data (event_id, is_attach_iframe) values (?, ?);
   `,
   insertTextMutation: `
-    INSERT INTO text_mutation (event_id, node_id, value) VALUES (?, ?, ?);
+    insert into text_mutation (event_id, node_id, value) values (?, ?, ?);
   `,
   insertAttributeMutationBase: `
-    INSERT INTO attribute_mutation (event_id, node_id) VALUES (?, ?) 
-    ON DUPLICATE KEY UPDATE node_id=VALUES(node_id);
+    insert into attribute_mutation (event_id, node_id) values (?, ?) 
+    on duplicate key update node_id=values(node_id);
   `,
   insertAttributeMutationEntry: `
-    INSERT INTO attribute_mutation_entry (event_id, node_id, attribute_key, string_value) VALUES (?, ?, ?, ?) 
-    ON DUPLICATE KEY UPDATE string_value=VALUES(string_value);
+    insert into attribute_mutation_entry (event_id, node_id, attribute_key, string_value) values (?, ?, ?, ?) 
+    on duplicate key update string_value=values(string_value);
   `,
   insertRemovedNodeMutation: `
-    INSERT INTO removed_node_mutation (event_id, parent_id, node_id, is_shadow) VALUES (?, ?, ?, ?);
+    insert into removed_node_mutation (event_id, parent_id, node_id, is_shadow) values (?, ?, ?, ?);
   `,
   insertAddedNodeMutation: `
-    INSERT INTO added_node_mutation (event_id, parent_id, next_id, node_id) VALUES (?, ?, ?, ?);
+    insert into added_node_mutation (event_id, parent_id, next_id, node_id) values (?, ?, ?, ?);
   `,
   insertConsoleLog: `
-    INSERT INTO console_log (
+    insert into console_log (
       log_id, replay_id, level, payload, delay, timestamp, trace
-    ) VALUES (?, ?, ?, ?, ?, ?, ?);
+    ) values (?, ?, ?, ?, ?, ?, ?);
   `,
   // --- Query for replay_clicks/[replay_id].ts --- 
   clicksPerSecondForReplay: `
-    SELECT 
-        DATE_FORMAT(e.timestamp, '%Y-%m-%d %H:%i:%s') as second, 
-        COUNT(e.event_id) as count 
-    FROM event e
-    JOIN incremental_snapshot_event ise ON e.event_id = ise.event_id
-    JOIN mouse_interaction_data mid ON ise.event_id = mid.event_id
-    WHERE 
+    select 
+        date_format(e.timestamp, '%Y-%m-%d %H:%i:%s') as second, 
+        count(e.event_id) as count 
+    from event e
+    join incremental_snapshot_event ise on e.event_id = ise.event_id
+    join mouse_interaction_data mid on ise.event_id = mid.event_id
+    where 
         e.replay_id = ? 
-        AND ise.t = 'mouseinteraction' 
-        AND mid.interaction_type = 'click'
-    GROUP BY second
-    ORDER BY second ASC;
+        and ise.t = 'mouseinteraction' 
+        and mid.interaction_type = 'click'
+    group by second
+    order by second asc;
   `,
   // --- Query for replay_events/[replay_id].ts --- 
   eventsPerSecondForReplay: `
-    SELECT 
-        DATE_FORMAT(e.timestamp, '%Y-%m-%d %H:%i:%s') as second, 
-        COUNT(e.event_id) as count 
-    FROM event e
-    JOIN incremental_snapshot_event ise ON e.event_id = ise.event_id
-    WHERE 
+    select 
+        date_format(e.timestamp, '%Y-%m-%d %H:%i:%s') as second, 
+        count(e.event_id) as count 
+    from event e
+    join incremental_snapshot_event ise on e.event_id = ise.event_id
+    where 
         e.replay_id = ? 
-    GROUP BY second
-    ORDER BY second ASC;
+    group by second
+    order by second asc;
   `,
   // --- Query for reports.astro --- 
   listMonthlyReports: `
-    SELECT 
+    select 
       report_id, 
       report_month_start, 
       report_month_end,
@@ -214,62 +214,66 @@ export const sqlQueries = {
       total_webstates_end,
       total_replays_end,
       total_events_end
-    FROM monthly_reports
-    ORDER BY report_month_start DESC;
+    from monthly_reports
+    order by report_month_start desc;
   `,
   // --- Queries for user settings --- 
   getUserPrivacyMask: `
-    SELECT privacy_mask FROM user WHERE email_domain = ? AND email_name = ? LIMIT 1;
+    select privacy_mask from user where email_domain = ? and email_name = ? limit 1;
   `,
   updateUserPrivacyMask: `
-    UPDATE user SET privacy_mask = ? WHERE email_domain = ? AND email_name = ?;
+    update user set privacy_mask = ? where email_domain = ? and email_name = ?;
   `,
   // --- Queries for password change --- 
   getUserPasswordHash: `
-    SELECT password FROM user WHERE email_domain = ? AND email_name = ? LIMIT 1;
+    select password from user where email_domain = ? and email_name = ? limit 1;
   `,
   updateUserPasswordHash: `
-    UPDATE user SET password = ? WHERE email_domain = ? AND email_name = ?;
+    update user set password = ? where email_domain = ? and email_name = ?;
   `,
   // --- Query for display name change --- 
   updateUsernameByEmail: `
-    UPDATE user SET username = ? WHERE email_domain = ? AND email_name = ?;
+    update user set username = ? where email_domain = ? and email_name = ?;
   `,
   // --- Query for network request logs --- 
   insertNetworkRequest: `
-    INSERT INTO network_request (
+    insert into network_request (
       request_log_id, replay_id, request_session_id, url, method, status_code, 
       status_text, request_type, initiator_type, start_time_offset, 
       end_time_offset, duration_ms, absolute_timestamp, request_headers, 
       response_headers, response_size_bytes, performance_data, 
       is_fetch_complete, is_perf_complete
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `,
   // --- Query for dashboard --- 
   listRecentReplays: `
-    SELECT 
+    select 
         replay_id, 
-        DATE_FORMAT(start_time, '%Y-%m-%d %H:%i:%s') as start_time_formatted 
-    FROM replay 
-    ORDER BY start_time DESC
-    LIMIT 5;
+        date_format(start_time, '%Y-%m-%d %H:%i:%s') as start_time_formatted 
+    from replay 
+    order by start_time desc
+    limit 5;
   `,
   getLatestMonthlyReport: `
-    SELECT 
+    select 
       report_month_start, 
       new_users_count, 
       new_replays_count,
       total_users_end,
       total_replays_end,
       generated_at
-    FROM monthly_reports 
-    ORDER BY report_month_start DESC
-    LIMIT 1;
+    from monthly_reports 
+    order by report_month_start desc
+    limit 1;
   `,
   listRecentWebstates: `
-    SELECT html_hash 
-    FROM webstate 
-    ORDER BY created_at DESC
-    LIMIT 5;
+    select html_hash 
+    from webstate 
+    order by created_at desc
+    limit 5;
+  `,
+  // --- Generic update query (Use with caution, ensure identifiers are validated) ---
+  genericUpdate: `
+    update ?? set ?? = ? where ?? = ?;
   `
 }; 
