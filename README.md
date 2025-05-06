@@ -1,5 +1,5 @@
-# CaretDB
+# Instructions to run the project
 
-[desc tbd]
-
-https://github.com/lindelof/awesome-web-effect
+- Install node JS https://nodejs.org/en/download
+- Inside the project folder, run `npm install`
+- Run `npm run dev` to start the development server

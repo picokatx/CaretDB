@@ -29,8 +29,7 @@ const session = await getSession(Astro.request);
       <div class="max-w-md">
         <h1 class="text-5xl font-bold text-primary">{systemName}</h1>
         <p class="py-6 text-xl">Unlock deep insights into web behavior by analyzing user interaction at the core level. Go beyond high-level summaries with our RDBMS designed for granular clickstream data.</p>
-        <button class="btn btn-primary mr-2">Get Started</button>
-        <button class="btn btn-outline">Learn More</button>
+        <a href="/login" class="btn btn-primary mr-2">Get Started</a>
       </div>
     </div>
   </div>
@@ -118,7 +117,7 @@ const session = await getSession(Astro.request);
   <section class="text-center">
     <h2 class="text-3xl font-bold mb-4">Ready to Dive Deeper?</h2>
     <p class="mb-6 text-lg">Explore the potential of low-level user behavior analysis.</p>
-    <button class="btn btn-primary btn-lg">Explore Documentation</button>
+    <a href="/docs" class="btn btn-primary btn-lg">Explore Documentation</a>
   </section>
 
   {/* Footer is now handled by Layout.astro */}
