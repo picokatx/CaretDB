@@ -51,17 +51,22 @@ const API_URL = `${Astro.url.origin}/api`;
       </div>
     </div>
 
-    <!-- Card for SQL Queries Export -->
+    <!-- Card for SQL Data Export -->
     <div class="card bg-base-100 shadow-xl">
       <div class="card-body">
-        <h2 class="card-title">Export Queries</h2>
+        <h2 class="card-title">Export Data</h2>
         <p>
-          Download a `.sql` file containing all predefined queries found in
+          Download a `.sql` file containing all predefined data found in
           `src/lib/sql_query_locale.ts`.
         </p>
         <div class="form-control mt-4">
-          <button id="export-queries-button" class="btn btn-secondary">
-            Export Predefined Queries (.csv)
+          <button id="export-data-button" class="btn btn-secondary">
+            Export Predefined Data (.csv)
+          </button>
+        </div>
+        <div class="form-control mt-4">
+          <button id="import-data-button" class="btn btn-secondary">
+            Import Predefined Data (.csv)
           </button>
         </div>
         <div class="border border-base-300 rounded-md p-2 mt-4">
@@ -99,7 +104,8 @@ const API_URL = `${Astro.url.origin}/api`;
   // Get controls and displays
   const buildSchemaButton = document.getElementById("build-schema-button");
   const schemaResultDisplay = document.getElementById("schema-result-display");
-  const exportQueriesButton = document.getElementById("export-queries-button");
+  const exportQueriesButton = document.getElementById("export-data-button");
+  const importQueriesButton = document.getElementById("import-data-button");
   const exportResultDisplay = document.getElementById("export-result-display");
   // const sentryButton = document.getElementById('sentry-debug-button'); // Placeholder
   // const sentryResultDisplay = document.getElementById('sentry-result-display'); // Placeholder
@@ -188,6 +194,15 @@ const API_URL = `${Astro.url.origin}/api`;
 
     return data.rows;
   }
+
+  async function importSQL(apiUrl: string){
+    const response = await fetch(apiUrl + '/upload_csv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (!response.ok) throw new Error(`Import failed (${response.status})`);
+  }
+
   // Add listener for Export Queries button
   if (exportQueriesButton && exportResultDisplay) {
     exportQueriesButton.addEventListener("click", () => {
@@ -200,45 +215,18 @@ const API_URL = `${Astro.url.origin}/api`;
       console.log("testing")
       const tablelist = exportSQL(apiUrl);
       console.log(tablelist);
-      
-      
+    });
+  }
+  if(importQueriesButton){
+    importQueriesButton.addEventListener("click", () => {
+      console.log("import step 1")
+      //console.log("[exportQueries - Debug Page] Button clicked. Sending request to /api/query_mysql");
+      importQueriesButton.setAttribute("disabled", "true");
 
-      /*fetch("/api/export_queries", {
-        method: "GET", // GET request is suitable here
-      })
-        .then(async (resp) => {
-          if (!resp.ok) {
-            // Attempt to parse error message if available
-            let errorMsg = `HTTP error! status: ${resp.status}`;
-            try {
-              const errorData = await resp.json();
-              errorMsg = errorData.error || errorMsg;
-            } catch (e) { /* Ignore if response is not JSON  }
-            throw new Error(errorMsg);
-          }
-          // Get filename from Content-Disposition header if available
-          const disposition = resp.headers.get('Content-Disposition');
-          let filename = 'exported_queries.sql'; // Default filename
-          if (disposition && disposition.includes('filename=')) {
-            const filenameMatch = disposition.match(/filename="?(.+?)"?$/);
-            if (filenameMatch && filenameMatch.length > 1) {
-              filename = filenameMatch[1];
-            }
-          }
-          return resp.text().then(text => ({ filename, text })); // Get SQL content as text
-        })
-        .then(({ filename, text }) => {
-          console.log("[exportQueries - Debug Page] Fetch successful, triggering download.");
-          downloadFile(filename, text, "application/sql"); // Trigger download
-          exportResultDisplay.textContent = `Export successful. File '${filename}' download initiated.`;
-        })
-        .catch((error) => {
-          console.error("[exportQueries - Debug Page] Fetch error:", error);
-          exportResultDisplay.textContent = `Export Failed: ${error.message}`;
-        })
-        .finally(() => {
-          exportQueriesButton.removeAttribute("disabled");
-        });*/
+      const apiUrl = window.API_URL;
+
+      console.log("testing")
+      importSQL(apiUrl);
     });
   }
 
