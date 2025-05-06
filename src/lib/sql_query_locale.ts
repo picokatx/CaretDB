@@ -271,5 +271,9 @@ export const sqlQueries = {
     from webstate 
     order by created_at desc
     limit 5;
+  `,
+  // --- Generic update query (Use with caution, ensure identifiers are validated) ---
+  genericUpdate: `
+    update ?? set ?? = ? where ?? = ?;
   `
 }; 

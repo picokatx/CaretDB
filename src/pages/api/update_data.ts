@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { sql } from "../../lib/mysql-connect";
+import { sqlQueries } from "../../lib/sql_query_locale";
 
 export const POST: APIRoute = async ({ request }) => {
   console.log("[API /api/update_data] Received request");
@@ -51,7 +52,7 @@ export const POST: APIRoute = async ({ request }) => {
       // --- Construct and Execute Query --- 
       // WARNING: Directly interpolating table/column names can be risky if not controlled.
       // Ensure 'table', 'pkColumn', 'fieldToUpdate' are derived from trusted sources or validated.
-      const query = `UPDATE ?? SET ?? = ? WHERE ?? = ?`; 
+      const query = sqlQueries.genericUpdate;
       const queryParams = [table, fieldToUpdate, newValue, pkColumn, pkValue];
 
       try {
