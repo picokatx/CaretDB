@@ -16,14 +16,17 @@ if a url parameter file with a string value is not passed to /matrix route, the 
 
 delete account
 remember me checkbox
+
+
 admin
 database should only be accessible to admin users
-
-
 delete various things on cascade and whatever, add constraints checks 
 make ddl not AI generated.
 pad out dashboard and analysis a bit more
-
+make the tiny updates to business rules and intro he asked us to make
+quickly populate a dataset (I'll just do like 2-3 webpages per user)
+documentation + final report + refection
+Video 5 mins
 
 - [x] Mutation,
 - [x] Input,

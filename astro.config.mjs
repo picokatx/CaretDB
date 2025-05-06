@@ -22,7 +22,44 @@ export default defineConfig({
     title: 'My delightful docs site',
     social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/withastro/starlight' }],
     sidebar: [
-      { label: 'Getting Started', items: ['docs/guide/example'] },
+      {
+        label: 'Overview',
+        items: [
+          { label: 'Welcome', link: '/docs/' },
+          { label: 'Features', link: '/docs/features/' },
+        ]
+      },
+      {
+        label: 'Guide',
+        items: [
+          { label: 'Authentication', link: '/docs/guide/authentication/' },
+          { label: 'Styling & Theming', link: '/docs/guide/styling/' },
+          { label: 'Frontend Structure', link: '/docs/guide/frontend-structure/' },
+          { label: 'Deployment', link: '/docs/guide/deployment/' },
+          { label: 'Environment Variables', link: '/docs/guide/environment-variables/' },
+          { label: 'Error Handling', link: '/docs/guide/error-handling/' },
+          { label: 'Testing', link: '/docs/guide/testing/' },
+          { label: 'Dependencies', link: '/docs/guide/dependencies/' },
+          { label: 'Project Structure', link: '/docs/guide/project-structure/' },
+        ]
+      },
+      {
+        label: 'API Reference',
+        autogenerate: { directory: 'docs/api' }
+        // items: [ // Manual alternative to autogenerate
+        //   { label: 'Overview', link: '/docs/api/' },
+        //   { label: '/api/query_mysql', link: '/docs/api/query_mysql/' },
+        //   { label: '/dom/preview', link: '/docs/api/dom_preview/' },
+        // ]
+      },
+      {
+        label: 'Database',
+        items: [
+          { label: 'Schema', link: '/docs/database/schema/' },
+          { label: 'SQL Queries Overview', link: '/docs/database/queries/' },
+          { label: 'Query Definitions File', link: '/docs/database/query-definitions/' },
+        ]
+      },
     ],
     customCss: [
       // Relative path to your custom CSS file

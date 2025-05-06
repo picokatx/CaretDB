@@ -457,10 +457,6 @@ create table cookie (
     foreign key (html_hash) references webstate(html_hash)
 ); -- https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis
 
-insert into user (email_domain, email_name, username, password, created_at, last_login, status, first_name, middle_name, last_name, phone_num, role, verified, fail_login, twofa)
-values ('gmail.com','picokatx','theo','3a4b52fc88795615c55066100afbba60bea938b976fd40f13def78369a209f50','2024-02-05 07:30:25','2024-05-29 02:45:55','enabled','theo','weibin','1','1832555445','user',1,0,1);
-insert into webstate (html_hash, email_domain, email_name) values ('f62b9ab27ca98a242428f2c49b0b69d09af6568f9b83bf35cc6bf529312c3013', 'gmail.com', 'picokatx');
-
 -- #######################################################################
 -- aggregation tables for analysis
 -- #######################################################################
@@ -689,3 +685,8 @@ begin
     end if;
 
 end;
+
+
+insert into user (email_domain, email_name, username, password, created_at, last_login, status, first_name, middle_name, last_name, phone_num, role, verified, fail_login, twofa)
+values ('gmail.com','picokatx','theo','3a4b52fc88795615c55066100afbba60bea938b976fd40f13def78369a209f50','2024-02-05 07:30:25','2024-05-29 02:45:55','enabled','theo','weibin','1','1832555445','admin',1,0,1);
+insert into webstate (html_hash, email_domain, email_name) values ('f62b9ab27ca98a242428f2c49b0b69d09af6568f9b83bf35cc6bf529312c3013', 'gmail.com', 'picokatx');

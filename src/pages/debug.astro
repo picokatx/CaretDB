@@ -10,7 +10,7 @@ if (!session) {
   return Astro.redirect("/login");
 }
 
-const pageTitle = "ClickstreamDB - Debug Tools";
+const pageTitle = "CaretDB - Debug Tools";
 ---
 
 <Layout title={pageTitle}>
@@ -41,32 +41,27 @@ const pageTitle = "ClickstreamDB - Debug Tools";
       </div>
     </div>
 
-    <!-- Placeholder Card for Sentry Debug -->
+    <!-- Card for SQL Queries Export -->
     <div class="card bg-base-100 shadow-xl">
       <div class="card-body">
-        <h2 class="card-title">Sentry Debug</h2>
-        <p>Trigger a test Sentry event.</p>
-
-        {/* Main content goes inside the Layout component */}
-        <button id="error-button" class="btn btn-primary"
-          >Throw test error</button
-        >
-        <script>
-          import * as Sentry from "@sentry/astro";
-          document
-            .querySelector("#error-button")
-            ?.addEventListener("click", () => {
-              console.log("Sent Sentry error");
-              Sentry.captureException(
-                new Error("Button Click Error Test - Captured Manually")
-              );
-              Sentry.captureFeedback({
-                name: "Button Click Error Test",
-                email: "test@example.com",
-                message: "This is a test error from client-side script",
-              });
-            });
-        </script>
+        <h2 class="card-title">Export Queries</h2>
+        <p>
+          Download a `.sql` file containing all predefined queries found in
+          `src/lib/sql_query_locale.ts`.
+        </p>
+        <div class="form-control mt-4">
+          <button id="export-queries-button" class="btn btn-secondary">
+            Export Predefined Queries (.sql)
+          </button>
+        </div>
+        <div class="border border-base-300 rounded-md p-2 mt-4">
+          <h3 class="font-semibold text-sm mb-1">Export Result</h3>
+          <div class="overflow-x-auto bg-base-200 rounded p-1 min-h-16">
+            <pre
+              id="export-result-display"
+              class="text-xs whitespace-pre-wrap break-all">Awaiting action...</pre>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -89,8 +84,23 @@ const pageTitle = "ClickstreamDB - Debug Tools";
   // Get controls and displays
   const buildSchemaButton = document.getElementById("build-schema-button");
   const schemaResultDisplay = document.getElementById("schema-result-display");
+  const exportQueriesButton = document.getElementById("export-queries-button");
+  const exportResultDisplay = document.getElementById("export-result-display");
   // const sentryButton = document.getElementById('sentry-debug-button'); // Placeholder
   // const sentryResultDisplay = document.getElementById('sentry-result-display'); // Placeholder
+
+  // Function to trigger browser download
+  function downloadFile(filename, content, mimeType = "text/plain") {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 
   // Add listener for Build Schema button
   if (buildSchemaButton && schemaResultDisplay) {
@@ -131,6 +141,52 @@ const pageTitle = "ClickstreamDB - Debug Tools";
     console.error(
       "Could not find build-schema-button or schema-result-display element on debug page."
     );
+  }
+
+  // Add listener for Export Queries button
+  if (exportQueriesButton && exportResultDisplay) {
+    exportQueriesButton.addEventListener("click", () => {
+      console.log("[exportQueries - Debug Page] Button clicked. Sending request to /api/export_queries");
+      exportResultDisplay.textContent = "Initiating export...";
+      exportQueriesButton.setAttribute("disabled", "true");
+
+      fetch("/api/export_queries", {
+        method: "GET", // GET request is suitable here
+      })
+        .then(async (resp) => {
+          if (!resp.ok) {
+            // Attempt to parse error message if available
+            let errorMsg = `HTTP error! status: ${resp.status}`;
+            try {
+              const errorData = await resp.json();
+              errorMsg = errorData.error || errorMsg;
+            } catch (e) { /* Ignore if response is not JSON */ }
+            throw new Error(errorMsg);
+          }
+          // Get filename from Content-Disposition header if available
+          const disposition = resp.headers.get('Content-Disposition');
+          let filename = 'exported_queries.sql'; // Default filename
+          if (disposition && disposition.includes('filename=')) {
+            const filenameMatch = disposition.match(/filename="?(.+?)"?$/);
+            if (filenameMatch && filenameMatch.length > 1) {
+              filename = filenameMatch[1];
+            }
+          }
+          return resp.text().then(text => ({ filename, text })); // Get SQL content as text
+        })
+        .then(({ filename, text }) => {
+          console.log("[exportQueries - Debug Page] Fetch successful, triggering download.");
+          downloadFile(filename, text, "application/sql"); // Trigger download
+          exportResultDisplay.textContent = `Export successful. File '${filename}' download initiated.`;
+        })
+        .catch((error) => {
+          console.error("[exportQueries - Debug Page] Fetch error:", error);
+          exportResultDisplay.textContent = `Export Failed: ${error.message}`;
+        })
+        .finally(() => {
+          exportQueriesButton.removeAttribute("disabled");
+        });
+    });
   }
 
   // TODO: Add event listener logic for sentry-debug-button once available

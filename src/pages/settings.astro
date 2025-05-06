@@ -39,7 +39,7 @@ if (session) { // Only fetch if logged in
 
 ---
 
-<Layout title="ClickstreamDB - Settings">
+<Layout title="CaretDB - Settings">
   <div class="container mx-auto px-4 py-8">
     <h1 class="text-3xl font-bold mb-8">Settings</h1>
     
@@ -234,7 +234,7 @@ if (session) { // Only fetch if logged in
   // --- Theme Selector Logic (Card Grid) --- 
   const themeCardGrid = document.getElementById('theme-card-grid');
   const themeCards = document.querySelectorAll('.theme-card');
-
+  
   function applyTheme(theme: string) {
     const themeToApply = theme === 'default' ? 'dracula' : theme; // Default theme hardcoded here
     document.documentElement.setAttribute('data-theme', themeToApply);
@@ -249,7 +249,7 @@ if (session) { // Only fetch if logged in
       } else {
         cardEl.classList.remove('border-primary', 'border-2');
         cardEl.classList.add('border-base-300');
-      }
+    }
     });
   }
 

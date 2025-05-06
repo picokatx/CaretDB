@@ -1,7 +1,10 @@
 ---
 import { getSession } from "auth-astro/server";
+import ThemeToggle from "./ThemeToggle.astro";
 
-const systemName = "ClickstreamDB";
+// Placeholder for system name - replace 'ClickstreamDB' with your actual name
+const systemName = "CaretDB";
+const { pathname } = Astro.url;
 
 // Get current user session
 const session = await getSession(Astro.request);

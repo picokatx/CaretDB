@@ -12,8 +12,14 @@ Sentry.startSpan({
 Astro.response.headers.set('Document-Policy', 'js-profiling');
 
 // Placeholder for system name - replace 'ClickstreamDB' with your actual name
-const systemName = "ClickstreamDB";
+const systemName = "CaretDB";
 const pageTitle = `${systemName} - Low-Level User Behavior Analysis`;
+
+import { getSession } from "auth-astro/server";
+
+// Redirect based on session
+const session = await getSession(Astro.request);
+
 ---
 
 <Layout title={pageTitle}>

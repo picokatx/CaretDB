@@ -2,6 +2,7 @@
 import Layout from '../components/Layout.astro';
 import { getSession } from "auth-astro/server";
 import { sqlQueries } from '../lib/sql_query_locale'; // Adjust import path
+import Chart from "chart.js/auto"; // Import Chart.js
 
 const session = await getSession(Astro.request);
 
@@ -9,7 +10,7 @@ if (!session) {
   return Astro.redirect('/login');
 }
 
-const pageTitle = "ClickstreamDB - Analysis";
+const pageTitle = "CaretDB - Analysis";
 const API_URL = `${Astro.url.origin}/api/query_mysql`;
 
 let replayList: { replay_id: string; start_time_formatted: string }[] = [];

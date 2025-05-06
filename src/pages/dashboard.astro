@@ -158,14 +158,14 @@ try {
 <Layout title={pageTitle}>
   <div class="container mx-auto px-4 py-8">
     <h1 class="text-2xl font-bold mb-4">
-       Welcome {session?.user?.name || session?.user?.email || "User"}! 
+      Welcome {session?.user?.name || session?.user?.email || "User"}!
        {/* Display role badge if role exists in session */}
        {session?.user?.role && (
          <span class="badge badge-outline badge-primary ml-2 capitalize"> 
            {session.user.role}
          </span>
        )}
-     </h1>
+    </h1>
  
      {/* Combine error messages */} 
      {(fetchCountError || fetchReplayError || fetchReportError) && (
@@ -313,7 +313,7 @@ try {
     </div>
 
   </div>
-</Layout>
+</Layout> 
 
 <script>
   // Dashboard-specific scripts could go here if needed in the future
