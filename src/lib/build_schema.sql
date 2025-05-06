@@ -118,8 +118,8 @@ create table serialized_node_child (
   child_id  int not null references serialized_node(id),
 
   primary key (parent_id, child_id),
-  constraint fk_serialized_node_child_child_id foreign key (parent_id) references serialized_node(id) on delete cascade,
-  constraint fk_serialized_node_child_parent_id foreign key (child_id) references serialized_node(id) on delete cascade
+  constraint fk_serialized_node_child_child_id foreign key (child_id) references serialized_node(id) on delete cascade,
+  constraint fk_serialized_node_child_parent_id foreign key (parent_id) references serialized_node(id) on delete cascade
 );
 
 create table serialized_node_attribute (
