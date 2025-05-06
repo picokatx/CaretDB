@@ -1,4 +1,3 @@
-%%sql
 drop database if exists caretdb;
 create database caretdb;
 use caretdb;
